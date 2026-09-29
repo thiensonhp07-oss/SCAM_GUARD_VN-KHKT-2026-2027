@@ -47,6 +47,7 @@ import { VisefSurveyResponsesLiveTable } from './VisefSurveyResponsesLiveTable';
 import { PostAppCertificationLiveSection } from './PostAppCertificationLiveSection';
 import { PrePostIndividualAndCommunityComparisonSection } from './PrePostIndividualAndCommunityComparisonSection';
 import { SectorTopic1CertificationModal } from './SectorTopic1CertificationModal';
+import { getCommunitySurveyAnalytics, recordSurveySubmission } from '../services/researchDataService';
 
 interface ViSEFSurveyAnalyticsSuiteProps {
   onTakeLiveDemo?: () => void;
@@ -55,7 +56,7 @@ interface ViSEFSurveyAnalyticsSuiteProps {
 export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps> = ({
   onTakeLiveDemo,
 }) => {
-  const [analytics, setAnalytics] = useState<SurveyAnalyticsData | null>(null);
+  const [analytics, setAnalytics] = useState<SurveyAnalyticsData | null>(() => getCommunitySurveyAnalytics());
   const [loading, setLoading] = useState(true);
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
   const [isCertificationModalOpen, setIsCertificationModalOpen] = useState(false);
@@ -198,11 +199,13 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
         const data = await res.json();
         if (data && typeof data.totalRespondents === 'number') {
           setAnalytics(data);
+          return;
         }
       }
+      // Automatic fallback for static hosting like Vercel
+      setAnalytics(getCommunitySurveyAnalytics());
     } catch (err) {
-      // Gracefully handle any network or transient polling disruption
-      console.warn('Notice: Survey analytics temporarily unavailable during sync');
+      setAnalytics(getCommunitySurveyAnalytics());
     } finally {
       if (!isSilent) setLoading(false);
     }
@@ -290,25 +293,34 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           `Hoàn thành bài khảo nghiệm đánh giá 12 khu vực trải nghiệm rủi ro. Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/12 khu vực.`,
       };
 
-      const res = await fetch('/api/research/survey', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        setRecentPersonalResult(result.survey);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: result.survey }));
-        }
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
+      let savedSurvey: CommunitySurveySubmission;
+      try {
+        const res = await fetch('/api/research/survey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
-        await fetchAnalytics();
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          const result = await res.json();
+          savedSurvey = result.survey;
+        } else {
+          savedSurvey = recordSurveySubmission(payload);
+        }
+      } catch (err) {
+        savedSurvey = recordSurveySubmission(payload);
       }
+
+      setRecentPersonalResult(savedSurvey);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: savedSurvey }));
+      }
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+      await fetchAnalytics();
     } catch (err) {
       console.error('Failed to submit survey:', err);
     } finally {

@@ -41,6 +41,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { PersonalVsCommunityComparisonSuite } from './PersonalVsCommunityComparisonSuite';
 import { SurveyDemographicsSection } from './SurveyDemographicsSection';
+import { recordSurveySubmission } from '../services/researchDataService';
 import mascotShield from '../assets/images/mascot_shield_transparent.png';
 
 interface NationalScienceFairDemoModalProps {
@@ -677,15 +678,21 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
           `Phiếu khảo sát chuẩn hóa ViSEF 2026 (Đầy đủ Phần 1: Kinh nghiệm thực tế & Phần 2: Ứng biến 12 khu vực). Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/${totalTrapsCount} kịch bản. Tiếp xúc thực tế: ${derivedExperiencedSectors.length}/12 khu vực.`,
       };
 
-      const res = await fetch('/api/research/survey', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
       let resData = null;
-      if (res.ok) {
-        resData = await res.json();
+      try {
+        const res = await fetch('/api/research/survey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          resData = await res.json();
+        } else {
+          recordSurveySubmission(payload);
+        }
+      } catch (err) {
+        recordSurveySubmission(payload);
       }
 
       // Dispatch global realtime event so all Barem curves and analytics re-evaluate live immediately

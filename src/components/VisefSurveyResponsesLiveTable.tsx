@@ -32,6 +32,7 @@ import {
   Pause,
 } from 'lucide-react';
 import { CommunitySurveySubmission, SurveyDemographicGroup } from '../types';
+import { getAllCommunitySurveys } from '../services/researchDataService';
 
 interface VisefSurveyResponsesLiveTableProps {
   surveys?: CommunitySurveySubmission[];
@@ -113,7 +114,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
   isLoading: propLoading,
   onOpenSurvey,
 }) => {
-  const [internalSurveys, setInternalSurveys] = useState<CommunitySurveySubmission[]>([]);
+  const [internalSurveys, setInternalSurveys] = useState<CommunitySurveySubmission[]>(() => getAllCommunitySurveys());
   const [loading, setLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [identityFilter, setIdentityFilter] = useState<'ALL' | 'ANONYMOUS' | 'REAL_NAME'>('ALL');
@@ -138,20 +139,28 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  // Fetch surveys from backend
+  // Fetch surveys from backend (with automatic static hosting fallback)
   const fetchSurveys = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
       const res = await fetch('/api/research/surveys');
-      if (res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
         if (data?.surveys && Array.isArray(data.surveys)) {
           setInternalSurveys(data.surveys);
           setLastSyncTime(new Date());
+          return;
         }
       }
+      // On static hosts like Vercel, fetch returns HTML or 404
+      const fallbackList = getAllCommunitySurveys();
+      setInternalSurveys(fallbackList);
+      setLastSyncTime(new Date());
     } catch (err) {
-      console.warn('Silent live sync notice: survey polling temporarily waiting');
+      const fallbackList = getAllCommunitySurveys();
+      setInternalSurveys(fallbackList);
+      setLastSyncTime(new Date());
     } finally {
       if (!isSilent) setLoading(false);
     }

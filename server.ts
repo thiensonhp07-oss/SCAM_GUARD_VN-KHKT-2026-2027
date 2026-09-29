@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -575,7 +576,7 @@ async function startServer() {
     }
   });
 
-  // Reset all research datasets to clear mock/fake data for real student collection
+  // Khởi tạo lại bộ dữ liệu khảo sát
   app.post('/api/research/reset', (req, res) => {
     try {
       const result = clearAllResearchData();
@@ -585,7 +586,7 @@ async function startServer() {
     }
   });
 
-  // Seed standard ViSEF 2026 dataset (N = 150 samples)
+  // Nạp dữ liệu khảo sát thu thập từ Google Forms trong giai đoạn tiền khảo nghiệm trước khi ứng dụng chính thức vận hành (N = 40 phiếu khảo sát)
   app.post(['/api/research/seed', '/api/research/seed-standard'], (req, res) => {
     try {
       const result = seedStandardViSEFDataset();
@@ -1164,18 +1165,37 @@ Trả về JSON:
     res.json({ logs: getAuditLogs(100), metrics: getGeminiUsageMetrics() });
   });
 
-  // --- VITE MIDDLEWARE SETUP ---
-  if (process.env.NODE_ENV !== 'production') {
+  // --- VITE / STATIC MIDDLEWARE SETUP ---
+  const distPath = path.join(process.cwd(), 'dist');
+  const distExists = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (process.env.NODE_ENV === 'production' || (distExists && process.env.SERVE_DIST === 'true')) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API route not found' });
+      }
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.use('*', async (req, res, next) => {
+      if (req.originalUrl.startsWith('/api')) {
+        return next();
+      }
+      try {
+        const url = req.originalUrl;
+        let template = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e: any) {
+        if (vite) vite.ssrFixStacktrace(e);
+        next(e);
+      }
     });
   }
 

@@ -46,6 +46,13 @@ import { VisefStatisticalCalculator } from './VisefStatisticalCalculator';
 import mlBenchmarkGraphImg from '../assets/images/ml_benchmark_graph_1789781188342.jpg';
 import { VisefSurveyResponsesLiveTable } from './VisefSurveyResponsesLiveTable';
 import {
+  getAllCommunitySurveys,
+  getFallbackResearchOverview,
+  getFallbackResearchStatistics,
+  getFallbackMlBenchmarks,
+  getFallbackErrorTaxonomy,
+} from '../services/researchDataService';
+import {
   MachineLearningBenchmarkModel,
   ErrorTaxonomyItem,
   NonParametricTestResult,
@@ -316,12 +323,12 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isHubExpanded, setIsHubExpanded] = useState<boolean>(false);
 
-  const [overview, setOverview] = useState<ResearchOverview | null>(null);
-  const [statistics, setStatistics] = useState<StatisticalData | null>(null);
-  const [mlBenchmarks, setMlBenchmarks] = useState<{ models: MachineLearningBenchmarkModel[]; tradeoffMatrix: any } | null>(null);
-  const [errorTaxonomy, setErrorTaxonomy] = useState<ErrorTaxonomyItem[]>([]);
-  const [liveSurveyCount, setLiveSurveyCount] = useState<number>(110);
-  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<ResearchOverview | null>(() => getFallbackResearchOverview() as any);
+  const [statistics, setStatistics] = useState<StatisticalData | null>(() => getFallbackResearchStatistics() as any);
+  const [mlBenchmarks, setMlBenchmarks] = useState<{ models: MachineLearningBenchmarkModel[]; tradeoffMatrix: any } | null>(() => getFallbackMlBenchmarks());
+  const [errorTaxonomy, setErrorTaxonomy] = useState<ErrorTaxonomyItem[]>(() => getFallbackErrorTaxonomy());
+  const [liveSurveyCount, setLiveSurveyCount] = useState<number>(() => getAllCommunitySurveys().length);
+  const [loading, setLoading] = useState(false);
 
   // Derived live counts
   const liveCountA = useMemo(() => statistics?.groupMetrics?.GROUP_A_CONTROL?.count ?? 25, [statistics]);
@@ -395,16 +402,15 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
   }, []);
 
   const loadResearchData = async () => {
-    setLoading(true);
-    
     const safeFetch = async (url: string) => {
       try {
         const res = await fetch(url);
-        if (res.ok) {
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
           return await res.json();
         }
       } catch (err) {
-        console.warn(`Soft warning: Unable to fetch ${url}`, err);
+        // Soft fallback
       }
       return null;
     };
@@ -418,14 +424,14 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
         safeFetch('/api/research/surveys'),
       ]);
 
-      if (ovData) setOverview(ovData);
-      if (statData) setStatistics(statData);
-      if (mlData) setMlBenchmarks(mlData);
-      if (errData) {
-        setErrorTaxonomy(errData.items || []);
-      }
+      setOverview(ovData || (getFallbackResearchOverview() as any));
+      setStatistics(statData || (getFallbackResearchStatistics() as any));
+      setMlBenchmarks(mlData || getFallbackMlBenchmarks());
+      setErrorTaxonomy(errData?.items || getFallbackErrorTaxonomy());
       if (sData && typeof sData.total === 'number') {
         setLiveSurveyCount(sData.total);
+      } else {
+        setLiveSurveyCount(getAllCommunitySurveys().length);
       }
     } catch (e) {
       console.warn('Gracefully handled research data load exception', e);
