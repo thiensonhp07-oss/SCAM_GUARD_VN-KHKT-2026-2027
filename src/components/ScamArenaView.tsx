@@ -232,33 +232,56 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        setSession(data.session);
-      } else {
-        // Fallback local init
-        const sc = SCAM_SCENARIOS.find((s) => s.id === scenarioId) || SCAM_SCENARIOS[0];
-        setSession({
-          id: `arena_${Date.now()}`,
-          scenarioId: sc.id,
-          scenario: sc,
-          messages: [
-            {
-              id: 'msg_0',
-              sender: 'scammer',
-              text: sc.initialMessage,
-              timestamp: 'Vừa xong',
-              detectedTactic: sc.tactics[0],
-            },
-          ],
-          currentPressure: 35,
-          trustLevel: 10,
-          detectedTactics: [sc.tactics[0]],
-          timeline: [],
-          status: 'active',
-          startTime: Date.now(),
-        });
+        const activeSess = data.session || data;
+        if (activeSess && Array.isArray(activeSess.messages)) {
+          setSession(activeSess);
+          return;
+        }
       }
+      // Fallback local init
+      const sc = SCAM_SCENARIOS.find((s) => s.id === scenarioId) || SCAM_SCENARIOS[0];
+      setSession({
+        id: `arena_${Date.now()}`,
+        scenarioId: sc.id,
+        scenario: sc,
+        messages: [
+          {
+            id: 'msg_0',
+            sender: 'scammer',
+            text: sc.initialMessage,
+            timestamp: 'Vừa xong',
+            detectedTactic: sc.tactics[0],
+          },
+        ],
+        currentPressure: 35,
+        trustLevel: 10,
+        detectedTactics: [sc.tactics[0]],
+        timeline: [],
+        status: 'active',
+        startTime: Date.now(),
+      });
     } catch (e) {
-      console.error(e);
+      const sc = SCAM_SCENARIOS.find((s) => s.id === scenarioId) || SCAM_SCENARIOS[0];
+      setSession({
+        id: `arena_${Date.now()}`,
+        scenarioId: sc.id,
+        scenario: sc,
+        messages: [
+          {
+            id: 'msg_0',
+            sender: 'scammer',
+            text: sc.initialMessage,
+            timestamp: 'Vừa xong',
+            detectedTactic: sc.tactics[0],
+          },
+        ],
+        currentPressure: 35,
+        trustLevel: 10,
+        detectedTactics: [sc.tactics[0]],
+        timeline: [],
+        status: 'active',
+        startTime: Date.now(),
+      });
     } finally {
       setLoading(false);
     }
@@ -273,7 +296,7 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
 
   const handleSendMessage = async (textToSend?: string) => {
     const messageText = textToSend || userInput;
-    if (!messageText.trim() || !session || loading) return;
+    if (!messageText.trim() || loading) return;
 
     setUserInput('');
     setLoading(true);
@@ -284,30 +307,142 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
       setExposedWarning('Cảnh báo nguy hiểm: Bạn vừa nhập mã dạng OTP/Mật khẩu. Kẻ gian có thể chiếm quyền tài khoản!');
     } else if (lower.includes('chuyển') && (lower.includes('triệu') || lower.includes('nghìn') || lower.includes('k'))) {
       setExposedWarning('Cảnh báo: Bạn đang chấp thuận chuyển tiền. Luôn xác minh độc lập trước khi giao dịch!');
+    } else {
+      setExposedWarning(null);
     }
+
+    const currentSession = session || {
+      id: `arena_${Date.now()}`,
+      scenarioId: activeScenario.id,
+      scenario: activeScenario,
+      messages: [
+        {
+          id: 'msg_0',
+          sender: 'scammer' as const,
+          text: activeScenario.initialMessage,
+          timestamp: 'Vừa xong',
+          detectedTactic: activeScenario.tactics[0],
+        },
+      ],
+      currentPressure: 35,
+      trustLevel: 10,
+      detectedTactics: [activeScenario.tactics[0]],
+      timeline: [],
+      status: 'active' as const,
+      startTime: Date.now(),
+    };
+
+    const userTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userMsg: ArenaMessage = {
+      id: `msg_user_${Date.now()}`,
+      sender: 'user',
+      text: messageText,
+      timestamp: userTimeStr,
+    };
+
+    const interimSession: ArenaSession = {
+      ...currentSession,
+      messages: [...currentSession.messages, userMsg],
+    };
+    setSession(interimSession);
 
     try {
       const res = await fetch('/api/arena/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: session.id,
+          sessionId: currentSession.id,
           message: messageText,
-          scenarioId: session.scenarioId,
-          messages: session.messages,
+          scenarioId: currentSession.scenarioId || activeScenario.id,
+          messages: interimSession.messages,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setSession(data.session);
-        if (data.evaluation?.aiCoachTip) {
-          setAiCoachRealtimeTip(data.evaluation.aiCoachTip);
+        const nextSession = data.session || data;
+        if (nextSession && Array.isArray(nextSession.messages)) {
+          setSession(nextSession);
+          if (data.evaluation?.aiCoachTip) {
+            setAiCoachRealtimeTip(data.evaluation.aiCoachTip);
+          }
+          return;
         }
-        // Continuous multi-turn chat: User controls when to conclude by clicking "Kết Thúc & Chấm Điểm"
       }
-    } catch (err) {
-      console.error(err);
+      throw new Error('Fallback needed');
+    } catch {
+      // Local high-fidelity Vietnamese in-character fallback generator
+      const sc = activeScenario;
+      const turnCount = interimSession.messages.filter((m) => m.sender === 'user').length;
+      const isVerifying = lower.includes('xác minh') || lower.includes('gọi') || lower.includes('hotline') || lower.includes('trụ sở') || lower.includes('chi nhánh') || lower.includes('chứng minh');
+      const isRefusing = lower.includes('không') || lower.includes('từ chối') || lower.includes('lừa đảo') || lower.includes('cúp') || lower.includes('báo công an');
+      const isComplying = lower.includes('vâng') || lower.includes('dạ') || lower.includes('chuyển') || lower.includes('mã') || lower.includes('otp');
+
+      let scammerReply = '';
+      const tactic = sc.tactics[turnCount % sc.tactics.length] || 'Urgency';
+      let tip = '';
+
+      if (sc.category === 'Banking' || sc.id === 'scam-01' || sc.id === 'scam-13' || sc.id === 'scam-19') {
+        if (isVerifying) {
+          scammerReply = `Tôi là ${sc.attackerProfile.name} - Trực ban An ninh Ngân hàng số hiệu CB-8492! Anh/Chị không được tự ý cúp máy hay gọi đi nơi khác vì hệ thống đang khóa cổng giao dịch khẩn cấp. Mọi thao tác chậm trễ sẽ khiến số tiền 54.500.000 VNĐ bị trừ vĩnh viễn!`;
+          tip = 'Tốt lắm! Giữ vững lập trường, tuyệt đối không cung cấp thông tin qua cuộc gọi đến.';
+        } else if (isRefusing) {
+          scammerReply = `Nếu anh/chị từ chối hợp tác xác minh, hệ thống sẽ lập tức gửi lệnh phong tỏa vĩnh viễn thẻ và ghi nhận nợ xấu CIC toàn quốc sau 10 phút nữa!`;
+          tip = 'Xuất sắc! Kẻ gian đang dùng đòn hù dọa phong tỏa, hãy tiếp tục từ chối dứt khoát.';
+        } else {
+          scammerReply = `Để hủy lệnh trừ tiền ngay lập tức, anh/chị cần nhấp vào cổng hủy lệnh hoặc xác nhận số thẻ để hệ thống đối soát tự động. Không được chậm trễ!`;
+          tip = 'Cảnh báo: Tuyệt đối không bấm link hay chuyển tiền theo hướng dẫn của người lạ.';
+        }
+      } else if (sc.category === 'Government' || sc.id === 'scam-02' || sc.id === 'scam-07' || sc.id === 'scam-15' || sc.id === 'scam-16') {
+        if (isVerifying) {
+          scammerReply = `Tôi là ${sc.attackerProfile.name} - Cơ quan Cảnh sát điều tra! Đây là chuyên án mật cấp quốc gia, anh/chị yêu cầu giấy mời là làm lộ bí mật điều tra. Yêu cầu chấp hành nghiêm túc trước khi có lệnh áp giải!`;
+          tip = 'Công an, Viện kiểm sát không bao giờ làm việc qua điện thoại hay bắt chuyển tiền kiểm tra.';
+        } else if (isRefusing) {
+          scammerReply = `Chúng tôi sẽ chuyển hồ sơ sang bộ phận truy nã và phối hợp công an khu vực áp giải anh/chị về trụ sở trong ngày hôm nay!`;
+          tip = 'Rất chuẩn xác! Cúp máy và báo ngay cho công an địa phương hoặc tổng đài 113.';
+        } else {
+          scammerReply = `Anh/Chị phải chuyển toàn bộ số dư vào tài khoản giám định an toàn của cơ quan điều tra để chứng minh không liên quan đường dây rửa tiền!`;
+          tip = 'Nguy hiểm: Không có bất kỳ "Tài khoản kiểm tra an toàn" nào từ phía công an.';
+        }
+      } else if (sc.category === 'Jobs' || sc.id === 'scam-04' || sc.id === 'scam-10' || sc.id === 'scam-18') {
+        if (isVerifying) {
+          scammerReply = `Bên em là đối tác chiến lược cấp 1 của sàn TMĐT có giấy phép kinh doanh đầy đủ! Chỉ cần làm đơn này 3 phút là nhận ngay hoa hồng 35% về tài khoản liền ạ.`;
+          tip = 'Không có công việc nào việc nhẹ lương cao nạp tiền nhận hoa hồng. Đó là bẫy giật tiền!';
+        } else {
+          scammerReply = `Anh/Chị đã hoàn thành 80% nhiệm vụ rồi, chỉ cần nạp thêm đợt cuối là hệ thống mở khóa rút toàn bộ cả vốn lẫn lãi về ngay lập tức ạ!`;
+          tip = 'Dừng lại ngay! Kẻ gian liên tục yêu cầu nạp tiền để "mở khóa rút vốn".';
+        }
+      } else {
+        if (isVerifying || isRefusing) {
+          scammerReply = `Anh/Chị yên tâm, bên tôi làm việc uy tín và có hàng ngàn người xác nhận. Nếu anh/chị không xử lý ngay lúc này thì quyền lợi bảo vệ sẽ bị hủy vĩnh viễn.`;
+          tip = 'Rất tốt! Luôn kiểm chứng độc lập và không để cảm xúc hoảng sợ chi phối.';
+        } else {
+          scammerReply = `Vui lòng làm theo hướng dẫn gửi ngay thông tin để hệ thống hoàn tất thủ tục trước khi hết thời gian quy định.`;
+          tip = 'Hãy cẩn trọng, kiểm tra lại địa chỉ website và người gửi trước khi tương tác.';
+        }
+      }
+
+      const scammerMsg: ArenaMessage = {
+        id: `msg_scammer_${Date.now()}`,
+        sender: 'scammer',
+        text: scammerReply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        detectedTactic: tactic,
+        tacticExplanation: `Đối tượng gia tăng đòn tâm lý ${tactic} nhằm dồn ép và thao túng bạn.`,
+        psychPressureDelta: isComplying ? -5 : 15,
+        userVerificationDetected: isVerifying,
+        complianceDetected: isComplying,
+      };
+
+      const fallbackCompletedSession: ArenaSession = {
+        ...interimSession,
+        messages: [...interimSession.messages, scammerMsg],
+        currentPressure: Math.min(100, Math.max(20, interimSession.currentPressure + (isVerifying ? 10 : isRefusing ? 15 : -10))),
+        detectedTactics: [...new Set([...interimSession.detectedTactics, tactic])],
+      };
+
+      setSession(fallbackCompletedSession);
+      if (tip) setAiCoachRealtimeTip(tip);
     } finally {
       setLoading(false);
     }

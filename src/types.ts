@@ -894,6 +894,20 @@ export interface SurveyAnalyticsData {
     label?: string;
   }>;
   recentSurveys: CommunitySurveySubmission[];
+  // Flat convenience properties
+  encounteredScamRate?: number;
+  clickedOrCompromisedRate?: number;
+  sharedOtpOrMoneyLossRate?: number;
+  panickedUnderPressureRate?: number;
+  averageTimeToDecidePreSeconds?: number;
+  averageTimeToDecidePostSeconds?: number;
+  decisionTimeGainSeconds?: number;
+  overallPreScore?: number;
+  overallPostScore?: number;
+  overallGainScore?: number;
+  overallSafeActionRatePost?: number;
+  unseenGeneralizationPassRate?: number;
+  lastUpdated?: string;
 }
 
 export interface SampleSizeCalculatorParams {

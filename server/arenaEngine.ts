@@ -18,7 +18,7 @@ export function clearAllArenaSessions() {
   sessionsMap.clear();
 }
 
-export function createArenaSession(scenarioId: string): ArenaSession {
+export function createArenaSession(scenarioId: string, userId?: string): ArenaSession {
   const scenario = SCAM_SCENARIOS.find((s) => s.id === scenarioId) || SCAM_SCENARIOS[0];
   const sessionId = `arena_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 

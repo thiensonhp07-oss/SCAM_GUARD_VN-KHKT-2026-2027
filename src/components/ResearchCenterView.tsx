@@ -399,6 +399,11 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
 
   useEffect(() => {
     loadResearchData();
+    const handleSurveyUpdate = () => {
+      setLiveSurveyCount(getAllCommunitySurveys().length);
+    };
+    window.addEventListener('visef_survey_updated', handleSurveyUpdate);
+    return () => window.removeEventListener('visef_survey_updated', handleSurveyUpdate);
   }, []);
 
   const loadResearchData = async () => {

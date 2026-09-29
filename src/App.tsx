@@ -61,6 +61,7 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { INITIAL_FRIENDS, INITIAL_QUESTS, INITIAL_ACTIVITY_FEED, INITIAL_SOCIAL_POSTS } from './data/friendsData';
 import { playSuccessChime, playRewardTrophy } from './utils/audioEffects';
+import { syncLiveSurveysWithServer } from './services/researchDataService';
 import {
   ThemeConfig,
   getStoredThemeConfig,
@@ -304,6 +305,15 @@ export default function App() {
       localStorage.setItem('scamguard_guest_profile', JSON.stringify(userProfile));
     }
   }, [userProfile, currentUser]);
+
+  // Synchronize live community surveys across all devices (PC, Phone, Tablet)
+  useEffect(() => {
+    syncLiveSurveysWithServer();
+    const interval = setInterval(() => {
+      syncLiveSurveysWithServer();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Restore user session on startup if token exists
   useEffect(() => {
@@ -909,7 +919,7 @@ export default function App() {
           </main>
 
           {/* Professional Utility Footer */}
-          <UtilityFooter />
+          <UtilityFooter onNavigateToResearch={() => handleNavigate('research')} />
         </div>
 
         {/* Mobile Bottom Navigation Bar */}

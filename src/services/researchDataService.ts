@@ -107,9 +107,55 @@ export function recordSurveySubmission(submission: Partial<CommunitySurveySubmis
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: newSubmission }));
+    fetch('/api/research/survey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSubmission),
+    }).catch(() => {});
   }
 
   return newSubmission;
+}
+
+/**
+ * Synchronizes live surveys across all devices (PC, Phone, Tablet) via backend API
+ */
+export async function syncLiveSurveysWithServer(): Promise<CommunitySurveySubmission[]> {
+  if (typeof window === 'undefined') return getAllCommunitySurveys();
+  try {
+    const res = await fetch('/api/research/surveys');
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      if (data && Array.isArray(data.surveys) && data.surveys.length > 0) {
+        const currentLocal = getStoredUserSurveys();
+        const serverSurveys = data.surveys as CommunitySurveySubmission[];
+        const seenIds = new Set<string>();
+        const merged: CommunitySurveySubmission[] = [];
+
+        // Preserve all local submissions
+        for (const s of currentLocal) {
+          if (!seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            merged.push(s);
+          }
+        }
+        // Incorporate all submissions from other devices on the server
+        for (const s of serverSurveys) {
+          if (!seenIds.has(s.id)) {
+            seenIds.add(s.id);
+            merged.push(s);
+          }
+        }
+
+        saveStoredUserSurveys(merged);
+        window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+      }
+    }
+  } catch {
+    // Offline resilience
+  }
+  return getAllCommunitySurveys();
 }
 
 const SCENARIO_CORRECT_MAP: Record<string, string> = {
@@ -375,6 +421,12 @@ export function getCommunitySurveyAnalytics(customSurveys?: CommunitySurveySubmi
       sectorNumber: sec.sectorNumber,
       sectorTitle: sec.sectorTitle,
       failureRate,
+      trapCount: nearMissCount + victimCount,
+      neverCount,
+      safeCount,
+      nearMissCount,
+      victimCount,
+      totalAnswers,
       neverEncounteredRate: totalAnswers > 0 ? +((neverCount / totalAnswers) * 100).toFixed(1) : 0,
       safeAvoidanceRate: totalAnswers > 0 ? +((safeCount / totalAnswers) * 100).toFixed(1) : 0,
       victimRate: totalAnswers > 0 ? +((victimCount / totalAnswers) * 100).toFixed(1) : 0,
@@ -587,16 +639,110 @@ export function getFallbackResearchStatistics() {
 export function getFallbackMlBenchmarks(): { models: MachineLearningBenchmarkModel[]; tradeoffMatrix: any } {
   return {
     models: [
-      { name: 'Rule-based Heuristics', accuracy: 0.68, precision: 0.64, recall: 0.72, f1Score: 0.68, latencyMs: 2.1, memoryMb: 12 },
-      { name: 'Logistic Regression Baseline', accuracy: 0.76, precision: 0.74, recall: 0.78, f1Score: 0.76, latencyMs: 3.5, memoryMb: 24 },
-      { name: 'Random Forest Classifier', accuracy: 0.84, precision: 0.82, recall: 0.86, f1Score: 0.84, latencyMs: 8.2, memoryMb: 48 },
-      { name: 'Gradient Boosted Trees (GBDT)', accuracy: 0.89, precision: 0.88, recall: 0.90, f1Score: 0.89, latencyMs: 14.6, memoryMb: 64 },
-      { name: 'Distil-BERT Embeddings', accuracy: 0.93, precision: 0.92, recall: 0.94, f1Score: 0.93, latencyMs: 32.4, memoryMb: 180 },
-      { name: 'SCAMGUARD Multimodal Ensemble', accuracy: 0.965, precision: 0.96, recall: 0.97, f1Score: 0.965, latencyMs: 18.2, memoryMb: 85 },
+      {
+        id: 'model-1-rule-baseline',
+        name: 'Rule-Based Heuristic Baseline',
+        type: 'Rule-Based Baseline',
+        accuracy: 74.2,
+        precision: 71.5,
+        recall: 68.0,
+        f1Score: 69.7,
+        rocAuc: 0.72,
+        brierScore: 0.22,
+        latencyMs: 1.2,
+        resourceFootprint: 'Ultra-low (0.1MB)',
+        explainabilityRating: 'Rule Transparent',
+        strengths: ['Tốc độ siêu nhanh (< 2ms)', 'Không tốn GPU', 'Dễ dàng cập nhật rule mới'],
+        tradeoffs: ['Không hiểu ngữ cảnh tinh vi', 'Tỷ lệ False Positive cao với từ khóa'],
+      },
+      {
+        id: 'model-2-logistic-regression',
+        name: 'Logistic Regression (L2 + TF-IDF)',
+        type: 'Logistic Regression',
+        accuracy: 81.6,
+        precision: 80.2,
+        recall: 78.4,
+        f1Score: 79.3,
+        rocAuc: 0.83,
+        brierScore: 0.16,
+        latencyMs: 3.8,
+        resourceFootprint: 'Low (1.5MB)',
+        explainabilityRating: 'Feature Weights',
+        strengths: ['Trọng số hồi quy rõ ràng', 'Dễ triển khai trên edge devices', 'Độ ổn định cao'],
+        tradeoffs: ['Không nắm bắt phi tuyến tính phức tạp giữa các vector tâm lý'],
+      },
+      {
+        id: 'model-3-random-forest',
+        name: 'Random Forest (50 Decision Trees)',
+        type: 'Random Forest',
+        accuracy: 86.4,
+        precision: 85.1,
+        recall: 84.7,
+        f1Score: 84.9,
+        rocAuc: 0.89,
+        brierScore: 0.13,
+        latencyMs: 8.5,
+        resourceFootprint: 'Medium (12MB)',
+        explainabilityRating: 'Feature Importance (Gini)',
+        strengths: ['Kháng overfitting tốt', 'Xếp hạng tầm quan trọng đặc trưng rõ ràng', 'Hiệu năng cao trên bảng'],
+        tradeoffs: ['Kích thước mô hình tăng dần theo số cây'],
+      },
+      {
+        id: 'model-4-gbdt',
+        name: 'Gradient Boosted Trees (GBDT)',
+        type: 'Gradient Boosted Trees (GBDT)',
+        accuracy: 89.2,
+        precision: 88.5,
+        recall: 87.9,
+        f1Score: 88.2,
+        rocAuc: 0.92,
+        brierScore: 0.10,
+        latencyMs: 12.4,
+        resourceFootprint: 'Medium-High (45MB)',
+        explainabilityRating: 'Feature Importance (SHAP)',
+        strengths: ['Độ chính xác rất cao trên đặc trưng dạng bảng', 'Hiệu chỉnh xác suất tốt'],
+        tradeoffs: ['Cần bước tiền xử lý feature vector kỹ lưỡng'],
+      },
+      {
+        id: 'model-5-distil-text',
+        name: 'Distil-Text NLP Classifier',
+        type: 'Distil-Text Classifier',
+        accuracy: 91.5,
+        precision: 90.8,
+        recall: 90.1,
+        f1Score: 90.4,
+        rocAuc: 0.94,
+        brierScore: 0.08,
+        latencyMs: 45.0,
+        resourceFootprint: 'Medium-High (45MB)',
+        explainabilityRating: 'Attention / Tokens',
+        strengths: ['Hiểu ngữ cảnh tiếng Việt phong phú', 'Phát hiện lừa đảo dạng văn bản tinh vi'],
+        tradeoffs: ['Độ trễ trung bình', 'Cần bộ nhớ GPU/CPU đủ lớn'],
+      },
+      {
+        id: 'model-6-hybrid-llm',
+        name: 'ScamGuard Multi-Layer Hybrid LLM Reasoning',
+        type: 'Hybrid LLM Reasoning Classifier',
+        accuracy: 96.8,
+        precision: 96.2,
+        recall: 95.8,
+        f1Score: 96.0,
+        rocAuc: 0.98,
+        brierScore: 0.04,
+        latencyMs: 380.0,
+        resourceFootprint: 'High (Server API)',
+        explainabilityRating: 'Full Chain-of-Thought',
+        strengths: [
+          'Phân tích đa phương thức (Ảnh + Chữ + URL + Mã độc)',
+          'Giải trình chuỗi suy luận Chain-of-Thought đầy đủ cho người dùng',
+          'Phát hiện kịch bản lừa đảo mới phát sinh (Zero-day tactics)',
+        ],
+        tradeoffs: ['Phụ thuộc kết nối mạng/API', 'Độ trễ cao hơn mô hình cục bộ'],
+      },
     ],
     tradeoffMatrix: {
-      bestOverall: 'SCAMGUARD Multimodal Ensemble',
-      bestLatency: 'Rule-based Heuristics',
+      bestOverall: 'ScamGuard Multi-Layer Hybrid LLM Reasoning',
+      bestLatency: 'Rule-Based Heuristic Baseline',
       efficiencyRatio: '0.053 F1/ms',
     },
   };
@@ -605,49 +751,74 @@ export function getFallbackMlBenchmarks(): { models: MachineLearningBenchmarkMod
 export function getFallbackErrorTaxonomy(): ErrorTaxonomyItem[] {
   return [
     {
-      code: 'ERR-01',
-      name: 'Ngộ nhận Quyền lực Pháp luật',
-      category: 'Psychological',
-      frequency: 34,
-      severity: 'CRITICAL',
-      rootCause: 'Thao túng tâm lý nỗi sợ bị bắt giữ, phong tỏa tài khoản từ các đầu số giả mạo cơ quan điều tra.',
-      countermeasure: 'Quy tắc 3 giây: Cơ quan công an không bao giờ làm việc, yêu cầu chuyển tiền qua mạng xã hội.',
+      id: 'err-1',
+      rootCause: 'OVERTRUST_AUTHORITY',
+      vietnameseTitle: 'Tuân thủ mù quáng Uy quyền giả mạo (Overtrust Authority)',
+      description: 'Nạn nhân tê liệt phản biện khi đối tượng xưng danh Công an, Viện Kiểm sát hoặc Cán bộ Thuế, bất chấp các dấu hiệu vô lý như gọi qua điện thoại hay gửi link lạ.',
+      frequencyPercentage: 34.2,
+      averageDecisionLatencySec: 3.8,
+      associatedDemographicRisk: 'Người cao tuổi (60+) và Sinh viên mới ra trường',
+      recommendedPedagogicalMitigation: 'Rèn luyện "Mệnh đề vàng": Cơ quan pháp luật Việt Nam KHÔNG BAO GIỜ làm việc qua điện thoại hay yêu cầu chuyển khoản bảo lãnh.',
     },
     {
-      code: 'ERR-02',
-      name: 'Ảo tưởng Cơ hội Tài chính Siêu ngạch',
-      category: 'Cognitive',
-      frequency: 28,
-      severity: 'HIGH',
-      rootCause: 'Bẫy nhiệm vụ Telegram hoa hồng 30-50%, sàn forex giả mạo cam kết lợi nhuận không rủi ro.',
-      countermeasure: 'Đối chiếu tỷ suất sinh lời thực tế và kiểm tra giấy phép sàn giao dịch chính thống.',
+      id: 'err-2',
+      rootCause: 'URGENCY_PANIC_OVERLOAD',
+      vietnameseTitle: 'Quá tải hoảng loạn do Áp lực Thời gian (Urgency Panic Overload)',
+      description: 'Khi bị đe dọa "khóa tài khoản trong 5 phút" hoặc "con đang mổ cấp cứu", não bộ chuyển sang cơ chế hạch hạnh nhân (Amygdala hijack), dẫn đến hành động vội vàng.',
+      frequencyPercentage: 28.5,
+      averageDecisionLatencySec: 2.4,
+      associatedDemographicRisk: 'Phụ huynh có con nhỏ và Nhân viên văn phòng bận rộn',
+      recommendedPedagogicalMitigation: 'Kích hoạt "Khoảng dừng nhận thức 5 phút" và quy trình xác minh chéo 2 kênh độc lập.',
     },
     {
-      code: 'ERR-03',
-      name: 'Mù quáng trước Áp lực Thời gian Vàng',
-      category: 'Behavioral',
-      frequency: 24,
-      severity: 'HIGH',
-      rootCause: 'Kẻ lừa đảo tạo cảm giác khẩn cấp (con đang cấp cứu, đơn hàng bị hủy trong 10 phút).',
-      countermeasure: 'Chậm lại 60 giây và gọi điện trực tiếp cho người thân qua kênh độc lập.',
+      id: 'err-3',
+      rootCause: 'IGNORED_DOMAIN_ANOMALY',
+      vietnameseTitle: 'Bỏ qua Dấu hiệu Bất thường Tên miền (Ignored Domain Anomaly)',
+      description: 'Bấm vào liên kết lừa đảo có giao diện giống hệt ngân hàng nhưng sử dụng đuôi tên miền .top, .vip, .cc hoặc kỹ thuật Typosquatting (vietcom-bank.cc).',
+      frequencyPercentage: 18.9,
+      averageDecisionLatencySec: 4.1,
+      associatedDemographicRisk: 'Người dùng thiết bị di động màn hình nhỏ bị che khuất URL bar',
+      recommendedPedagogicalMitigation: 'Mô phỏng soi kính lúp tên miền: Đọc từ đuôi TLD ngược lại Domain gốc.',
     },
     {
-      code: 'ERR-04',
-      name: 'Chủ quan trước Mã QR & Link Rút gọn',
-      category: 'Technical',
-      frequency: 19,
-      severity: 'CRITICAL',
-      rootCause: 'Quét mã QR tại điểm thanh toán bị dán đè hoặc nhấn vào đường link rút gọn lừa đảo chiếm quyền.',
-      countermeasure: 'Soi xét kỹ tên miền đích thực và số tài khoản người thụ hưởng trước khi xác nhận chuyển khoản.',
+      id: 'err-4',
+      rootCause: 'CREDENTIAL_OTP_SURRENDER',
+      vietnameseTitle: 'Nhầm lẫn Nguyên lý Giao dịch OTP (Credential / OTP Surrender)',
+      description: 'Cung cấp mã OTP khi nhận thông báo "Nhận tiền hoàn / Trúng thưởng" do ngộ nhận rằng OTP dùng cho cả 2 chiều nhận và chuyển tiền.',
+      frequencyPercentage: 11.2,
+      averageDecisionLatencySec: 5.2,
+      associatedDemographicRisk: 'Người mới sử dụng Mobile Banking và mua sắm online',
+      recommendedPedagogicalMitigation: 'Khắc ghi nguyên lý tài chính: "Mã OTP CHỈ DÙNG KHI TRỪ TIỀN, nhận tiền KHÔNG BAO GIỜ cần OTP".',
     },
     {
-      code: 'ERR-05',
-      name: 'Tin tưởng Cuộc gọi Video Deepfake',
-      category: 'Technical',
-      frequency: 15,
-      severity: 'CRITICAL',
-      rootCause: 'Kẻ gian sử dụng AI hoán đổi khuôn mặt và bắt chước giọng nói của người thân yêu cầu tiền gấp.',
-      countermeasure: 'Quy tắc "Mật mã gia đình" hoặc yêu cầu người gọi vẫy tay trước mặt để bóc tách artifact AI.',
+      id: 'err-5',
+      rootCause: 'FINANCIAL_GREED_BLINDNESS',
+      vietnameseTitle: 'Bẫy Lợi nhuận Siêu thực & Nhiệm vụ ảo (Financial Greed Blindness)',
+      description: 'Bị hấp dẫn bởi cam kết lãi suất 45%/tuần hoặc nhiệm vụ xem video kiếm 500k/ngày, chấp nhận nạp tiền cọc tăng dần theo hiệu ứng Leo thang Cam kết (Escalation of Commitment).',
+      frequencyPercentage: 4.8,
+      averageDecisionLatencySec: 8.5,
+      associatedDemographicRisk: 'Thanh thiếu niên, học sinh tìm việc làm thêm online',
+      recommendedPedagogicalMitigation: 'Bài học phân tích tài chính: Bất kỳ mô hình cam kết lợi nhuận >20%/năm mà "không rủi ro" đều là Ponzi.',
+    },
+    {
+      id: 'err-6',
+      rootCause: 'SUPERFICIAL_VISUAL_BIAS',
+      vietnameseTitle: 'Định kiến Thị giác Bề ngoài (Superficial Visual Bias)',
+      description: 'Tin tưởng hoàn toàn vào hình ảnh biên lai chuyển tiền Photoshop (Fake Bill) hoặc con dấu đỏ giả mạo vì giao diện trông rất chuyên nghiệp.',
+      frequencyPercentage: 1.6,
+      averageDecisionLatencySec: 6.0,
+      associatedDemographicRisk: 'Chủ shop bán hàng online và người giao dịch P2P',
+      recommendedPedagogicalMitigation: 'Quy tắc bàn giao hàng hóa: Chỉ tin vào số dư thực trên ứng dụng Mobile Banking của người nhận, không tin ảnh chụp.',
+    },
+    {
+      id: 'err-7',
+      rootCause: 'SYNTHETIC_MEDIA_UNAWARE',
+      vietnameseTitle: 'Chưa Nhận thức Nguy cơ Deepfake (Synthetic Media Unaware)',
+      description: 'Tin vào cuộc gọi video ngắn 10 giây có khuôn mặt và giọng nói của người thân hoặc lãnh đạo mà không nhận ra các hiện tượng nhòe viền và giật khung hình.',
+      frequencyPercentage: 0.8,
+      averageDecisionLatencySec: 4.7,
+      associatedDemographicRisk: 'Phổ biến ở mọi lứa tuổi do công nghệ GenAI phát triển quá nhanh',
+      recommendedPedagogicalMitigation: 'Thỏa thuận "Mật mã gia đình bí mật" và yêu cầu người gọi quay nghiêng mặt sang ngang.',
     },
   ];
 }

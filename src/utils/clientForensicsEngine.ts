@@ -193,7 +193,7 @@ export function runClientSideTextAnalysis(
       'Thu thập tài khoản & OTP để thực hiện lệnh chuyển tiền chiếm đoạt',
     ],
     assessmentId: `SG-ONDEVICE-${randomHex}`,
-    detectedTactics: ['Urgency', 'Authority Fear', 'Brand Spoofing'],
+    detectedTactics: ['Urgency', 'Authority', 'Fear'],
     explanationsByPersona: {
       child: 'Tin nhắn này là bẫy của kẻ xấu đấy! Đừng bao giờ bấm vào link lạ và hãy đưa cho bố mẹ hoặc thầy cô xem ngay nhé.',
       teen: 'Cảnh báo thủ đoạn Phishing: Link web có đuôi lạ và tên miền giả mạo ngân hàng. Không bấm link để tránh bị hack tài khoản mạng xã hội hay game!',

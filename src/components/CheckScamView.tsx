@@ -310,19 +310,19 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({ onOpenEmergency, o
           name: 'Độ lệch phông chữ & Kerning',
           scoreContribution: 80,
           description: 'Khoảng cách ký tự và font chữ vùng số tiền không thuộc bộ phông chuẩn của hệ thống Mobile Banking.',
-          category: 'Typography',
+          category: 'Impersonation',
         },
         {
           name: 'Nhiễu nén ảnh (JPEG Compression Artifacts)',
           scoreContribution: 75,
           description: 'Phát hiện quầng mờ cục bộ quanh số tiền do chèn chữ đè lên ảnh nền biên lai có sẵn.',
-          category: 'Forensics',
+          category: 'Impersonation',
         },
         {
           name: 'Áp lực tâm lý thúc giục',
           scoreContribution: 65,
           description: 'Chiêu bài giục giao hàng nhanh khi bên nhận chưa thấy biến động số dư thực tế.',
-          category: 'Social Engineering',
+          category: 'Urgency',
         },
       ],
       redFlags: [
@@ -368,6 +368,14 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({ onOpenEmergency, o
         'Gửi ảnh thúc giục nạn nhân giao hàng hoặc hoàn trả tiền thừa',
       ],
       assessmentId: `SG-OFFLINE-${Date.now().toString(16).toUpperCase()}`,
+      detectedTactics: ['Urgency', 'Authority', 'Fear'],
+      explanationsByPersona: {
+        child: 'Đây là biên lai giả mạo của kẻ xấu. Đừng tin và hãy hỏi người lớn nhé.',
+        teen: 'Ảnh biên lai ngân hàng giả mạo phông chữ. Kiểm tra biến động số dư tài khoản thật trước khi giao dịch.',
+        adult: 'Phát hiện can thiệp quang học trên biên lai chuyển tiền. Tuyệt đối không giao hàng khi chưa nhận được tiền trong tài khoản.',
+        senior: 'Biên lai giả tạo từ máy tính. Nhờ người nhà mở app ngân hàng kiểm tra số dư thực tế.',
+        expert: 'Typography kerning and compression artifact discrepancy on declared bank receipt transaction area.',
+      },
     };
     setResult(mockReport);
   };

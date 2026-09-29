@@ -216,7 +216,14 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
     const interval = setInterval(() => {
       fetchAnalytics(true);
     }, 4000);
-    return () => clearInterval(interval);
+    const handleUpdate = () => {
+      fetchAnalytics(true);
+    };
+    window.addEventListener('visef_survey_updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visef_survey_updated', handleUpdate);
+    };
   }, [fetchAnalytics]);
 
   const handleSurveySubmit = async (e: React.FormEvent) => {

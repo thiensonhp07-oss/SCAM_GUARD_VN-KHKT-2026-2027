@@ -532,11 +532,12 @@ export function createExpressApp() {
   });
 
   // Arena routes
-  apiRouter.post('/arena/start', arenaLimiter, validateBody(StartArenaSessionSchema), (req, res) => {
+  apiRouter.post('/arena/start', arenaLimiter, (req, res) => {
     try {
-      const { scenarioId, userId } = req.body;
+      const scenarioId = req.body.scenarioId || 'scam-01';
+      const userId = req.body.userId;
       const session = createArenaSession(scenarioId, userId);
-      return res.json(session);
+      return res.json({ session, ...session });
     } catch (err: any) {
       return res.status(400).json({ error: err.message });
     }
@@ -547,30 +548,44 @@ export function createExpressApp() {
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
-    return res.json(session);
+    return res.json({ session, ...session });
   });
 
-  apiRouter.post('/arena/:sessionId/message', arenaLimiter, validateBody(ArenaMessageSchema), async (req, res) => {
+  const handleArenaMessageRoute = async (req: any, res: any) => {
     try {
-      const { sessionId } = req.params;
-      const { content, responseTimeSec } = req.body;
-      const response = await processUserArenaMessage(sessionId, content, responseTimeSec);
+      const sessionId = req.params.sessionId || req.body.sessionId || `arena_${Date.now()}`;
+      const messageText = req.body.message || req.body.content || req.body.text || '';
+      const fallbackContext = {
+        scenarioId: req.body.scenarioId,
+        messages: req.body.messages,
+      };
+      const response = await processUserArenaMessage(sessionId, messageText, fallbackContext);
       return res.json(response);
     } catch (err: any) {
       return res.status(400).json({ error: err.message });
     }
-  });
+  };
 
-  apiRouter.post('/arena/:sessionId/end', validateBody(EndArenaSessionSchema), (req, res) => {
+  apiRouter.post('/arena/message', arenaLimiter, handleArenaMessageRoute);
+  apiRouter.post('/arena/:sessionId/message', arenaLimiter, handleArenaMessageRoute);
+
+  const handleArenaEndRoute = (req: any, res: any) => {
     try {
-      const { sessionId } = req.params;
-      const { reason } = req.body;
-      const finalReport = concludeArenaSession(sessionId, reason);
-      return res.json(finalReport);
+      const sessionId = req.params.sessionId || req.body.sessionId || req.body.sessionData?.id || '';
+      const fallbackData = {
+        scenarioId: req.body.scenarioId,
+        messages: req.body.messages,
+        sessionData: req.body.sessionData,
+      };
+      const finalReport = concludeArenaSession(sessionId, fallbackData);
+      return res.json({ session: finalReport, ...finalReport });
     } catch (err: any) {
       return res.status(400).json({ error: err.message });
     }
-  });
+  };
+
+  apiRouter.post('/arena/end', handleArenaEndRoute);
+  apiRouter.post('/arena/:sessionId/end', handleArenaEndRoute);
 
   // Scientific research endpoints
   apiRouter.get('/research/statistics', (req, res) => {
@@ -597,6 +612,25 @@ export function createExpressApp() {
       res.json(errors);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  apiRouter.get('/research/surveys', (req, res) => {
+    try {
+      const surveys = getAllCommunitySurveys();
+      res.json({ surveys, total: surveys.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  apiRouter.post('/research/survey', (req, res) => {
+    try {
+      const submission = recordCommunitySurveySubmission(req.body);
+      const allSurveys = getAllCommunitySurveys();
+      res.json({ success: true, submission, total: allSurveys.length });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
     }
   });
 

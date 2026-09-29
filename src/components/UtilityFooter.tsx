@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { Shield, Lock, Info, Users, FileText, PhoneCall, X } from 'lucide-react';
+import { AboutProjectModal } from './AboutProjectModal';
 
-export const UtilityFooter: React.FC = () => {
+interface UtilityFooterProps {
+  onNavigateToResearch?: () => void;
+}
+
+export const UtilityFooter: React.FC<UtilityFooterProps> = ({ onNavigateToResearch }) => {
   const [modalContent, setModalContent] = useState<{ title: string; desc: string; icon: any } | null>(null);
+  const [isAboutProjectOpen, setIsAboutProjectOpen] = useState(false);
 
   const openFooterModal = (title: string, desc: string, icon: any) => {
     setModalContent({ title, desc, icon });
@@ -23,14 +29,11 @@ export const UtilityFooter: React.FC = () => {
 
         <div className="flex flex-wrap items-center justify-center gap-6 text-[11px] font-medium text-slate-500">
           <button
-            onClick={() => openFooterModal(
-              'Giới Thiệu Về ScamGuard Vietnam',
-              'ScamGuard Vietnam là giải pháp trí tuệ nhân tạo (AI) toàn diện hỗ trợ cộng đồng nhận biết, phát giác và chủ động phòng ngừa các kịch bản lừa đảo không gian mạng. Dự án được nghiên cứu và phát triển nhằm bảo vệ cộng đồng, đặc biệt là nhóm đối tượng cao niên và học sinh.',
-              Info
-            )}
-            className="hover:text-slate-300 transition-colors cursor-pointer"
+            onClick={() => setIsAboutProjectOpen(true)}
+            className="hover:text-cyan-300 text-slate-400 font-semibold transition-colors cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-900"
           >
-            Giới thiệu
+            <Info className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Giới thiệu</span>
           </button>
 
           <button
@@ -76,7 +79,14 @@ export const UtilityFooter: React.FC = () => {
         </div>
       </div>
 
-      {/* Interactive Modal Popup */}
+      {/* Main About Project ViSEF Banner Modal */}
+      <AboutProjectModal
+        isOpen={isAboutProjectOpen}
+        onClose={() => setIsAboutProjectOpen(false)}
+        onExploreResearch={onNavigateToResearch}
+      />
+
+      {/* General Modal Popup for other footer links */}
       {modalContent && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -109,4 +119,5 @@ export const UtilityFooter: React.FC = () => {
     </footer>
   );
 };
+
 

@@ -648,7 +648,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
           everEncounteredScam: derivedExperiencedSectors.length > 0 || surveyForm.pastLossOrNearMiss !== 'NEVER',
           pastLossOrNearMiss: surveyForm.pastLossOrNearMiss,
           preConfidenceScore: surveyForm.preConfidenceScore,
-          biggestFearTactic: 'AUTHORITY_POLICE',
+          biggestFearTactic: 'AUTHORITY_POLICE' as const,
           verificationHabitPre: 'DOUBLE_CHECK_OFFICIAL',
           experiencedSectors: derivedExperiencedSectors,
           experienceAnswers: surveyForm.experienceAnswers,
@@ -689,10 +689,10 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
         if (res.ok && contentType && contentType.includes('application/json')) {
           resData = await res.json();
         } else {
-          recordSurveySubmission(payload);
+          recordSurveySubmission(payload as any);
         }
       } catch (err) {
-        recordSurveySubmission(payload);
+        recordSurveySubmission(payload as any);
       }
 
       // Dispatch global realtime event so all Barem curves and analytics re-evaluate live immediately
