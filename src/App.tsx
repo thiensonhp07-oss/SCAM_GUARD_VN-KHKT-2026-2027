@@ -58,6 +58,7 @@ import {
   ScamTactic,
 } from './types';
 import { LanguageProvider } from './i18n/LanguageContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { INITIAL_FRIENDS, INITIAL_QUESTS, INITIAL_ACTIVITY_FEED, INITIAL_SOCIAL_POSTS } from './data/friendsData';
 import { playSuccessChime, playRewardTrophy } from './utils/audioEffects';
 import {
@@ -859,7 +860,9 @@ export default function App() {
                 )}
 
                 {activeTab === 'research' && (
-                  <ResearchCenterView onNavigateToMainUI={() => setActiveTab('home')} />
+                  <ErrorBoundary fallbackTitle="Không thể tải phân hệ Nghiên Cứu ViSEF">
+                    <ResearchCenterView onNavigateToMainUI={() => setActiveTab('home')} />
+                  </ErrorBoundary>
                 )}
 
                 {activeTab === 'scamdna' && (
