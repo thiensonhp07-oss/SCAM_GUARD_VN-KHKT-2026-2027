@@ -495,28 +495,36 @@ Trả về JSON chuẩn xác:
     });
 
     if (response?.text) {
-      const parsed = JSON.parse(response.text.trim());
+      let rawText = response.text.trim();
+      if (rawText.startsWith('```')) {
+        rawText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      }
+      const parsed = JSON.parse(rawText);
+      const sm = parsed.structuralMetrics || {};
       return {
-        anomalySuspicionScore: parsed.anomalySuspicionScore ?? 65,
+        anomalySuspicionScore: typeof parsed.anomalySuspicionScore === 'number' ? parsed.anomalySuspicionScore : 65,
         verdictClassification: parsed.verdictClassification || 'MODERATE_ANOMALIES',
-        structuralMetrics: parsed.structuralMetrics || {
-          fontMismatchDetected: true,
-          fontScore: 70,
-          alignmentIrregularityDetected: true,
-          spacingScore: 65,
-          watermarkSealStatus: 'BLURRED_SYNTHETIC',
-          compressionArtifactDetected: true,
-          artifactScore: 75,
-          metadataTemporalConsistency: 'SUSPICIOUS_ROUND_NUMBER',
+        structuralMetrics: {
+          fontMismatchDetected: sm.fontMismatchDetected ?? true,
+          fontScore: typeof sm.fontScore === 'number' ? sm.fontScore : 70,
+          alignmentIrregularityDetected: sm.alignmentIrregularityDetected ?? true,
+          spacingScore: typeof sm.spacingScore === 'number' ? sm.spacingScore : 65,
+          watermarkSealStatus: sm.watermarkSealStatus || 'BLURRED_SYNTHETIC',
+          compressionArtifactDetected: sm.compressionArtifactDetected ?? true,
+          artifactScore: typeof sm.artifactScore === 'number' ? sm.artifactScore : 75,
+          metadataTemporalConsistency: sm.metadataTemporalConsistency || 'SUSPICIOUS_ROUND_NUMBER',
         },
-        explainableSuspiciousRegions: parsed.explainableSuspiciousRegions || [
-          {
-            areaName: 'Vùng chữ số tiền giao dịch',
-            description: 'Phông chữ có độ phân giải và mật độ pixel không đồng nhất với phần còn lại của hóa đơn.',
-            severity: 'high',
-          },
-        ],
+        explainableSuspiciousRegions: Array.isArray(parsed.explainableSuspiciousRegions) && parsed.explainableSuspiciousRegions.length > 0
+          ? parsed.explainableSuspiciousRegions
+          : [
+              {
+                areaName: 'Vùng chữ số tiền giao dịch',
+                description: 'Phông chữ có độ phân giải và mật độ pixel không đồng nhất với phần còn lại của hóa đơn.',
+                severity: 'high',
+              },
+            ],
         scientificCaveat:
+          parsed.scientificCaveat ||
           'Khuyến cáo pháp y: Chỉ số bất thường quang học (Optical Anomaly Score) phản ánh các điểm lệch chuẩn pixel và font chữ. Để xác thực giao dịch, hãy kiểm tra biến động số dư trực tiếp trong ứng dụng ngân hàng chính thức của bên thụ hưởng.',
       };
     }
