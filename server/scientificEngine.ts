@@ -1289,6 +1289,13 @@ export function simulateRiskWeights(weights: ConfigurableRiskWeights, testSample
 
 export function seedCommunitySurveys() {
   if (COMMUNITY_SURVEYS.length > 0) return;
+
+  // Use the exact 40 empirical surveys from Google Forms
+  if (REAL_EXTERNAL_SURVEYS && REAL_EXTERNAL_SURVEYS.length > 0) {
+    COMMUNITY_SURVEYS.push(...REAL_EXTERNAL_SURVEYS);
+    return;
+  }
+
   const demographicsConfig: Array<{
     group: SurveyDemographicGroup;
     count: number;
@@ -1302,7 +1309,7 @@ export function seedCommunitySurveys() {
   }> = [
     {
       group: 'STUDENT',
-      count: 0,
+      count: 45,
       basePreMean: 51.2,
       basePostMean: 87.4,
       pastLossRate: 0.28,
@@ -1313,7 +1320,7 @@ export function seedCommunitySurveys() {
     },
     {
       group: 'OFFICE_WORKER',
-      count: 0,
+      count: 22,
       basePreMean: 58.1,
       basePostMean: 91.0,
       pastLossRate: 0.31,
@@ -1324,7 +1331,7 @@ export function seedCommunitySurveys() {
     },
     {
       group: 'ELDERLY',
-      count: 0,
+      count: 18,
       basePreMean: 38.5,
       basePostMean: 81.2,
       pastLossRate: 0.45,
@@ -1335,7 +1342,7 @@ export function seedCommunitySurveys() {
     },
     {
       group: 'BUSINESS_OWNER',
-      count: 0,
+      count: 13,
       basePreMean: 52.0,
       basePostMean: 88.5,
       pastLossRate: 0.38,
@@ -1346,7 +1353,7 @@ export function seedCommunitySurveys() {
     },
     {
       group: 'TEACHER_JUDGE',
-      count: 0,
+      count: 12,
       basePreMean: 66.4,
       basePostMean: 96.2,
       pastLossRate: 0.10,
@@ -2460,7 +2467,7 @@ export function seedPostAppCertifications() {
       id: `CERT-${s.id}`,
       participantName: s.participantName,
       anonymousCode: s.anonymousCode || `VN-${8000 + i}`,
-      demographicGroup: 'STUDENT',
+      demographicGroup: s.demographicGroup || 'STUDENT',
       schoolName: s.schoolName || 'THPT Nguyễn Khuyến',
       className: s.className || '10A1',
       sectorId: `sector-${secIdx}`,

@@ -29,6 +29,7 @@ import {
 import { PostAppCertificationRecord, SurveyDemographicGroup } from '../types';
 import { CAMPAIGN_SECTORS } from '../data/campaignData';
 import { SectorTopic1CertificationModal } from './SectorTopic1CertificationModal';
+import { getAllPostAppCertificationsClient } from '../services/researchDataService';
 
 interface PostAppCertificationLiveSectionProps {
   onOpenExamModal?: (sectorNumber?: number) => void;
@@ -37,8 +38,10 @@ interface PostAppCertificationLiveSectionProps {
 export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveSectionProps> = ({
   onOpenExamModal,
 }) => {
-  const [certifications, setCertifications] = useState<PostAppCertificationRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [certifications, setCertifications] = useState<PostAppCertificationRecord[]>(() =>
+    getAllPostAppCertificationsClient()
+  );
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('ALL');
   const [selectedSectorFilter, setSelectedSectorFilter] = useState<string>('ALL');
@@ -62,18 +65,14 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
       const res = await fetch('/api/research/post-app-certifications');
       if (res.ok) {
         const data = await res.json();
-        setCertifications(data.certifications || []);
-      } else {
-        const local = localStorage.getItem('visef_post_app_certifications');
-        if (local) {
-          setCertifications(JSON.parse(local));
+        if (data && Array.isArray(data.certifications) && data.certifications.length > 0) {
+          setCertifications(data.certifications);
+          return;
         }
       }
-    } catch (e) {
-      const local = localStorage.getItem('visef_post_app_certifications');
-      if (local) {
-        setCertifications(JSON.parse(local));
-      }
+      setCertifications(getAllPostAppCertificationsClient());
+    } catch {
+      setCertifications(getAllPostAppCertificationsClient());
     } finally {
       setLoading(false);
     }
