@@ -535,8 +535,7 @@ export function createExpressApp() {
   apiRouter.post('/arena/start', arenaLimiter, (req, res) => {
     try {
       const scenarioId = req.body.scenarioId || 'scam-01';
-      const userId = req.body.userId;
-      const session = createArenaSession(scenarioId, userId);
+      const session = createArenaSession(scenarioId);
       return res.json({ session, ...session });
     } catch (err: any) {
       return res.status(400).json({ error: err.message });
