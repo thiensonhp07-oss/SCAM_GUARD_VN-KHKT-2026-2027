@@ -71,43 +71,43 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="max-w-[1450px] mx-auto px-4 sm:px-6 py-6 space-y-6 relative">
-      {/* Sleek Minimalist Segmented View Mode Controller */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 px-4 rounded-xl bg-[#08111F] border border-slate-800/80 shadow-md">
+      {/* Enterprise Segmented View Mode Controller */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 px-4 rounded-xl bg-[#161F30] border border-[#283548]">
         <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#00D9FF] animate-pulse" />
-          <span className="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">
-            HỆ THỐNG AN NINH MẠNG SCAMGUARD · NCKH VISEF 2026
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-semibold tracking-tight text-[#F8FAFC]">
+            Hệ Thống Giám Sát & An Ninh Mạng ScamGuard
           </span>
           <span className="hidden md:inline text-slate-600">·</span>
-          <span className="hidden md:inline text-[11px] font-mono text-emerald-400">
-            TRẠNG THÁI: TỐI ƯU
+          <span className="hidden md:inline text-xs text-slate-400">
+            Trạng thái: <strong className="text-emerald-400 font-medium">Hoạt động bình thường</strong>
           </span>
         </div>
 
         {/* Segmented Buttons */}
-        <div className="flex items-center p-1 bg-[#050A14] border border-slate-800/90 rounded-lg text-xs font-mono shrink-0">
+        <div className="flex items-center p-1 bg-[#0B0F17] border border-[#283548] rounded-lg text-xs shrink-0">
           <button
             onClick={() => setViewMode('EXECUTIVE_DASHBOARD')}
-            className={`px-3.5 py-1.5 rounded-md font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md font-medium transition flex items-center gap-2 cursor-pointer ${
               viewMode === 'EXECUTIVE_DASHBOARD'
-                ? 'bg-[#101B2E] text-[#F5B82E] border border-[#F5B82E]/40 shadow-sm'
+                ? 'bg-[#161F30] text-[#F8FAFC] border border-[#283548] shadow-sm'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <LayoutDashboard className="w-3.5 h-3.5 text-[#F5B82E]" />
-            <span>BẢNG CHỈ HUY INTEL</span>
+            <LayoutDashboard className="w-3.5 h-3.5 text-blue-500" />
+            <span>Bảng Chỉ Huy SOC</span>
           </button>
 
           <button
             onClick={() => setViewMode('ROADMAP_TRAINING')}
-            className={`px-3.5 py-1.5 rounded-md font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-md font-medium transition flex items-center gap-2 cursor-pointer ${
               viewMode === 'ROADMAP_TRAINING'
-                ? 'bg-[#101B2E] text-[#2F8CFF] border border-[#2F8CFF]/40 shadow-sm'
+                ? 'bg-[#161F30] text-[#F8FAFC] border border-[#283548] shadow-sm'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Compass className="w-3.5 h-3.5 text-[#2F8CFF]" />
-            <span>LỘ TRÌNH HUẤN LUYỆN 8 TRẠM</span>
+            <Compass className="w-3.5 h-3.5 text-blue-500" />
+            <span>Lộ Trình Huấn Luyện</span>
           </button>
         </div>
       </div>

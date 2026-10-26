@@ -688,20 +688,15 @@ export default function App() {
       language={userProfile.language || 'vi'}
       onLanguageChange={handleLanguageChange}
     >
-      <div className="min-h-screen bg-[#050A14] cyber-hex-bg text-slate-100 flex font-sans selection:bg-[#F5B82E] selection:text-[#050A14] pb-24 lg:pb-0">
-        {/* Left Duolingo Sidebar (Desktop) */}
+      <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] flex font-sans selection:bg-blue-600 selection:text-white pb-24 lg:pb-0">
+        {/* Left Sidebar (Desktop) */}
         <DuolingoSidebar
           activeTab={activeTab}
           onSelectTab={(tab, sub) => handleNavigate(tab, sub)}
         />
 
         {/* Center Main Column */}
-        <div className="flex-1 flex flex-col min-w-0 relative">
-          {/* Dynamic Background Pattern Layer */}
-          <div className="theme-bg-pattern-layer absolute inset-0 pointer-events-none z-0" />
-          
-          {/* Dynamic Glow Aura */}
-          <div className="theme-orb-glow top-10 right-10 z-0" />
+        <div className="flex-1 flex flex-col min-w-0 relative bg-[#0B0F17]">
 
           {/* Top Main Navigation Header */}
           <Navbar

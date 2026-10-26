@@ -135,7 +135,7 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onNavigate, cl
     <div ref={searchContainerRef} className={`relative flex-1 ${className}`}>
       {/* Input Field */}
       <div className="relative flex items-center">
-        <Search className="w-4 h-4 text-amber-400/80 absolute left-3.5 pointer-events-none" />
+        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -149,8 +149,8 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onNavigate, cl
             if (query.trim()) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Kịch bản bẫy, URL, QR, Deepfake, OSINT, VISEF..."
-          className="w-full pl-10 pr-9 py-2 bg-[#0e1422] border border-slate-700/60 hover:border-blue-500/50 focus:border-amber-500/80 rounded-2xl text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition shadow-inner font-mono"
+          placeholder="Tìm kiếm kịch bản bẫy, URL, QR, Deepfake, OSINT..."
+          className="w-full pl-10 pr-9 py-2 bg-[#161F30] border border-[#283548] hover:border-slate-600 focus:border-blue-500 rounded-lg text-xs text-[#F8FAFC] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition"
         />
         {query && (
           <button
@@ -170,14 +170,14 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onNavigate, cl
       <AnimatePresence>
         {isOpen && query.trim() !== '' && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            transition={{ duration: 0.16 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-slate-950/98 border border-slate-800/90 rounded-2xl shadow-2xl backdrop-blur-2xl z-50 overflow-hidden divide-y divide-slate-800/80 max-h-[480px] flex flex-col"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 right-0 mt-2 bg-[#161F30] border border-[#283548] rounded-xl shadow-2xl z-50 overflow-hidden divide-y divide-[#283548] max-h-[440px] flex flex-col"
           >
             {/* Header with Result Count Announcement */}
-            <div className="px-4 py-2.5 bg-slate-900/90 flex items-center justify-between text-xs border-b border-slate-800">
+            <div className="px-3.5 py-2 bg-[#0B0F17] flex items-center justify-between text-xs border-b border-[#283548]">
               <div className="flex items-center space-x-2">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping inline-block" />
                 <span className="font-bold text-slate-200">
