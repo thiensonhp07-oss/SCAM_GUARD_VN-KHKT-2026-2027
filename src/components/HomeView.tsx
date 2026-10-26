@@ -71,37 +71,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="max-w-[1450px] mx-auto px-4 sm:px-6 py-6 space-y-6 relative">
-      {/* Top View Mode Switcher */}
-      <div className="flex flex-wrap items-center justify-between border-b border-slate-800/80 pb-3 gap-3">
-        <div className="flex items-center gap-2">
+      {/* Sleek Minimalist Segmented View Mode Controller */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2.5 px-4 rounded-xl bg-[#08111F] border border-slate-800/80 shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-[#00D9FF] animate-pulse" />
+          <span className="text-xs font-mono font-bold tracking-wider text-slate-200 uppercase">
+            HỆ THỐNG AN NINH MẠNG SCAMGUARD · NCKH VISEF 2026
+          </span>
+          <span className="hidden md:inline text-slate-600">·</span>
+          <span className="hidden md:inline text-[11px] font-mono text-emerald-400">
+            TRẠNG THÁI: TỐI ƯU
+          </span>
+        </div>
+
+        {/* Segmented Buttons */}
+        <div className="flex items-center p-1 bg-[#050A14] border border-slate-800/90 rounded-lg text-xs font-mono shrink-0">
           <button
             onClick={() => setViewMode('EXECUTIVE_DASHBOARD')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-md font-bold transition flex items-center gap-2 cursor-pointer ${
               viewMode === 'EXECUTIVE_DASHBOARD'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-[#101B2E] text-[#F5B82E] border border-[#F5B82E]/40 shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <LayoutDashboard className="w-4 h-4 text-purple-300" />
-            <span>Executive Dashboard (Giao diện EdTech)</span>
+            <LayoutDashboard className="w-3.5 h-3.5 text-[#F5B82E]" />
+            <span>BẢNG CHỈ HUY INTEL</span>
           </button>
 
           <button
             onClick={() => setViewMode('ROADMAP_TRAINING')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-md font-bold transition flex items-center gap-2 cursor-pointer ${
               viewMode === 'ROADMAP_TRAINING'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-[#101B2E] text-[#2F8CFF] border border-[#2F8CFF]/40 shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Compass className="w-4 h-4 text-cyan-300" />
-            <span>Lộ Trình Huấn Luyện Snake Path</span>
+            <Compass className="w-3.5 h-3.5 text-[#2F8CFF]" />
+            <span>LỘ TRÌNH HUẤN LUYỆN 8 TRẠM</span>
           </button>
         </div>
-
-        <span className="text-[10px] text-slate-500 font-mono hidden md:inline">
-          EDTECH PLATFORM BY SUPPORTSYS • VISEF RESEARCH 2026
-        </span>
       </div>
 
       {viewMode === 'EXECUTIVE_DASHBOARD' ? (

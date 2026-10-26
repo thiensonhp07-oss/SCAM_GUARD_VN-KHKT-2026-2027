@@ -22,6 +22,8 @@ import confetti from 'canvas-confetti';
 import { getQuestionsForSector, CertificationQuestion } from '../data/certificationTopic1Questions';
 import { CAMPAIGN_SECTORS } from '../data/campaignData';
 import { PostAppCertificationRecord } from '../types';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface SectorTopic1CertificationModalProps {
   isOpen: boolean;
@@ -224,6 +226,13 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
         });
       } catch (err) {
         console.warn('Could not post to server cert endpoint, local saved', err);
+      }
+
+      // Broadcast to Firestore so ALL other devices see certification update immediately
+      try {
+        setDoc(doc(db, 'post_app_certifications', record.id), record).catch(() => {});
+      } catch {
+        // offline resilience
       }
 
       // Notify other views & research tabs

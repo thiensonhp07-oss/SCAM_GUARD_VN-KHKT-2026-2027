@@ -60,76 +60,85 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
   return (
-    <header className="sticky top-0 z-50 w-full backdrop-blur-2xl bg-slate-950/90 border-b border-slate-800/80 shadow-md">
-      <div className="max-w-[1450px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-18 gap-3 sm:gap-4">
+    <header className="sticky top-0 z-50 w-full backdrop-blur-2xl bg-[#08111F]/95 border-b border-slate-800/80 shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+      <div className="max-w-[1550px] mx-auto px-3.5 sm:px-6">
+        <div className="flex items-center justify-between h-15 sm:h-16 gap-3">
           
           {/* Left: Mobile Drawer Trigger + Brand Identity */}
-          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-            {/* Hamburger button for Mobile & Tablet (iPad) */}
+          <div className="flex items-center space-x-2.5 sm:space-x-3 shrink-0">
+            {/* Hamburger button for Mobile & Tablet */}
             <button
               onClick={onOpenDrawer}
-              className="lg:hidden p-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white transition cursor-pointer flex items-center justify-center"
+              className="lg:hidden p-2 rounded-lg bg-[#0C1525] hover:bg-[#101B2E] border border-slate-800 text-slate-300 hover:text-white transition cursor-pointer flex items-center justify-center"
               title="Danh mục tất cả tính năng"
             >
-              <Menu className="w-5 h-5 text-purple-400" />
+              <Menu className="w-4 h-4 text-[#F5B82E]" />
             </button>
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <div
               onClick={() => onSelectTab('home')}
-              className="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer group select-none shrink-0"
+              className="flex items-center space-x-2.5 cursor-pointer group select-none shrink-0"
             >
               <div className="relative flex items-center justify-center">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-purple-600/40 to-indigo-600/40 border border-purple-500/50 flex items-center justify-center text-white shadow-md shadow-purple-500/30 overflow-hidden">
-                  <Shield className="w-5 h-5 text-white fill-purple-400/40 group-hover:scale-110 transition-transform" />
+                <div className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-[#0C1525] border border-[#2F8CFF]/40 flex items-center justify-center text-white shadow-md shadow-[#2F8CFF]/10 overflow-hidden">
+                  <Shield className="w-4.5 h-4.5 text-[#F5B82E] fill-[#2F8CFF]/20 group-hover:scale-105 transition-transform" />
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-slate-950 shadow-sm" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#20D99A] rounded-full border-2 border-[#08111F]" />
               </div>
 
               <div className="flex flex-col">
-                <div className="flex items-center space-x-1.5 sm:space-x-2">
-                  <span className="text-sm sm:text-base font-black tracking-tight text-white group-hover:text-purple-300 transition-colors font-mono">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-sm font-black tracking-wider text-white group-hover:text-[#F5B82E] transition-colors font-mono">
                     ScamGuard
                   </span>
-                  <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded bg-purple-950/90 text-purple-300 border border-purple-800/60 font-mono">
-                    EdTech
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#F5B82E]/15 text-[#F5B82E] border border-[#F5B82E]/40 font-mono">
+                    VISEF
                   </span>
                 </div>
-                <span className="text-[9px] sm:text-[10px] text-slate-400 font-medium hidden sm:block font-mono">
-                  BY SUPPORTSYS • VISEF 2026
+                <span className="text-[9px] text-slate-400 font-mono tracking-wider hidden sm:block">
+                  AI SOC INTEL 2026
                 </span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
-          {/* Middle: Intelligent Glass Search Bar (Desktop) */}
-          <div className="hidden md:flex flex-1 max-w-lg items-center relative">
-            <GlobalSearchBar onNavigate={onSelectTab} />
+          {/* Middle: Global Search + System Status HUD Indicator (Desktop) */}
+          <div className="hidden md:flex flex-1 max-w-xl items-center gap-3">
+            <div className="flex-1">
+              <GlobalSearchBar onNavigate={onSelectTab} />
+            </div>
+
+            {/* System Status HUD */}
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0C1525] border border-slate-800 text-[10px] font-mono shrink-0">
+              <span className="w-2 h-2 rounded-full bg-[#00D9FF] animate-pulse" />
+              <span className="text-slate-400">SOC STATUS:</span>
+              <span className="text-[#20D99A] font-bold">NOMINAL</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-[#F5B82E] font-bold">99.8% AI ACC</span>
+            </div>
           </div>
 
           {/* Right Clean Action Controls */}
-          <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             {/* Mobile Search Toggle Button */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white md:hidden transition cursor-pointer"
+              className="p-2 rounded-lg bg-[#0C1525] border border-slate-800 text-slate-300 hover:text-white md:hidden transition cursor-pointer"
               title="Tìm kiếm"
             >
-              <Search className="w-4 h-4 text-purple-400" />
+              <Search className="w-4 h-4 text-[#F5B82E]" />
             </button>
             
             {/* Notification Bell with Badge '5' */}
             <div className="relative">
               <button
                 onClick={onOpenNotifications}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-purple-500/50 transition cursor-pointer"
-                title="Thông báo an ninh"
+                className="p-2 rounded-lg bg-[#0C1525] border border-slate-800 text-slate-300 hover:text-white hover:border-[#2F8CFF]/50 transition cursor-pointer"
+                title="Thông báo an ninh SOC"
               >
                 <Bell className="w-4 h-4" />
               </button>
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-mono text-[9px] font-bold flex items-center justify-center border-2 border-slate-950 pointer-events-none">
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#FF3B55] text-white font-mono text-[9px] font-bold flex items-center justify-center border-2 border-[#08111F] pointer-events-none">
                 5
               </span>
             </div>
@@ -137,74 +146,72 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Chat Messages Icon */}
             <button
               onClick={onOpenChat}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-purple-500/50 transition cursor-pointer hidden sm:block"
-              title="Trung tâm trò chuyện và bạn bè"
+              className="p-2 rounded-lg bg-[#0C1525] border border-slate-800 text-slate-300 hover:text-white hover:border-[#2F8CFF]/50 transition cursor-pointer hidden sm:block"
+              title="Trung tâm bạn bè & hiệp đồng"
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-4 h-4 text-[#2F8CFF]" />
             </button>
 
             {/* Streak Flame Badge Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={onOpenStreak}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 font-mono font-black text-xs transition cursor-pointer shadow-sm shadow-amber-500/10"
-              title="Chuỗi ngày rèn luyện an toàn liên tục (Streak) - Bấm để xem chi tiết"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F5B82E]/10 hover:bg-[#F5B82E]/20 border border-[#F5B82E]/40 text-[#F5B82E] font-mono font-bold text-xs transition cursor-pointer"
+              title="Chuỗi ngày an toàn liên tục (Streak)"
             >
-              <Flame className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse" />
+              <Flame className="w-3.5 h-3.5 text-[#F5B82E] fill-[#F5B82E]" />
               <span>{userProfile.streakDays || 3}d</span>
-            </motion.button>
+            </button>
 
-            {/* Dark Mode Toggle Icon */}
+            {/* Theme Toggle Icon */}
             <button
               onClick={onOpenTheme}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-purple-500/50 transition cursor-pointer hidden sm:block"
+              className="p-2 rounded-lg bg-[#0C1525] border border-slate-800 text-slate-300 hover:text-white hover:border-[#F5B82E]/50 transition cursor-pointer hidden sm:block"
+              title="Tùy biến giao diện"
             >
-              <Moon className="w-4 h-4 text-purple-400" />
+              <Moon className="w-4 h-4 text-[#F5B82E]" />
             </button>
 
             {/* Language Flag Badge */}
             <button
               onClick={toggleLanguage}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 text-xs font-mono font-bold text-slate-300 transition cursor-pointer"
-              title="Chuyển đổi Ngôn ngữ / Toggle Language (VN / EN)"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0C1525] hover:bg-[#101B2E] border border-slate-800 hover:border-[#2F8CFF]/50 text-xs font-mono font-bold text-slate-300 transition cursor-pointer"
+              title="Chuyển đổi Ngôn ngữ (VN / EN)"
             >
-              <span className="text-sm">{currentLang === 'vi' ? '🇻🇳' : '🇬🇧'}</span>
-              <span className="hidden sm:inline">{currentLang === 'vi' ? 'VN' : 'EN'}</span>
+              <span className="text-xs">{currentLang === 'vi' ? '🇻🇳' : '🇬🇧'}</span>
+              <span className="hidden sm:inline text-[11px]">{currentLang === 'vi' ? 'VN' : 'EN'}</span>
             </button>
 
             {/* User Profile Pill */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <div
               onClick={onOpenAuth}
-              className="flex items-center space-x-2 p-1.5 pr-2.5 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-800 cursor-pointer transition shadow-md"
+              className="flex items-center space-x-2 p-1 sm:pr-2.5 rounded-lg bg-[#0C1525] hover:bg-[#101B2E] border border-slate-800 hover:border-[#2F8CFF]/50 cursor-pointer transition"
             >
               <div className="relative">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white font-bold text-xs shadow-inner">
-                  {userProfile.name ? userProfile.name.charAt(0) : 'N'}
+                <div className="w-7 h-7 rounded-md bg-[#101B2E] border border-[#2F8CFF]/40 flex items-center justify-center text-white font-mono font-bold text-xs">
+                  {userProfile.name ? userProfile.name.charAt(0) : 'K'}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full border border-slate-950" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-[#20D99A] rounded-full border border-[#08111F]" />
               </div>
 
-              <div className="flex flex-col text-left hidden sm:block">
-                <span className="text-xs font-bold text-white tracking-tight leading-none">
-                  {userProfile.name || 'Nguyễn Văn An'}
+              <div className="flex flex-col text-left hidden lg:block">
+                <span className="text-xs font-bold text-white tracking-tight leading-none truncate max-w-[100px]">
+                  {userProfile.name || 'Khách #5058'}
+                </span>
+                <span className="text-[9px] text-[#F5B82E] font-mono mt-0.5">
+                  VỆ BINH SOC
                 </span>
               </div>
-            </motion.div>
+            </div>
 
-            {/* Red Emergency Alert Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            {/* Emergency Alert Button (Danger Red #FF3B55) */}
+            <button
               onClick={onOpenEmergency}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-rose-600/30 cursor-pointer"
-              title="Khẩn cấp"
+              className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#FF3B55]/15 hover:bg-[#FF3B55]/25 text-[#FF3B55] hover:text-white border border-[#FF3B55]/50 font-mono font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_12px_rgba(255,59,85,0.25)]"
+              title="Phòng Tuyến Khẩn Cấp 24/7"
             >
-              <AlertTriangle className="w-4 h-4" />
-              <span className="hidden lg:inline">Khẩn Cấp</span>
-            </motion.button>
+              <AlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+              <span className="hidden sm:inline uppercase tracking-wider text-[11px]">KHẨN CẤP</span>
+            </button>
           </div>
         </div>
 
@@ -215,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden py-3 border-t border-slate-800 overflow-visible"
+              className="md:hidden py-2.5 border-t border-slate-800 overflow-visible"
             >
               <GlobalSearchBar
                 onNavigate={(t, s) => {

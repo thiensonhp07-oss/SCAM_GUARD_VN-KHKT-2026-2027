@@ -39,6 +39,30 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({ onOpenEmergency, o
     }
   }, [subView]);
 
+  // Read pending quick scan query from sessionStorage if triggered from Home Hero
+  React.useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem('scamguard_quick_scan_query');
+      if (pending) {
+        sessionStorage.removeItem('scamguard_quick_scan_query');
+        const trimmed = pending.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          setUrlInput(trimmed);
+          setTargetObject('url');
+        } else if (/^[0-9+\s().-]{8,15}$/.test(trimmed)) {
+          setSenderInput(trimmed);
+          setTextInput(`Tra cứu độ tin cậy và lịch sử phản ánh của số điện thoại lạ: ${trimmed}`);
+          setTargetObject('phone');
+        } else {
+          setTextInput(trimmed);
+          setTargetObject('message');
+        }
+      }
+    } catch (e) {
+      console.warn('Session storage check error', e);
+    }
+  }, []);
+
   // Target object type focus filter for Tab 1
   const [targetObject, setTargetObject] = useState<'message' | 'url' | 'email' | 'phone'>('message');
 
@@ -576,8 +600,8 @@ Báo cáo được lập tự động bởi Hệ thống giám định ScamGuard
                 }}
                 className={`px-4 py-3 rounded-xl border text-left cursor-pointer transition-all duration-200 flex-1 min-w-[200px] ${
                   isActive
-                    ? 'bg-cyan-950/40 border-cyan-500 text-white shadow-md shadow-cyan-950'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    ? 'bg-[#101B2E] border-[#2F8CFF] text-white shadow-[0_4px_20px_rgba(47,140,255,0.25)] ring-1 ring-[#2F8CFF]/50'
+                    : 'bg-[#0C1525]/70 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:text-slate-300'
                 }`}
               >
                 <p className="text-xs font-black">{tab.label}</p>

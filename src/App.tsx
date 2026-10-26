@@ -688,7 +688,7 @@ export default function App() {
       language={userProfile.language || 'vi'}
       onLanguageChange={handleLanguageChange}
     >
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-cyan-500 selection:text-slate-950 pb-24 lg:pb-0">
+      <div className="min-h-screen bg-[#050A14] cyber-hex-bg text-slate-100 flex font-sans selection:bg-[#F5B82E] selection:text-[#050A14] pb-24 lg:pb-0">
         {/* Left Duolingo Sidebar (Desktop) */}
         <DuolingoSidebar
           activeTab={activeTab}

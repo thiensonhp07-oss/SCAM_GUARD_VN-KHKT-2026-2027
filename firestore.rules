@@ -20,6 +20,12 @@ service cloud.firestore {
       allow create, update: if true;
     }
 
+    // Post App Certifications - live research cohort synchronized across devices
+    match /post_app_certifications/{certId} {
+      allow read: if true;
+      allow create, update: if true;
+    }
+
     // Default deny
     match /{document=**} {
       allow read, write: if false;

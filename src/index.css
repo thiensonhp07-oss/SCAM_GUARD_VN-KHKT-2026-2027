@@ -718,6 +718,93 @@ footer,
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Hexagonal Grid Overlay & Executive Dashboard Palette */
+.cyber-hex-bg {
+  background-color: #050a14;
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(47, 140, 255, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(245, 184, 46, 0.06) 0%, transparent 45%),
+    linear-gradient(to right, rgba(47, 140, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(47, 140, 255, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+}
+
+/* SOC Sports Analytics Cyber Theme Tokens */
+.soc-bg-primary {
+  background-color: #050a14;
+}
+
+.soc-bg-secondary {
+  background-color: #08111f;
+}
+
+.soc-card {
+  background-color: #0c1525;
+  border: 1px solid rgba(47, 140, 255, 0.16);
+  border-radius: 1rem;
+}
+
+.soc-card-elevated {
+  background-color: #101b2e;
+  border: 1px solid rgba(47, 140, 255, 0.22);
+  border-radius: 1rem;
+}
+
+.soc-card-gold {
+  background: linear-gradient(135deg, rgba(16, 27, 46, 0.95) 0%, rgba(12, 21, 37, 0.95) 100%);
+  border: 1px solid rgba(245, 184, 46, 0.35);
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.7), 0 0 20px -4px rgba(245, 184, 46, 0.12);
+  border-radius: 1rem;
+}
+
+.soc-card-blue {
+  background: linear-gradient(135deg, rgba(16, 27, 46, 0.95) 0%, rgba(12, 21, 37, 0.95) 100%);
+  border: 1px solid rgba(47, 140, 255, 0.35);
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.7), 0 0 20px -4px rgba(47, 140, 255, 0.15);
+  border-radius: 1rem;
+}
+
+.soc-hero-panel {
+  background: radial-gradient(ellipse at top, rgba(47, 140, 255, 0.14) 0%, rgba(12, 21, 37, 0.9) 60%), #0c1525;
+  border: 1px solid rgba(47, 140, 255, 0.28);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-radius: 1.25rem;
+}
+
+.soc-gold-glow {
+  box-shadow: 0 0 18px rgba(245, 184, 46, 0.25);
+}
+
+.soc-blue-glow {
+  box-shadow: 0 0 20px rgba(47, 140, 255, 0.28);
+}
+
+.soc-cyan-glow {
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.25);
+}
+
+.executive-panel {
+  background: rgba(12, 21, 37, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(47, 140, 255, 0.18);
+  box-shadow: 0 12px 35px -4px rgba(0, 0, 0, 0.65), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  border-radius: 1.25rem;
+}
+
+.executive-panel-gold {
+  background: linear-gradient(135deg, rgba(16, 27, 46, 0.95) 0%, rgba(12, 21, 37, 0.95) 100%);
+  border: 1px solid rgba(245, 184, 46, 0.35);
+  box-shadow: 0 14px 40px -4px rgba(0, 0, 0, 0.7), 0 0 25px -5px rgba(245, 184, 46, 0.12);
+  border-radius: 1.25rem;
+}
+
+.executive-panel-sapphire {
+  background: linear-gradient(135deg, rgba(16, 27, 46, 0.95) 0%, rgba(12, 21, 37, 0.95) 100%);
+  border: 1px solid rgba(47, 140, 255, 0.35);
+  box-shadow: 0 14px 40px -4px rgba(0, 0, 0, 0.7), 0 0 25px -5px rgba(47, 140, 255, 0.15);
+  border-radius: 1.25rem;
+}
+
 /* Ensure inputs on mobile don't trigger forced iOS Safari zoom */
 @media screen and (max-width: 768px) {
   input[type="text"],

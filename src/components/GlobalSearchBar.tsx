@@ -135,7 +135,7 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onNavigate, cl
     <div ref={searchContainerRef} className={`relative flex-1 ${className}`}>
       {/* Input Field */}
       <div className="relative flex items-center">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+        <Search className="w-4 h-4 text-amber-400/80 absolute left-3.5 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -149,8 +149,8 @@ export const GlobalSearchBar: React.FC<GlobalSearchBarProps> = ({ onNavigate, cl
             if (query.trim()) setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Tìm kịch bản bẫy, URL, QR, Deepfake, OSINT, ViSEF..."
-          className="w-full pl-10 pr-9 py-2 bg-slate-900/90 border border-slate-800 hover:border-slate-700 focus:border-purple-500 rounded-2xl text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500/40 transition shadow-inner font-mono"
+          placeholder="Kịch bản bẫy, URL, QR, Deepfake, OSINT, VISEF..."
+          className="w-full pl-10 pr-9 py-2 bg-[#0e1422] border border-slate-700/60 hover:border-blue-500/50 focus:border-amber-500/80 rounded-2xl text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition shadow-inner font-mono"
         />
         {query && (
           <button

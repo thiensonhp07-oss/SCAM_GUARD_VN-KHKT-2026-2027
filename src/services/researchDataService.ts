@@ -7,8 +7,125 @@ import {
   PostAppCertificationRecord,
 } from '../types';
 import { REAL_EXTERNAL_SURVEYS } from '../data/realSurveyData';
+import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const LOCAL_STORAGE_KEY = 'visef_community_surveys_v2';
+
+let isFirestoreListenerActive = false;
+let cloudSurveysCache: CommunitySurveySubmission[] = [];
+
+/**
+ * Initializes real-time Firestore synchronization so that when any student/user
+ * on another phone or computer completes a survey, N increments (+1) on ALL other devices!
+ */
+export function initRealtimeCloudSync() {
+  if (typeof window === 'undefined' || isFirestoreListenerActive) return;
+  try {
+    isFirestoreListenerActive = true;
+
+    // 1. Listen for new community surveys across all devices in real time
+    const surveysCol = collection(db, 'community_surveys');
+    onSnapshot(
+      surveysCol,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const incoming: CommunitySurveySubmission[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as CommunitySurveySubmission;
+            if (data && data.id) {
+              incoming.push(data);
+            }
+          });
+
+          if (incoming.length > 0) {
+            cloudSurveysCache = incoming;
+            const currentLocal = getStoredUserSurveys();
+            const seenIds = new Set<string>();
+            const merged: CommunitySurveySubmission[] = [];
+
+            // Combine local and cloud submissions without duplicate IDs
+            for (const item of currentLocal) {
+              if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                merged.push(item);
+              }
+            }
+            for (const item of incoming) {
+              if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                merged.push(item);
+              }
+            }
+
+            saveStoredUserSurveys(merged);
+            window.dispatchEvent(
+              new CustomEvent('visef_survey_updated', {
+                detail: { count: merged.length + REAL_EXTERNAL_SURVEYS.length },
+              })
+            );
+          }
+        }
+      },
+      (err) => {
+        console.warn('Firestore surveys listener fallback to local/polling mode:', err);
+      }
+    );
+
+    // 2. Listen for new certifications across all devices in real time
+    const certsCol = collection(db, 'post_app_certifications');
+    onSnapshot(
+      certsCol,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const incomingCerts: PostAppCertificationRecord[] = [];
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as PostAppCertificationRecord;
+            if (data && data.id) {
+              incomingCerts.push(data);
+            }
+          });
+
+          if (incomingCerts.length > 0) {
+            try {
+              const raw = localStorage.getItem('visef_post_app_certifications');
+              const localCerts: PostAppCertificationRecord[] = raw ? JSON.parse(raw) : [];
+              const seen = new Set<string>();
+              const mergedCerts: PostAppCertificationRecord[] = [];
+
+              for (const c of localCerts) {
+                if (!seen.has(c.id)) {
+                  seen.add(c.id);
+                  mergedCerts.push(c);
+                }
+              }
+              for (const c of incomingCerts) {
+                if (!seen.has(c.id)) {
+                  seen.add(c.id);
+                  mergedCerts.push(c);
+                }
+              }
+              localStorage.setItem('visef_post_app_certifications', JSON.stringify(mergedCerts));
+              window.dispatchEvent(new CustomEvent('visef_post_cert_updated'));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      },
+      (err) => {
+        console.warn('Firestore certs listener fallback:', err);
+      }
+    );
+  } catch (e) {
+    console.warn('Could not initialize Firestore sync:', e);
+  }
+}
+
+// Auto-initialize cloud sync in browser
+if (typeof window !== 'undefined') {
+  initRealtimeCloudSync();
+}
 
 function getStoredUserSurveys(): CommunitySurveySubmission[] {
   if (typeof window === 'undefined') return [];
@@ -107,6 +224,16 @@ export function recordSurveySubmission(submission: Partial<CommunitySurveySubmis
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: newSubmission }));
+
+    // Realtime broadcast to Firestore so ALL other devices see N+1 instantly
+    try {
+      setDoc(doc(db, 'community_surveys', newSubmission.id), newSubmission).catch((err) => {
+        console.warn('Firestore survey write notice:', err);
+      });
+    } catch {
+      // offline fallback
+    }
+
     fetch('/api/research/survey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -824,10 +951,10 @@ export function getFallbackErrorTaxonomy(): ErrorTaxonomyItem[] {
 }
 
 /**
- * Returns all post-app certification records merging stored user exams and real survey cohort (exact N = 40)
+ * Returns all post-app certification records merging stored user exams and real survey cohort (starts at baseline N = 40 and increments with real submissions)
  */
 export function getAllPostAppCertificationsClient(): PostAppCertificationRecord[] {
-  const surveys = getAllCommunitySurveys().slice(0, 40);
+  const surveys = getAllCommunitySurveys();
   const sectorNames = [
     'Khu Vực 1: Vành Đai Ngoại Ô Cảnh Giác',
     'Khu Vực 2: Căn Cứ Radar Viễn Thông & Trạm Sóng Ảo',
