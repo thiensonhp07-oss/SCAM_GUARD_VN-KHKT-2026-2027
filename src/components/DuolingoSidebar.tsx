@@ -11,17 +11,14 @@ import {
   User,
   MoreHorizontal,
   Shield,
-  Headphones,
-  ChevronRight,
+  PhoneCall,
+  ArrowUpRight,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface DuolingoSidebarProps {
   activeTab: string;
-  onSelectTab: (
-    tab: any,
-    subView?: string
-  ) => void;
+  onSelectTab: (tab: any, subView?: string) => void;
   onOpenEmergency?: () => void;
 }
 
@@ -30,23 +27,33 @@ export const DuolingoSidebar: React.FC<DuolingoSidebarProps> = ({
   onSelectTab,
   onOpenEmergency,
 }) => {
-  const detectionItems = [
-    { id: 'home', label: 'Bảng Chỉ Huy SOC', icon: LayoutDashboard, sub: undefined },
-    { id: 'roadmap', label: 'Lộ Trình Huấn Luyện', icon: Compass, sub: undefined },
-    { id: 'scamdna', label: 'Cấu Trúc Scam DNA', icon: Dna, sub: undefined },
-    { id: 'check', label: 'Giám Định AI Thực Chiến', icon: Search, sub: undefined },
-    { id: 'research', label: 'Nghiên Cứu ViSEF', icon: FlaskConical, sub: undefined },
+  const { t } = useTranslation();
+
+  const intelligenceItems = [
+    { id: 'home', label: t('ws_home'), icon: LayoutDashboard, sub: undefined },
+    { id: 'check', label: t('ws_check'), icon: Search, sub: undefined },
+    { id: 'scamdna', label: t('ws_scamdna'), icon: Dna, sub: undefined },
+    { id: 'research', label: t('ws_research'), icon: FlaskConical, sub: undefined },
   ] as const;
 
-  const operationItems = [
-    { id: 'quests', label: 'Nhiệm Vụ Tác Chiến', icon: Gift, sub: undefined },
-    { id: 'leaderboard', label: 'Bảng Xếp Hạng SOC', icon: Trophy, sub: undefined },
-    { id: 'train', label: 'Đấu Trường Phản Xạ', icon: Swords, sub: 'arena' },
-    { id: 'profile', label: 'Hồ Sơ Vệ Binh', icon: User, sub: undefined },
-    { id: 'more', label: 'Tiện Ích An Ninh', icon: MoreHorizontal, sub: undefined },
+  const trainingItems = [
+    { id: 'roadmap', label: t('ws_roadmap'), icon: Compass, sub: undefined },
+    { id: 'train', label: t('ws_train'), icon: Swords, sub: 'arena' },
+    { id: 'quests', label: t('ws_quests'), icon: Gift, sub: undefined },
+    { id: 'leaderboard', label: t('ws_leaderboard'), icon: Trophy, sub: undefined },
   ] as const;
 
-  const renderNavButton = (item: typeof detectionItems[number] | typeof operationItems[number]) => {
+  const governanceItems = [
+    { id: 'more', label: t('ws_more'), icon: MoreHorizontal, sub: undefined },
+    { id: 'profile', label: t('ws_profile'), icon: User, sub: undefined },
+  ] as const;
+
+  const renderNavButton = (
+    item:
+      | (typeof intelligenceItems)[number]
+      | (typeof trainingItems)[number]
+      | (typeof governanceItems)[number]
+  ) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
 
@@ -54,102 +61,114 @@ export const DuolingoSidebar: React.FC<DuolingoSidebarProps> = ({
       <button
         key={item.id}
         onClick={() => onSelectTab(item.id as any, item.sub)}
-        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
+        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] transition-all duration-150 cursor-pointer text-left whitespace-nowrap ${
           isActive
-            ? 'bg-[#161F30] text-[#F8FAFC] font-semibold border-l-2 border-l-blue-500 border border-[#283548]'
-            : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#161F30]/60 border border-transparent'
+            ? 'bg-gradient-to-r from-sky-50 via-sky-50/60 to-white text-sky-800 font-bold border-l-4 border-l-sky-600 border-y border-r border-sky-200/90 shadow-[0_2px_10px_-2px_rgba(2,132,199,0.12)]'
+            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/90 border border-transparent font-medium'
         }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <Icon
-            className={`w-5 h-5 shrink-0 transition-colors ${
-              isActive ? 'text-blue-500' : 'text-slate-400 group-hover:text-slate-200'
+            className={`w-4 h-4 shrink-0 transition-colors ${
+              isActive ? 'text-sky-600' : 'text-slate-400'
             }`}
           />
           <span className="truncate">{item.label}</span>
         </div>
-
         {isActive && (
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+          <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
         )}
       </button>
     );
   };
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 bg-[#0B0F17] border-r border-[#283548] p-3.5 sticky top-0 h-screen select-none justify-between z-40 overflow-y-auto">
-      <div className="space-y-4">
-        {/* Brand Header */}
-        <div
+    <aside className="hidden lg:flex flex-col w-64 bg-white/95 border-r border-sky-200/80 px-3.5 py-4 sticky top-0 h-screen select-none justify-between z-40 overflow-y-auto shrink-0 shadow-[2px_0_20px_-4px_rgba(2,132,199,0.05)]">
+      <div className="space-y-6">
+        {/* Brand Wordmark Synchronized with AuthGate */}
+        <button
+          type="button"
           onClick={() => onSelectTab('home')}
-          className="flex items-center gap-3 px-2 py-2 cursor-pointer group rounded-lg hover:bg-[#161F30] transition-colors"
+          className="w-full flex items-center justify-between px-3 py-2 cursor-pointer rounded-xl bg-gradient-to-r from-sky-50/70 via-blue-50/30 to-transparent hover:from-sky-100/70 transition-all text-left border border-sky-100 hover:border-sky-300 shadow-2xs"
         >
-          <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-500 shrink-0">
-            <Shield className="w-5 h-5 text-blue-500 fill-blue-500/20" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold tracking-tight text-[#F8FAFC]">
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-8 h-8 rounded-xl bg-slate-950 flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Shield className="w-4 h-4 text-sky-400" />
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-[15px] font-semibold tracking-tight text-slate-950 whitespace-nowrap">
                 ScamGuard
               </span>
-              <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                PRO
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-sky-600">
+                VN
               </span>
             </div>
-            <span className="text-[11px] text-slate-400 truncate">
-              Enterprise Cyber Platform
-            </span>
           </div>
-        </div>
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-300 font-bold">
+            SOC
+          </span>
+        </button>
 
-        {/* Minimal System Status Pill */}
-        <div className="p-2.5 rounded-lg bg-[#161F30] border border-[#283548] text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-300 font-medium">Defense Engine</span>
-          </div>
-          <span className="text-emerald-400 font-mono text-[11px] font-semibold">ONLINE</span>
-        </div>
-
-        {/* Navigation Categories */}
-        <div className="space-y-4 pt-1">
-          {/* Category 1 */}
-          <div className="space-y-1">
-            <div className="px-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Detection & Intelligence
+        {/* Navigation Groups */}
+        <div className="space-y-5">
+          {/* Group 1: Threat Intelligence */}
+          <div className="space-y-1.5">
+            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              {t('side_grp_intel')}
             </div>
             <nav className="space-y-0.5">
-              {detectionItems.map(renderNavButton)}
+              {intelligenceItems.map(renderNavButton)}
             </nav>
           </div>
 
-          <div className="border-t border-[#283548]" />
+          <div className="border-t border-slate-100" />
 
-          {/* Category 2 */}
-          <div className="space-y-1">
-            <div className="px-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Training & Operations
+          {/* Group 2: Training & Simulation */}
+          <div className="space-y-1.5">
+            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              {t('side_grp_train')}
             </div>
             <nav className="space-y-0.5">
-              {operationItems.map(renderNavButton)}
+              {trainingItems.map(renderNavButton)}
+            </nav>
+          </div>
+
+          <div className="border-t border-slate-100" />
+
+          {/* Group 3: Utilities & Governance */}
+          <div className="space-y-1.5">
+            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              {t('side_grp_gov')}
+            </div>
+            <nav className="space-y-0.5">
+              {governanceItems.map(renderNavButton)}
             </nav>
           </div>
         </div>
       </div>
 
-      {/* Bottom Emergency Help Widget */}
-      <div className="pt-3 border-t border-[#283548]">
-        <div
+      {/* Bottom Emergency Response Protocol */}
+      <div className="pt-4 border-t border-slate-200/80 space-y-3">
+        <button
+          type="button"
           onClick={onOpenEmergency}
-          className="p-2.5 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] hover:border-rose-500/40 flex items-center gap-3 cursor-pointer transition-colors group"
+          className="w-full p-3 rounded-xl bg-rose-50/70 hover:bg-rose-50 border border-rose-200/80 hover:border-rose-300 flex items-center justify-between gap-2.5 cursor-pointer transition-all text-left group"
         >
-          <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
-            <Headphones className="w-4 h-4" />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-white border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 shadow-2xs">
+              <PhoneCall className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-slate-900 truncate">{t('side_emergency_title')}</p>
+              <p className="text-[11px] text-rose-600/90 truncate">{t('side_emergency_sub')}</p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-[#F8FAFC] truncate">Phòng Tuyến Khẩn Cấp</p>
-            <p className="text-[11px] text-slate-400 truncate">Quy trình SOS 24/7</p>
-          </div>
+          <ArrowUpRight className="w-3.5 h-3.5 text-rose-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 shrink-0 transition-transform" />
+        </button>
+
+        <div className="px-2 flex items-center justify-between text-[10px] text-slate-400 font-mono tabular-nums">
+          <span>TLS 1.3 · Zero-Trust</span>
+          <span>IRB #2026-0092</span>
         </div>
       </div>
     </aside>

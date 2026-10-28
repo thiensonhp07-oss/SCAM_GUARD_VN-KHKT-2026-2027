@@ -316,7 +316,7 @@ export const MonthlySecurityReportCard: React.FC<MonthlySecurityReportCardProps>
                       y1={y}
                       x2={chartWidth - paddingX}
                       y2={y}
-                      stroke="#334155"
+                      stroke="#e2e8f0"
                       strokeDasharray="4 4"
                       strokeWidth="1"
                     />
@@ -363,10 +363,10 @@ export const MonthlySecurityReportCard: React.FC<MonthlySecurityReportCardProps>
                       cx={pt.x}
                       cy={pt.y}
                       r={isHovered || isLast ? 6 : 4.5}
-                      fill={isLast ? '#10b981' : '#06b6d4'}
-                      stroke="#0f172a"
+                      fill={isLast ? '#10b981' : '#0284c7'}
+                      stroke="#ffffff"
                       strokeWidth="2"
-                      className="filter drop-shadow-[0_0_6px_rgba(6,182,212,0.8)]"
+                      className="filter drop-shadow-[0_2px_4px_rgba(2,132,199,0.3)]"
                     />
 
                     {/* X-axis Label */}

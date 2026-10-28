@@ -1,34 +1,82 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile documents
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // Scam reports
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Connection health check endpoint
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Real user database records (readable for real Leaderboard & Friends, writable by owner/account holder)
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create: if isValidId(userId)
+        && request.resource.data.id == userId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 150
+        && (!isSignedIn() || request.auth.uid == userId);
+      allow update: if isValidId(userId)
+        && (!('id' in request.resource.data) || request.resource.data.id == userId)
+        && (!('name' in request.resource.data) || (request.resource.data.name is string && request.resource.data.name.size() <= 150))
+        && (!isSignedIn() || request.auth.uid == userId);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+
+    // Real user community posts & alerts
+    match /social_posts/{postId} {
+      allow get, list: if true;
+      allow create: if isValidId(postId)
+        && request.resource.data.userId is string
+        && request.resource.data.userId.size() >= 1
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 4000;
+      allow update: if isValidId(postId);
+      allow delete: if isSignedIn()
+        && isValidId(postId)
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // Forensic scam reports per user
     match /scamReports/{reportId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(reportId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.riskScore is number;
+      allow update, delete: if isSignedIn()
+        && isValidId(reportId)
+        && resource.data.userId == request.auth.uid;
     }
 
     // ViSEF Community Surveys - live research pool synchronized across devices
     match /community_surveys/{surveyId} {
-      allow read: if true;
-      allow create, update: if true;
+      allow get, list: if true;
+      allow create, update: if isValidId(surveyId);
     }
 
     // Post App Certifications - live research cohort synchronized across devices
     match /post_app_certifications/{certId} {
-      allow read: if true;
-      allow create, update: if true;
-    }
-
-    // Default deny
-    match /{document=**} {
-      allow read, write: if false;
+      allow get, list: if true;
+      allow create, update: if isValidId(certId);
     }
   }
 }

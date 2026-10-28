@@ -2,22 +2,18 @@ import React, { useState } from 'react';
 import {
   Shield,
   AlertTriangle,
-  Flame,
-  Sparkles,
-  User,
-  Palette,
-  Dna,
-  Search,
-  Bell,
-  MessageSquare,
-  Moon,
   Menu,
-  X,
+  Search,
+  ChevronRight,
+  ShieldCheck,
+  Flame,
+  Globe,
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, UserAccount } from '../types';
 import { GlobalSearchBar } from './GlobalSearchBar';
-import brandLogo from '../assets/images/scamguard_logo_brand.png';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface NavbarProps {
   activeTab: string;
@@ -25,11 +21,10 @@ interface NavbarProps {
   currentUser: UserAccount | null;
   onSelectTab: (tab: any, subView?: string) => void;
   onOpenEmergency: () => void;
-  onOpenAuth: () => void;
+  onLogout?: () => void;
   onOpenTheme?: () => void;
   onOpenStreak?: () => void;
   onOpenScienceFairDemo?: () => void;
-  onOpenNotifications?: () => void;
   onOpenChat?: () => void;
   onOpenDrawer?: () => void;
   onLanguageChange?: (lang: 'vi' | 'en') => void;
@@ -41,17 +36,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onSelectTab,
   onOpenEmergency,
-  onOpenAuth,
-  onOpenTheme,
+  onLogout,
   onOpenStreak,
-  onOpenScienceFairDemo,
-  onOpenNotifications,
-  onOpenChat,
   onOpenDrawer,
   onLanguageChange,
 }) => {
+  const { t, language } = useTranslation();
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const currentLang = userProfile.language || 'vi';
+  const currentLang = language || userProfile.language || 'vi';
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isTodayCompleted =
+    typeof window !== 'undefined' &&
+    localStorage.getItem('scamguard_streak_last_date') === todayStr;
+
+  const workspaceTitleKey = `ws_${activeTab}` as any;
+  const activeWorkspaceTitle = t(workspaceTitleKey) || 'SOC Command Center';
 
   const toggleLanguage = () => {
     const nextLang = currentLang === 'vi' ? 'en' : 'vi';
@@ -59,156 +59,166 @@ export const Navbar: React.FC<NavbarProps> = ({
       onLanguageChange(nextLang);
     }
   };
+
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#0B0F17] border-b border-[#283548]">
-      <div className="max-w-[1550px] mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14 gap-4">
-          
-          {/* Left: Mobile Drawer Trigger + Brand Identity */}
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Hamburger button for Mobile & Tablet */}
+    <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-sky-200/90 border-t-2 border-t-sky-500 shadow-[0_4px_20px_-2px_rgba(2,132,199,0.06)]">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 gap-3 sm:gap-6">
+          {/* Zone 1: Mobile Menu Trigger + Contextual Breadcrumb Trail */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 shrink-0">
             <button
+              type="button"
               onClick={onOpenDrawer}
-              className="lg:hidden p-1.5 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] text-slate-300 hover:text-white transition cursor-pointer flex items-center justify-center"
-              title="Danh mục tính năng"
+              className="lg:hidden p-2 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-slate-600 hover:text-sky-600 transition cursor-pointer flex items-center justify-center"
+              title={currentLang === 'en' ? 'System Navigation Menu' : 'Danh mục hệ thống'}
             >
-              <Menu className="w-4 h-4 text-slate-300" />
+              <Menu className="w-4 h-4" />
             </button>
 
-            <div
+            {/* Mobile Brand Wordmark */}
+            <button
+              type="button"
               onClick={() => onSelectTab('home')}
-              className="flex items-center gap-2.5 cursor-pointer group select-none shrink-0"
+              className="lg:hidden flex items-center gap-2 text-left cursor-pointer whitespace-nowrap shrink-0"
             >
-              <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-500">
-                <Shield className="w-4.5 h-4.5 text-blue-500 fill-blue-500/20" />
+              <div className="w-7 h-7 rounded-lg bg-slate-950 flex items-center justify-center text-white shadow-xs">
+                <Shield className="w-3.5 h-3.5 text-sky-400" />
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight text-[#F8FAFC]">
-                  ScamGuard
-                </span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                  ENTERPRISE
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Middle: Global Search + System Status HUD Indicator (Desktop) */}
-          <div className="hidden md:flex flex-1 max-w-xl items-center gap-4">
-            <div className="flex-1">
-              <GlobalSearchBar onNavigate={onSelectTab} />
-            </div>
-
-            {/* Minimalist Enterprise Status Indicator */}
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-md bg-[#161F30] border border-[#283548] text-xs text-slate-300 shrink-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-slate-400">System:</span>
-              <span className="text-emerald-400 font-medium">Operational</span>
-            </div>
-          </div>
-
-          {/* Right Clean Action Controls */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Mobile Search Toggle Button */}
-            <button
-              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className="p-1.5 rounded-lg bg-[#161F30] border border-[#283548] text-slate-300 hover:text-white md:hidden transition cursor-pointer"
-              title="Tìm kiếm"
-            >
-              <Search className="w-4 h-4 text-slate-300" />
+              <span className="text-sm font-semibold tracking-tight text-slate-950">ScamGuard</span>
             </button>
-            
-            {/* Notification Bell */}
-            <div className="relative">
+
+            {/* Desktop Contextual Breadcrumb */}
+            <nav aria-label="Breadcrumb" className="hidden lg:flex items-center gap-2 text-xs whitespace-nowrap">
               <button
-                onClick={onOpenNotifications}
-                className="p-2 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] text-slate-400 hover:text-white transition cursor-pointer"
-                title="Thông báo an ninh SOC"
+                type="button"
+                onClick={() => onSelectTab('home')}
+                className="text-slate-500 hover:text-sky-600 transition-colors font-medium cursor-pointer flex items-center gap-1.5"
               >
-                <Bell className="w-4 h-4" />
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
+                <span>ScamGuard Security</span>
               </button>
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-blue-500 text-white font-mono text-[9px] font-bold flex items-center justify-center pointer-events-none">
-                5
-              </span>
-            </div>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+              <span className="text-slate-900 font-semibold">{activeWorkspaceTitle}</span>
+            </nav>
+          </div>
 
-            {/* Chat Messages Icon */}
+          {/* Zone 2: Global Threat & Module Search (Desktop) */}
+          <div className="hidden md:flex flex-1 max-w-md items-center">
+            <GlobalSearchBar onNavigate={onSelectTab} />
+          </div>
+
+          {/* Zone 3: Streamlined Security Controls, Streak Badge & Language Toggle */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Mobile Search Button */}
             <button
-              onClick={onOpenChat}
-              className="p-2 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] text-slate-400 hover:text-white transition cursor-pointer hidden sm:block"
-              title="Trung tâm cộng tác an ninh"
+              type="button"
+              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+              className="p-2 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 text-slate-600 hover:text-sky-600 md:hidden transition cursor-pointer"
+              title={currentLang === 'en' ? 'Search threats & modules' : 'Tìm kiếm'}
             >
-              <MessageSquare className="w-4 h-4 text-slate-400" />
+              <Search className="w-4 h-4" />
             </button>
 
-            {/* Streak Flame Badge Button */}
+            {/* DEDICATED STREAK BOX / WIDGET */}
             <button
+              type="button"
               onClick={onOpenStreak}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 text-xs font-medium transition cursor-pointer"
-              title="Chuỗi ngày an toàn liên tục"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/90 hover:border-amber-300 text-amber-900 transition-all cursor-pointer shadow-2xs group shrink-0"
+              title={
+                currentLang === 'en'
+                  ? `Daily Streak: ${userProfile.streakDays ?? 0} days (${isTodayCompleted ? 'Completed today' : 'Click to check in'})`
+                  : `Chuỗi bảo vệ an ninh: ${userProfile.streakDays ?? 0} ngày (${isTodayCompleted ? 'Đã điểm danh hôm nay' : 'Bấm để điểm danh nhận XP'})`
+              }
             >
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
-              <span>{userProfile.streakDays || 3}d</span>
+              <div className="w-5 h-5 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                <Flame className="w-3.5 h-3.5 text-amber-600 fill-amber-500 group-hover:scale-115 transition-transform" />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="font-mono font-bold text-xs sm:text-sm text-amber-950 tabular-nums">
+                  {userProfile.streakDays ?? 0}
+                </span>
+                <span className="text-[11px] font-semibold text-amber-800 hidden xs:inline">
+                  {currentLang === 'en' ? 'Days' : 'Ngày'}
+                </span>
+              </div>
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  isTodayCompleted
+                    ? 'bg-emerald-500 ring-2 ring-emerald-200'
+                    : 'bg-amber-500 animate-ping'
+                }`}
+                title={
+                  isTodayCompleted
+                    ? t('nav_streak_today_done')
+                    : t('nav_streak_need_checkin')
+                }
+              />
             </button>
 
-            {/* Theme Toggle Icon */}
+            {/* INTERACTIVE LANGUAGE SWITCHER BUTTON (VI <-> EN) */}
             <button
-              onClick={onOpenTheme}
-              className="p-2 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] text-slate-400 hover:text-white transition cursor-pointer hidden sm:block"
-              title="Tùy biến giao diện"
-            >
-              <Moon className="w-4 h-4" />
-            </button>
-
-            {/* Language Toggle */}
-            <button
+              type="button"
               onClick={toggleLanguage}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] text-xs font-medium text-slate-300 transition cursor-pointer"
-              title="Chuyển đổi Ngôn ngữ (VN / EN)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-700 hover:text-sky-700 text-xs font-bold transition cursor-pointer shadow-2xs shrink-0 select-none group"
+              title={
+                currentLang === 'vi'
+                  ? 'Switch to English (Click to toggle)'
+                  : 'Chuyển sang Tiếng Việt (Bấm để chuyển)'
+              }
             >
-              <span>{currentLang === 'vi' ? 'VN' : 'EN'}</span>
+              <Globe className="w-3.5 h-3.5 text-sky-600 group-hover:rotate-45 transition-transform" />
+              <span className="font-mono text-[11px] font-extrabold tracking-tight">
+                {currentLang === 'vi' ? 'VI' : 'EN'}
+              </span>
             </button>
 
-            {/* User Profile Pill */}
-            <div
-              onClick={onOpenAuth}
-              className="flex items-center gap-2 p-1 sm:pr-2.5 rounded-lg bg-[#161F30] hover:bg-[#1E293B] border border-[#283548] cursor-pointer transition"
-            >
-              <div className="w-7 h-7 rounded-md bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-semibold text-xs">
-                {userProfile.name ? userProfile.name.charAt(0) : 'S'}
-              </div>
-
-              <div className="flex flex-col text-left hidden lg:block">
-                <span className="text-xs font-semibold text-[#F8FAFC] tracking-tight leading-none truncate max-w-[100px]">
-                  {userProfile.name || 'SecOps Lead'}
-                </span>
-                <span className="text-[10px] text-slate-400 mt-0.5">
-                  Enterprise User
-                </span>
-              </div>
-            </div>
-
-            {/* Emergency Action Button */}
+            {/* Authenticated User Profile Badge */}
             <button
+              type="button"
+              onClick={() => onSelectTab('profile')}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-sky-50/70 border border-slate-200 hover:border-sky-200 text-xs font-medium text-slate-700 hover:text-slate-950 transition cursor-pointer whitespace-nowrap shrink-0"
+              title={currentLang === 'en' ? 'User Profile & Security Settings' : 'Hồ sơ cá nhân & Cài đặt'}
+            >
+              <span className="w-5 h-5 rounded-md bg-sky-100 border border-sky-200 flex items-center justify-center text-sky-700 font-bold text-[11px]">
+                {(currentUser?.name || userProfile.name || 'V').charAt(0).toUpperCase()}
+              </span>
+              <span className="hidden sm:inline truncate max-w-[120px] font-semibold">
+                {currentUser?.name || userProfile.name}
+              </span>
+            </button>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="hidden sm:inline-flex px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-xs font-medium text-slate-600 hover:text-rose-600 transition cursor-pointer whitespace-nowrap shrink-0"
+                title={currentLang === 'en' ? 'Sign out of current account' : 'Đăng xuất tài khoản'}
+              >
+                {t('nav_logout')}
+              </button>
+            )}
+
+            {/* Primary Action: Emergency SOS / Quick Scan */}
+            <button
+              type="button"
               onClick={onOpenEmergency}
-              className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-              title="Phòng Tuyến Khẩn Cấp 24/7"
+              className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer whitespace-nowrap shrink-0"
+              title={currentLang === 'en' ? 'Emergency 24/7 Hotline & Freeze Protocol' : 'Quy trình ứng cứu khẩn cấp 24/7'}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Khẩn Cấp</span>
+              <span>{t('nav_emergency_btn')}</span>
             </button>
           </div>
         </div>
 
-        {/* Mobile Search Overlay Drawer */}
+        {/* Mobile Search Bar Drawer */}
         <AnimatePresence>
           {isMobileSearchOpen && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden py-2 border-t border-[#283548] overflow-visible"
+              className="md:hidden py-2.5 border-t border-slate-200 overflow-visible"
             >
               <GlobalSearchBar
                 onNavigate={(t, s) => {

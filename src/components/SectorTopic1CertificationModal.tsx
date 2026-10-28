@@ -31,7 +31,9 @@ interface SectorTopic1CertificationModalProps {
   sectorNumber?: number;
   sectorTitle?: string;
   preAppScore?: number;
+  forceAllowExam?: boolean;
   onCertificateIssued?: (record: PostAppCertificationRecord) => void;
+  onUnlockNextSector?: () => void;
 }
 
 export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationModalProps> = ({
@@ -40,7 +42,9 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
   sectorNumber = 1,
   sectorTitle = 'Khu Vực 1: Vành Đai Ngoại Ô Cảnh Giác',
   preAppScore = 45,
+  forceAllowExam = false,
   onCertificateIssued,
+  onUnlockNextSector,
 }) => {
   const examQuestions = useMemo(() => getQuestionsForSector(sectorNumber), [sectorNumber]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -281,14 +285,14 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
-                  ViSEF Level 1 Sát Hạch
+                  Bài Kiểm Tra Chốt Trạm · Khu Vực {sectorNumber}
                 </span>
                 <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-                  Chuẩn hóa nghiên cứu khoa học kỹ thuật
+                  Vượt qua bài kiểm tra để mở khóa trạm kế tiếp
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-black text-white tracking-wide">
-                Thi Chứng Chỉ Năng Lực Phòng Thủ Số: Chủ Đề 1
+                Sát Hạch Qua Trạm — Phân Khu {sectorNumber}: {sectorTitle}
               </h2>
             </div>
           </div>
@@ -303,7 +307,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
         </div>
 
         {/* SUB-HEADER / PROGRESS BAR */}
-        {!isSubmitted && completionStats.isCompleted && (
+        {!isSubmitted && (completionStats.isCompleted || forceAllowExam) && (
           <div className="px-6 py-2.5 bg-slate-950/60 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
             <div className="flex items-center space-x-3">
               <span className="text-slate-300 font-bold">
@@ -314,7 +318,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                 Đã trả lời: <strong className="text-cyan-400">{answeredCount}</strong>/{totalQuestions}
               </span>
               <span className="text-slate-500">•</span>
-              <span className="text-emerald-400 font-semibold">Tiêu chuẩn qua: &gt; 50% (≥ 11/20 câu)</span>
+              <span className="text-emerald-400 font-semibold">Tiêu chuẩn Pass mở trạm tiếp: &gt; 50% (≥ 11/20 câu)</span>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -331,7 +335,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
 
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          {!completionStats.isCompleted ? (
+          {!completionStats.isCompleted && !forceAllowExam ? (
             /* LOCKED GATE: SECTOR NOT FINISHED YET */
             <div className="py-8 px-4 max-w-xl mx-auto text-center space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center mx-auto text-rose-400 shadow-xl shadow-rose-500/10">
@@ -552,18 +556,18 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                     <div>
                       <div className="text-xs uppercase font-mono tracking-widest text-slate-400">
                         {completedRecord.isPassed
-                          ? 'CHÚC MỪNG BẠN ĐÃ ĐẠT CHỨNG CHỈ VISEF CHỦ ĐỀ 1'
-                          : 'KẾT QUẢ SÁT HẠCH CHƯA ĐỦ ĐIỀU KIỆN'}
+                          ? `CHÚC MỪNG BẠN ĐÃ VƯỢT QUA BÀI KIỂM TRA TRẠM (KHU VỰC ${sectorNumber})`
+                          : 'KẾT QUẢ KIỂM TRA CHƯA ĐẠT YÊU CẦU QUA TRẠM'}
                       </div>
                       <h3 className="text-2xl sm:text-3xl font-black text-white mt-1">
                         {completedRecord.isPassed
-                          ? 'ĐẠT CHỨNG CHỈ NĂNG LỰC PHÒNG THỦ SỐ'
-                          : 'CẦN ÔN TẬP LẠI KHU VỰC & THI LẠI'}
+                          ? 'ĐÃ PASS TRẠM & MỞ KHÓA TRẠM TIẾP THEO!'
+                          : 'CẦN ÔN TẬP LẠI BÀI HỌC & THI LẠI ĐỂ QUA TRẠM'}
                       </h3>
                       <p className="text-xs text-slate-400 mt-1 max-w-xl mx-auto">
                         {completedRecord.isPassed
-                          ? 'Dữ liệu sát hạch thực tế của bạn đã được ghi nhận vào kho dữ liệu nghiên cứu khoa học ViSEF 2026.'
-                          : 'Yêu cầu điểm số tối thiểu trên 50% (> 10 câu đúng trong tổng số 20 câu). Bạn hãy xem lại các câu sai và thử lại nhé!'}
+                          ? `Bạn đã vượt qua bài kiểm tra chốt trạm của ${sectorTitle}. Trạm tiếp theo trong lộ trình cá nhân hóa đã chính thức được mở khóa!`
+                          : 'Theo quy tắc đào tạo tuần tự: Bạn cần đạt trên 50% (≥ 11/20 câu đúng) trong Bài Kiểm Tra Cuối Trạm mới được mở khóa sang Trạm tiếp theo.'}
                       </p>
                     </div>
 
@@ -618,7 +622,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                             </span>
                           </div>
                           <div className="text-base font-bold text-white">
-                            Chứng chỉ Hoàn Thành Chủ Đề 1: Nhận Diện & Đánh Bại Lừa Đảo Số
+                            Chứng Chỉ Vượt Trạm — Khu Vực {sectorNumber}: {sectorTitle}
                           </div>
                           <div className="text-xs text-slate-300">
                             Cấp cho: <strong>{completedRecord.participantName}</strong> ({completedRecord.anonymousCode})
@@ -650,7 +654,21 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                         className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition flex items-center space-x-2 cursor-pointer shadow-lg shadow-rose-600/20"
                       >
                         <RefreshCw className="w-4 h-4" />
-                        <span>Thi Lại Ngay</span>
+                        <span>Thi Lại Ngay Để Qua Trạm</span>
+                      </button>
+                    )}
+
+                    {completedRecord.isPassed && onUnlockNextSector && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onUnlockNextSector();
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition flex items-center space-x-2 cursor-pointer shadow-lg shadow-emerald-600/25"
+                      >
+                        <span>Đã Pass — Sang Trạm Tiếp Theo Ngay</span>
+                        <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
 
@@ -659,7 +677,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                       onClick={onClose}
                       className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition flex items-center space-x-2 cursor-pointer shadow-lg shadow-indigo-600/20"
                     >
-                      <span>Vào Mục Nghiên Cứu ViSEF Xem Dữ Liệu</span>
+                      <span>Quay Lại Bản Đồ Lộ Trình</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>

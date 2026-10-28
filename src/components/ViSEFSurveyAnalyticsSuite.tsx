@@ -33,7 +33,6 @@ import {
   Lock,
   Scale,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import {
   SurveyAnalyticsData,
   CommunitySurveySubmission,
@@ -322,11 +321,6 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: savedSurvey }));
       }
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
       await fetchAnalytics();
     } catch (err) {
       console.error('Failed to submit survey:', err);
@@ -434,29 +428,62 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
   const baseline = analytics?.preAppBaselineStats;
   const postImpact = analytics?.postAppInterventionStats;
 
+  const impulsiveHabitPct = +(
+    (analytics?.verificationHabitsPre || [])
+      .filter((h) => h.habitKey === 'CLICK_IMMEDIATELY' || h.habitKey === 'TRUST_VOICE_OR_LOGO')
+      .reduce((acc, h) => acc + h.percentage, 0)
+  ).toFixed(1);
+
+  const topFearTactic =
+    analytics?.fearTacticsDistribution && analytics.fearTacticsDistribution.length > 0
+      ? [...analytics.fearTacticsDistribution].sort((a, b) => b.percentage - a.percentage)[0]
+      : null;
+
+  const avgPreConfidence =
+    analytics?.recentSurveys && analytics.recentSurveys.length > 0
+      ? +(
+          analytics.recentSurveys.reduce(
+            (sum, s) => sum + (s.surveyResponses?.preConfidenceScore ?? 50),
+            0
+          ) / analytics.recentSurveys.length
+        ).toFixed(1)
+      : 0;
+
+  const topGainDemographic =
+    analytics?.demographicBreakdown && analytics.demographicBreakdown.length > 0
+      ? [...analytics.demographicBreakdown]
+          .filter((d) => d.count > 0)
+          .sort((a, b) => b.meanGain - a.meanGain)[0] || null
+      : null;
+
+  const preScoreVal = baseline?.avgInitialDefenseScore ?? 0;
+  const postScoreVal = postImpact?.avgPostDefenseScore ?? 0;
+  const scoreDeltaVal = +(postScoreVal - preScoreVal).toFixed(1);
+  const preLatencyVal = baseline?.avgInitialLatencySec ?? 0;
+  const postLatencyVal = postImpact?.avgPostLatencySec ?? 0;
+  const latencyDeltaVal = +(postLatencyVal - preLatencyVal).toFixed(1);
+
   return (
     <div className="space-y-6" id="visef-survey-analytics-container">
-      {/* Top Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 p-6 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Top Header Banner - Enterprise Institutional Style */}
+      <div className="relative overflow-hidden rounded-xl bg-slate-900 border border-slate-800 p-6 shadow-lg">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 text-xs font-semibold tracking-wide uppercase">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-              Khảo Sát Thực Nghiệm ViSEF / ISEF 2026
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-950 border border-slate-800 text-sky-400 text-[11px] font-mono font-semibold tracking-wider uppercase">
+              <span>BÁO CÁO KHOA HỌC THỰC NGHIỆM VISEF / ISEF 2026</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-emerald-400">DATASET THỰC TẾ (N = {analytics?.totalRespondents ?? 0})</span>
             </div>
-            <h2 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">
-              Báo Cáo Khảo Sát Hiện Trạng An Ninh Số & Tác Động Huấn Luyện Thích Ứng
+            <h2 className="text-xl lg:text-2xl font-bold text-white tracking-tight">
+              Báo Cáo Khảo Sát Hiện Trạng An Ninh Số & Đánh Giá Tác Động Huấn Luyện Thích Ứng
             </h2>
-            <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
-              Dữ liệu khảo sát độc lập thu thập từ <strong>{analytics?.totalRespondents ?? 0}</strong> người tham gia tại Việt Nam 
-              đo lường hiện trạng nhận thức khi <span className="text-amber-300 font-semibold underline decoration-amber-500/50">chưa sử dụng ứng dụng</span> so với 
-              chuyển biến phản xạ sau khi can thiệp bằng mô hình ScamGuard VN.
+            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
+              Toàn bộ chỉ số thống kê dưới đây được tổng hợp trực tiếp từ tập dữ liệu khảo sát người dùng thực tế (<strong>N = {analytics?.totalRespondents ?? 0}</strong> mẫu hợp lệ), đo lường định lượng lỗ hổng nhận thức khi <span className="text-slate-200 font-medium">chưa sử dụng hệ thống</span> đối chiếu với hiệu quả sau can thiệp.
             </p>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               id="btn-open-survey-modal"
               onClick={() => {
@@ -467,83 +494,77 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                   setIsSurveyModalOpen(true);
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-500/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg border border-sky-500 transition-colors cursor-pointer"
             >
-              <Users className="w-4 h-4 text-cyan-300" />
-              <span>Khảo Nghiệm ViSEF 5 Phút (Live Survey)</span>
+              <Users className="w-4 h-4 text-white" />
+              <span>Thực Hiện Khảo Sát Thực Nghiệm (Live Survey)</span>
             </button>
 
             <button
               id="btn-export-survey-csv"
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 hover:border-slate-600 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-200 text-xs font-mono font-semibold rounded-lg border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer"
               title="Tải tệp CSV số liệu khảo sát đầy đủ"
             >
-              <Download className="w-4 h-4 text-emerald-400" />
-              Xuất CSV (N={analytics?.totalRespondents ?? 0})
+              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Xuất CSV (N={analytics?.totalRespondents ?? 0})</span>
             </button>
 
             <button
               id="btn-refresh-survey-data"
               onClick={fetchAnalytics}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-all cursor-pointer"
-              title="Làm mới số liệu"
+              className="p-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-800 transition-colors cursor-pointer"
+              title="Đồng bộ lại dữ liệu từ tập mẫu"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-sky-400' : ''}`} />
             </button>
           </div>
         </div>
 
-        {/* Tab Navigation with "Trước đó" & "Tiếp theo" Buttons for iPad, iPhone & Desktop */}
-        <div className="mt-6 pt-4 border-t border-slate-800/80 space-y-3">
-          {/* Touch-First Navigation Toolbar: [Trước đó] - [Chọn Chuyên Mục ▾] - [Tiếp theo] */}
-          <div className="flex items-center justify-between gap-2 p-2 bg-slate-950/80 rounded-2xl border border-slate-800 shadow-inner">
-            {/* Nút TRƯỚC ĐÓ */}
+        {/* Tab Navigation */}
+        <div className="mt-6 pt-4 border-t border-slate-800 space-y-3">
+          <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-950 rounded-lg border border-slate-800">
             <button
               id="btn-tab-prev"
               type="button"
               onClick={handlePrevTab}
               disabled={!hasPrevTab}
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-25 disabled:cursor-not-allowed bg-slate-900 hover:bg-slate-800 active:scale-95 text-slate-200 border border-slate-700/80 shadow cursor-pointer shrink-0 min-h-[42px]"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 cursor-pointer shrink-0"
               title={hasPrevTab ? `Mục trước: ${prevTab?.label}` : 'Đang ở mục đầu tiên'}
             >
-              <ChevronLeft className="w-4 h-4 text-cyan-400" />
+              <ChevronLeft className="w-4 h-4 text-slate-400" />
               <span>Trước đó</span>
             </button>
 
-            {/* Quick Touch Dropdown Selector */}
             <div className="flex-1 flex items-center justify-center max-w-lg px-1">
               <select
                 id="select-survey-tab"
                 value={activeTab}
                 onChange={(e) => handleSelectTab(e.target.value as any)}
-                className="w-full text-center bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-indigo-300 focus:outline-none focus:border-indigo-500 transition-colors truncate cursor-pointer min-h-[42px]"
-                title="Chạm để chuyển nhanh giữa 5 chuyên mục"
+                className="w-full text-center bg-slate-900 border border-slate-800 rounded-md py-2 px-3 text-xs font-semibold text-slate-200 focus:outline-none focus:border-sky-500 transition-colors truncate cursor-pointer"
               >
                 {SURVEY_TABS.map((tab, idx) => (
                   <option key={tab.id} value={tab.id}>
-                    Phần {idx + 1}/5: {tab.label}
+                    Mục {idx + 1}/5: {tab.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Nút TIẾP THEO */}
             <button
               id="btn-tab-next"
               type="button"
               onClick={handleNextTab}
               disabled={!hasNextTab}
-              className="flex items-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-25 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 active:scale-95 text-white shadow-md shadow-indigo-600/30 cursor-pointer shrink-0 min-h-[42px]"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md text-xs font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-sky-600 hover:bg-sky-500 text-white cursor-pointer shrink-0"
               title={hasNextTab ? `Mục tiếp theo: ${nextTab?.label}` : 'Đang ở mục cuối cùng'}
             >
               <span>Tiếp theo</span>
-              <ChevronRight className="w-4 h-4 text-cyan-200" />
+              <ChevronRight className="w-4 h-4 text-white" />
             </button>
           </div>
 
-          {/* Tab Strip without browser drag bar - smooth touch pan & auto-scroll */}
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] touch-pan-x pb-1">
             {SURVEY_TABS.map((tab, idx) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -552,20 +573,20 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                   key={tab.id}
                   id={`tab-survey-${tab.id.toLowerCase()}`}
                   onClick={() => handleSelectTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 min-h-[38px] ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer shrink-0 border ${
                     active
-                      ? 'bg-gradient-to-r from-indigo-600/30 to-cyan-600/20 text-white border border-indigo-500/60 shadow-md shadow-indigo-500/10 font-bold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+                      ? 'bg-sky-500/10 text-sky-300 border-sky-500/40 font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-950 border-transparent'
                   }`}
                 >
                   <span
-                    className={`w-5 h-5 rounded-full text-[10px] font-bold font-mono flex items-center justify-center ${
-                      active ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400'
+                    className={`w-4 h-4 rounded text-[10px] font-mono font-bold flex items-center justify-center ${
+                      active ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400'
                     }`}
                   >
                     {idx + 1}
                   </span>
-                  <Icon className={`w-3.5 h-3.5 ${active ? 'text-cyan-400' : 'text-slate-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${active ? 'text-sky-400' : 'text-slate-500'}`} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -577,81 +598,81 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
       {/* TAB 1: OVERVIEW METRIC SUMMARY CARDS */}
       {activeTab === 'OVERVIEW' && (
         <div className="space-y-6">
-          {/* 4 Contrast Metric Cards (Pre vs Post) */}
+          {/* 4 Contrast Metric Cards (Pre vs Post) - Computed strictly from dataset */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Card 1: Encounter rate */}
-            <div className="rounded-xl bg-slate-900/90 border border-slate-800 p-5 space-y-3 relative overflow-hidden">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Tỷ Lệ Tiếp Cận Bẫy Lừa Đảo</span>
+                <span className="text-[11px] font-mono font-semibold text-slate-400 uppercase tracking-wider">Tỷ Lệ Tiếp Cận Bẫy Lừa Đảo</span>
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-amber-400">{baseline?.encounteredScamPct || 92.4}%</span>
-                <span className="text-xs text-slate-400">từng gặp rủi ro</span>
+              <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                <span className="text-2xl font-bold text-white">{baseline?.encounteredScamPct ?? 0}%</span>
+                <span className="text-xs text-slate-400">mẫu khảo sát</span>
               </div>
-              <p className="text-xs text-slate-300">
-                <strong>{baseline?.clickedLinkOrCompromisedPct || 68.3}%</strong> thừa nhận từng bấm vào liên kết lạ hoặc từng có nguy cơ bị chiếm đoạt tài khoản khi chưa dùng app.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                <strong className="text-slate-200 font-mono">{baseline?.clickedLinkOrCompromisedPct ?? 0}%</strong> người tham gia trong tập mẫu từng tương tác với liên kết nghi vấn hoặc suýt mất tài sản khi chưa qua đào tạo.
               </p>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
-                <div className="bg-amber-400 h-full rounded-full" style={{ width: `${baseline?.encounteredScamPct || 92}%` }} />
+              <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-2">
+                <div className="bg-amber-500 h-full rounded-full" style={{ width: `${Math.min(100, baseline?.encounteredScamPct ?? 0)}%` }} />
               </div>
             </div>
 
             {/* Card 2: Initial Score vs Post Score */}
-            <div className="rounded-xl bg-slate-900/90 border border-indigo-900/40 p-5 space-y-3 relative overflow-hidden">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-indigo-300 uppercase tracking-wider">Điểm Phòng Thủ (Pre vs Post)</span>
+                <span className="text-[11px] font-mono font-semibold text-slate-400 uppercase tracking-wider">Điểm Phòng Thủ (Pre → Post)</span>
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-slate-400 line-through">{baseline?.avgInitialDefenseScore || 51.8}</span>
-                <span className="text-3xl font-extrabold text-emerald-400">→ {postImpact?.avgPostDefenseScore || 88.6}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                  +{postImpact?.avgScoreGainPct || 71.0}%
+              <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                <span className="text-lg font-semibold text-slate-500 line-through">{preScoreVal}</span>
+                <span className="text-2xl font-bold text-emerald-400">→ {postScoreVal}</span>
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-semibold border border-emerald-500/30">
+                  +{postImpact?.avgScoreGainPct ?? 0}%
                 </span>
               </div>
-              <p className="text-xs text-slate-300">
-                Mức độ vững vàng nhận thức tăng trung bình <strong>+{((postImpact?.avgPostDefenseScore || 88.6) - (baseline?.avgInitialDefenseScore || 51.8)).toFixed(1)} điểm</strong> sau chuỗi huấn luyện thích ứng.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Điểm năng lực nhận diện trung bình của tập mẫu tăng <strong className="text-slate-200 font-mono">+{scoreDeltaVal} điểm</strong> (thang 100) sau can thiệp.
               </p>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
-                <div className="bg-gradient-to-r from-amber-500 to-emerald-400 h-full rounded-full" style={{ width: `${postImpact?.avgPostDefenseScore || 88}%` }} />
+              <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-2">
+                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, postScoreVal)}%` }} />
               </div>
             </div>
 
             {/* Card 3: Cognitive Friction / Response Latency */}
-            <div className="rounded-xl bg-slate-900/90 border border-cyan-900/40 p-5 space-y-3 relative overflow-hidden">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-cyan-300 uppercase tracking-wider">Khoảng Dừng Nhận Thức</span>
-                <Clock className="w-4 h-4 text-cyan-400" />
+                <span className="text-[11px] font-mono font-semibold text-slate-400 uppercase tracking-wider">Độ Trễ Quyết Định (Latency)</span>
+                <Clock className="w-4 h-4 text-sky-400" />
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-rose-400">{baseline?.avgInitialLatencySec || 3.4}s</span>
-                <span className="text-xs text-slate-400">vội vàng →</span>
-                <span className="text-3xl font-extrabold text-cyan-400">{postImpact?.avgPostLatencySec || 11.8}s</span>
+              <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                <span className="text-lg font-semibold text-rose-400">{preLatencyVal}s</span>
+                <span className="text-xs text-slate-500">→</span>
+                <span className="text-2xl font-bold text-sky-400">{postLatencyVal}s</span>
               </div>
-              <p className="text-xs text-slate-300">
-                Tăng gấp <strong>{postImpact?.cognitiveFrictionMultiplier || 3.5}x lần</strong> thời gian kiểm chứng 2 kênh trước khi giao dịch, triệt tiêu phản xạ bốc đồng.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Hệ số ma sát nhận thức đạt <strong className="text-slate-200 font-mono">{postImpact?.cognitiveFrictionMultiplier ?? 0}x</strong> (+{latencyDeltaVal}s), chuyển từ phản xạ cảm tính sang kiểm chứng có chủ đích.
               </p>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
-                <div className="bg-cyan-400 h-full rounded-full" style={{ width: '85%' }} />
+              <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-2">
+                <div className="bg-sky-500 h-full rounded-full" style={{ width: `${Math.min(100, (postLatencyVal / 15) * 100)}%` }} />
               </div>
             </div>
 
             {/* Card 4: Safe Action avoided surrender */}
-            <div className="rounded-xl bg-slate-900/90 border border-emerald-900/40 p-5 space-y-3 relative overflow-hidden">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-emerald-300 uppercase tracking-wider">Từ Chối Giao Dịch Độc Hại</span>
+                <span className="text-[11px] font-mono font-semibold text-slate-400 uppercase tracking-wider">Tỷ Lệ Xử Lý An Toàn</span>
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-emerald-400">{postImpact?.safeActionSuccessPct || 94.6}%</span>
-                <span className="text-xs text-slate-400">bảo vệ an toàn</span>
+              <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                <span className="text-2xl font-bold text-emerald-400">{postImpact?.safeActionSuccessPct ?? 0}%</span>
+                <span className="text-xs text-slate-400">trên tập mẫu</span>
               </div>
-              <p className="text-xs text-slate-300">
-                <strong>{postImpact?.unseenScenarioPassPct || 91.2}%</strong> người tham gia xử lý chính xác cả với các kịch bản lừa đảo mới phát sinh (Unseen Zero-day attacks).
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Điểm kiểm thử trên các kịch bản biến thể mới (Unseen Scenarios) đạt trung bình <strong className="text-slate-200 font-mono">{postImpact?.unseenScenarioPassPct ?? 0}/100</strong>.
               </p>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2">
-                <div className="bg-emerald-400 h-full rounded-full" style={{ width: `${postImpact?.safeActionSuccessPct || 94}%` }} />
+              <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-2">
+                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, postImpact?.safeActionSuccessPct ?? 0)}%` }} />
               </div>
             </div>
           </div>
@@ -659,107 +680,113 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           {/* DEDICATED 3-CHART COMPARISON SUITE: Personal vs Community */}
           <PersonalVsCommunityComparisonSuite
             totalRespondents={analytics?.totalRespondents ?? 0}
-            userPreScore={recentPersonalResult?.testOutcome?.preScore || 40}
-            userPostScore={recentPersonalResult?.testOutcome?.postScore || 88}
-            participantName={recentPersonalResult?.participantName || 'Khảo nghiệm viên Cá nhân'}
+            userPreScore={recentPersonalResult?.testOutcome?.preScore ?? preScoreVal}
+            userPostScore={recentPersonalResult?.testOutcome?.postScore ?? postScoreVal}
+            participantName={recentPersonalResult?.participantName || 'Trung bình mẫu khảo sát'}
           />
 
           {/* DEDICATED PRE-APP VULNERABILITY GRAPH & BASELINE DATA */}
           <PreAppVulnerabilityGraph
-            totalRespondents={analytics?.totalRespondents || 0}
+            totalRespondents={analytics?.totalRespondents ?? 0}
             analytics={analytics}
             surveys={analytics?.recentSurveys}
             userPreScore={recentPersonalResult?.testOutcome?.preScore}
             onTakeSurvey={() => setIsSurveyModalOpen(true)}
           />
 
-          {/* Detailed Side-by-Side Analysis Grid */}
+          {/* Detailed Side-by-Side Analysis Grid - Bound directly to real dataset */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left: Pre-App Vulnerability Breakdown */}
-            <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" />
-                  <h3 className="text-base font-bold text-white">Hiện Trạng Khi CHƯA Dùng Ứng Dụng (Pre-App Survey)</h3>
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wide">Chỉ Số Trước Can Thiệp (Pre-Intervention Baseline)</h3>
                 </div>
-                <span className="text-xs text-rose-400 font-semibold bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
-                  Khảo sát ban đầu
+                <span className="text-[11px] text-rose-300 font-mono bg-rose-500/10 px-2.5 py-0.5 rounded border border-rose-500/20">
+                  N = {analytics?.totalRespondents ?? 0}
                 </span>
               </div>
 
               <div className="space-y-3 text-xs text-slate-300">
-                <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-1">
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                   <div className="flex justify-between font-semibold text-slate-200">
-                    <span>Thói quen phản ứng khi nhận tin lạ:</span>
-                    <span className="text-rose-400">41.5% bấm ngay / làm theo</span>
+                    <span>Tỷ lệ phản ứng cảm tính / thiếu kiểm chứng:</span>
+                    <span className="text-rose-400 font-mono">{impulsiveHabitPct}% mẫu khảo sát</span>
                   </div>
                   <p className="text-slate-400">
-                    Phần lớn người tham gia không có thói quen soi URL hay kiểm tra số tài khoản trước khi giao dịch.
+                    Tổng hợp từ nhóm chọn &quot;Làm theo hướng dẫn ngay&quot; hoặc &quot;Chỉ tin vào giọng nói / logo quen thuộc&quot; trong khảo sát đầu vào.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-1">
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                   <div className="flex justify-between font-semibold text-slate-200">
-                    <span>Kịch bản gây hoảng loạn cao nhất:</span>
-                    <span className="text-amber-400">Mạo danh Công an (34.2%)</span>
+                    <span>Tác nhân gây áp lực tâm lý cao nhất:</span>
+                    <span className="text-amber-400 font-mono">
+                      {topFearTactic ? `${topFearTactic.tacticLabel} (${topFearTactic.percentage}%)` : 'Chưa có dữ liệu'}
+                    </span>
                   </div>
                   <p className="text-slate-400">
-                    Nỗi sợ uy quyền giả mạo kết hợp áp lực &quot;giam giữ 24h&quot; khiến nạn nhân mất khả năng suy xét logic.
+                    Được trích xuất trực tiếp từ phân phối câu trả lời về kịch bản gây hoang mang nhất trong tập dữ liệu thực tế.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-1">
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
                   <div className="flex justify-between font-semibold text-slate-200">
-                    <span>Mức độ tự tin trung bình trước khi test:</span>
-                    <span className="text-slate-300">46.5 / 100 (Tự tin sai lệch)</span>
+                    <span>Điểm tự đánh giá vs. Điểm thực tế đầu vào:</span>
+                    <span className="text-slate-200 font-mono">
+                      Tự tin {avgPreConfidence}/100 • Thực tế {preScoreVal}/100
+                    </span>
                   </div>
                   <p className="text-slate-400">
-                    Nhiều người nghĩ mình &quot;không bao giờ bị lừa&quot; nhưng thất bại ngay ở bẫy Fake Bill và Quishing.
+                    Phản ánh độ lệch nhận thức (Dunning-Kruger gap) giữa mức độ tự tin chủ quan và năng lực xử lý 12 tình huống thực nghiệm.
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Right: Post-Intervention Scientific Impact */}
-            <div className="rounded-xl bg-slate-900/80 border border-indigo-900/40 p-5 space-y-4">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                  <h3 className="text-base font-bold text-white">Chuyển Biến SAU KHI Dùng ScamGuard (Post-Intervention)</h3>
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wide">Chỉ Số Sau Can Thiệp (Post-Intervention Impact)</h3>
                 </div>
-                <span className="text-xs text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                  Tác động thực nghiệm
+                <span className="text-[11px] text-emerald-300 font-mono bg-emerald-500/10 px-2.5 py-0.5 rounded border border-emerald-500/20">
+                  Đối chứng cùng mẫu
                 </span>
               </div>
 
               <div className="space-y-3 text-xs text-slate-300">
-                <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/40 space-y-1">
-                  <div className="flex justify-between font-semibold text-emerald-300">
-                    <span>Quy trình xác minh 2 kênh độc lập:</span>
-                    <span className="text-emerald-400">Tăng lên 94.6%</span>
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-semibold text-slate-200">
+                    <span>Tỷ lệ thực hiện quyết định an toàn:</span>
+                    <span className="text-emerald-400 font-mono">{postImpact?.safeActionSuccessPct ?? 0}%</span>
                   </div>
-                  <p className="text-slate-300">
-                    Hình thành phản xạ gọi trực tiếp hotline ngân hàng hoặc cơ quan chính thức thay vì tương tác số lạ.
+                  <p className="text-slate-400">
+                    Tỷ lệ người tham gia trong tập mẫu loại bỏ hoàn toàn hành vi chuyển khoản hoặc cấp quyền độc hại ở bài đánh giá đầu ra.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/40 space-y-1">
-                  <div className="flex justify-between font-semibold text-emerald-300">
-                    <span>Triệt tiêu bẫy chia sẻ OTP:</span>
-                    <span className="text-emerald-400">98.2% từ chối cung cấp</span>
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-semibold text-slate-200">
+                    <span>Điểm trung bình sau đào tạo (Post-Score):</span>
+                    <span className="text-emerald-400 font-mono">{postScoreVal}/100 (+{scoreDeltaVal} điểm)</span>
                   </div>
-                  <p className="text-slate-300">
-                    Khắc sâu quy tắc: &quot;Mã OTP chỉ dùng khi chuyển tiền đi, nhận tiền không bao giờ cần OTP&quot;.
+                  <p className="text-slate-400">
+                    Mức độ cải thiện điểm số thực tế thu được trên toàn bộ {analytics?.totalRespondents ?? 0} hồ sơ khảo nghiệm.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/40 space-y-1">
-                  <div className="flex justify-between font-semibold text-emerald-300">
-                    <span>Độ trễ phản xạ an toàn (Cognitive Pause):</span>
-                    <span className="text-cyan-400">11.8 giây (+8.4s)</span>
+                <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-semibold text-slate-200">
+                    <span>Thời gian suy xét trung bình trước hành động:</span>
+                    <span className="text-sky-400 font-mono">
+                      {postLatencyVal} giây ({latencyDeltaVal >= 0 ? `+${latencyDeltaVal}s` : `${latencyDeltaVal}s`})
+                    </span>
                   </div>
-                  <p className="text-slate-300">
-                    Đủ thời gian kích hoạt vùng vỏ não trước trán (Prefrontal Cortex) để nhận diện bất thường tên miền.
+                  <p className="text-slate-400">
+                    Tăng thời gian đối chiếu chéo tên miền, số tài khoản và xác minh qua kênh liên lạc độc lập.
                   </p>
                 </div>
               </div>
@@ -768,42 +795,43 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
         </div>
       )}
 
-      {/* TAB 2: BEAUTIFUL COLUMN & DEMOGRAPHIC CHARTS */}
+      {/* TAB 2: DEMOGRAPHIC & EMPIRICAL CHARTS */}
       {activeTab === 'CHARTS' && (
         <div className="space-y-6">
           {/* Main Visual Column Chart: Pre vs Post Score across 5 Demographics */}
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-6 space-y-6 shadow-xl">
+          <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-indigo-400" />
-                  Biểu Đồ So Sánh Điểm Phòng Thủ An Ninh Số: Trước vs Sau Can Thiệp
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-sky-400" />
+                  Biểu Đồ Phân Rã Điểm Phòng Thủ Theo Nhóm Nhân Khẩu Học (Pre vs. Post)
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Phân rã theo 5 nhóm nhân khẩu học chính (Thang đo 0 - 100 điểm, N = {analytics?.totalRespondents ?? 0})
+                  Tính toán trực tiếp từ tập dữ liệu khảo sát thực tế (Thang đo 0 - 100 điểm, N = {analytics?.totalRespondents ?? 0})
                 </p>
               </div>
 
               {/* Legend */}
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded bg-rose-500/80 border border-rose-400" />
-                  <span className="text-slate-300">Trước khi dùng App (Pre-Test)</span>
+                  <div className="w-3 h-3 rounded-sm bg-rose-500" />
+                  <span className="text-slate-300">Trước can thiệp (Pre-Test)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded bg-emerald-500 border border-emerald-400" />
-                  <span className="text-slate-300">Sau khi huấn luyện (Post-Test)</span>
+                  <div className="w-3 h-3 rounded-sm bg-emerald-500" />
+                  <span className="text-slate-300">Sau can thiệp (Post-Test)</span>
                 </div>
               </div>
             </div>
 
             {/* Custom SVG / Interactive Bar Chart */}
             <div className="relative pt-6 pb-2">
-              <div className="grid grid-cols-5 gap-3 md:gap-6 items-end h-64 border-b border-slate-700/80 px-2">
+              <div className="grid grid-cols-5 gap-3 md:gap-6 items-end h-64 border-b border-slate-800 px-2">
                 {analytics?.demographicBreakdown.map((item, idx) => {
-                  const preHeight = Math.max(10, Math.min(100, item.meanPreScore));
-                  const postHeight = Math.max(10, Math.min(100, item.meanPostScore));
+                  const preHeight = Math.max(4, Math.min(100, item.meanPreScore));
+                  const postHeight = Math.max(4, Math.min(100, item.meanPostScore));
                   const isHovered = hoveredBarIndex === idx;
+                  const pctGain = item.meanPreScore > 0 ? ((item.meanGain / item.meanPreScore) * 100).toFixed(1) : '0.0';
 
                   return (
                     <div
@@ -814,16 +842,16 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                     >
                       {/* Tooltip on hover */}
                       {isHovered && (
-                        <div className="absolute -top-16 z-30 bg-slate-950 border border-indigo-500/50 p-2.5 rounded-xl shadow-2xl text-[11px] whitespace-nowrap pointer-events-none">
-                          <div className="font-bold text-white">{item.label} (N={item.count})</div>
-                          <div className="text-rose-400">Trước: {item.meanPreScore}/100 đ (Rủi ro: {item.meanUnsafeRatePre}%)</div>
-                          <div className="text-emerald-400">Sau: {item.meanPostScore}/100 đ (Rủi ro: {item.meanUnsafeRatePost}%)</div>
-                          <div className="text-cyan-300 font-semibold">Tăng trưởng: +{item.meanGain} điểm (+{((item.meanGain / item.meanPreScore) * 100).toFixed(1)}%)</div>
+                        <div className="absolute -top-16 z-30 bg-slate-950 border border-slate-700 p-2.5 rounded-lg shadow-xl text-[11px] font-mono whitespace-nowrap pointer-events-none">
+                          <div className="font-bold text-white font-sans">{item.label} (n = {item.count})</div>
+                          <div className="text-rose-400">Pre: {item.meanPreScore}/100 (Rủi ro: {item.meanUnsafeRatePre}%)</div>
+                          <div className="text-emerald-400">Post: {item.meanPostScore}/100 (Rủi ro: {item.meanUnsafeRatePost}%)</div>
+                          <div className="text-sky-300 font-semibold">Δ = +{item.meanGain}đ (+{pctGain}%)</div>
                         </div>
                       )}
 
                       {/* Delta badge above bars */}
-                      <div className="mb-2 px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[10px] font-bold">
+                      <div className="mb-2 px-1.5 py-0.5 rounded bg-slate-950 text-sky-300 border border-slate-800 text-[10px] font-mono font-bold">
                         +{item.meanGain}đ
                       </div>
 
@@ -831,23 +859,23 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                       <div className="flex items-end gap-1.5 sm:gap-3 w-full justify-center">
                         {/* Pre-bar */}
                         <div className="w-1/2 max-w-[28px] flex flex-col items-center">
-                          <span className="text-[10px] font-bold text-rose-300 mb-1">{item.meanPreScore}</span>
+                          <span className="text-[10px] font-mono font-bold text-rose-400 mb-1">{item.meanPreScore}</span>
                           <motion.div
                             initial={{ height: 0 }}
                             animate={{ height: `${preHeight * 1.8}px` }}
-                            transition={{ duration: 0.6, delay: idx * 0.1 }}
-                            className="w-full bg-gradient-to-t from-rose-700 to-rose-500 rounded-t-md shadow-md group-hover:brightness-110 transition-all"
+                            transition={{ duration: 0.4, delay: idx * 0.05 }}
+                            className="w-full bg-rose-500/85 rounded-t-sm group-hover:bg-rose-400 transition-colors"
                           />
                         </div>
 
                         {/* Post-bar */}
                         <div className="w-1/2 max-w-[28px] flex flex-col items-center">
-                          <span className="text-[10px] font-bold text-emerald-300 mb-1">{item.meanPostScore}</span>
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 mb-1">{item.meanPostScore}</span>
                           <motion.div
                             initial={{ height: 0 }}
                             animate={{ height: `${postHeight * 1.8}px` }}
-                            transition={{ duration: 0.8, delay: idx * 0.1 + 0.2 }}
-                            className="w-full bg-gradient-to-t from-emerald-600 to-teal-400 rounded-t-md shadow-md group-hover:brightness-110 transition-all"
+                            transition={{ duration: 0.5, delay: idx * 0.05 + 0.1 }}
+                            className="w-full bg-emerald-500/90 rounded-t-sm group-hover:bg-emerald-400 transition-colors"
                           />
                         </div>
                       </div>
@@ -855,7 +883,7 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                       {/* X-axis Label */}
                       <div className="mt-3 text-center">
                         <p className="text-[11px] font-semibold text-slate-300 leading-tight">{item.label}</p>
-                        <p className="text-[10px] text-slate-400">N = {item.count} ({item.percentage}%)</p>
+                        <p className="text-[10px] font-mono text-slate-500">n = {item.count} ({item.percentage}%)</p>
                       </div>
                     </div>
                   );
@@ -863,21 +891,31 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
               </div>
 
               {/* Y-axis grid helper lines */}
-              <div className="absolute left-0 top-6 bottom-14 w-full flex flex-col justify-between pointer-events-none opacity-20 border-l border-slate-600">
-                <div className="border-b border-slate-500 w-full" />
-                <div className="border-b border-slate-500 w-full" />
-                <div className="border-b border-slate-500 w-full" />
-                <div className="border-b border-slate-500 w-full" />
+              <div className="absolute left-0 top-6 bottom-14 w-full flex flex-col justify-between pointer-events-none opacity-20 border-l border-slate-700">
+                <div className="border-b border-slate-600 w-full" />
+                <div className="border-b border-slate-600 w-full" />
+                <div className="border-b border-slate-600 w-full" />
+                <div className="border-b border-slate-600 w-full" />
               </div>
             </div>
 
-            {/* Scientific Finding Callout */}
-            <div className="rounded-xl bg-slate-950/70 border border-slate-800 p-4 text-xs text-slate-300 flex items-start gap-3">
-              <Info className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+            {/* Scientific Finding Callout - Computed dynamically from dataset */}
+            <div className="rounded-lg bg-slate-950 border border-slate-800 p-4 text-xs text-slate-300 flex items-start gap-3">
+              <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-white">Phát hiện khoa học nổi bật: </strong>
-                Nhóm <em>Người cao tuổi / Hưu trí</em> đạt mức tăng trưởng điểm số mạnh nhất 
-                (<strong>+42.7 điểm</strong>, từ 38.5 lên 81.2 điểm) nhờ tính năng hỗ trợ nhận thức &quot;Kính lúp tên miền&quot; và chế độ giải thích đơn giản hóa của AI Coach.
+                <strong className="text-white">Ghi nhận thực nghiệm từ tập dữ liệu: </strong>
+                {topGainDemographic ? (
+                  <>
+                    Nhóm <em>{topGainDemographic.label}</em> (n = {topGainDemographic.count}) ghi nhận biên độ cải thiện trung bình cao nhất trong tập mẫu hiện tại (
+                    <strong className="text-emerald-400 font-mono">+{topGainDemographic.meanGain} điểm</strong>, từ{' '}
+                    <span className="font-mono">{topGainDemographic.meanPreScore}</span> lên{' '}
+                    <span className="font-mono">{topGainDemographic.meanPostScore}</span> điểm; tỷ lệ phản ứng rủi ro giảm từ{' '}
+                    <span className="font-mono">{topGainDemographic.meanUnsafeRatePre}%</span> xuống{' '}
+                    <span className="font-mono">{topGainDemographic.meanUnsafeRatePost}%</span>).
+                  </>
+                ) : (
+                  <span>Chưa có đủ dữ liệu phân nhóm nhân khẩu học để trích xuất kết luận.</span>
+                )}
               </div>
             </div>
           </div>
@@ -885,25 +923,25 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           {/* Secondary Charts Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Chart: Pre-App Fear Tactics Distribution */}
-            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 space-y-4">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
                 <PieChart className="w-4 h-4 text-amber-400" />
-                Phân Bố Kịch Bản Lừa Đảo Khiến Người Dùng Lo Sợ Nhất
+                Phân Phối Tác Nhân Gây Áp Lực Tâm Lý (Từ Khảo Sát Đầu Vào)
               </h4>
               <p className="text-xs text-slate-400">
-                Thống kê phản hồi khảo sát trước khi tiếp cận hệ thống đào tạo
+                Tỷ lệ phần trăm tính trực tiếp trên N = {analytics?.totalRespondents ?? 0} phiếu khảo sát
               </p>
 
               <div className="space-y-3 pt-2">
                 {analytics?.fearTacticsDistribution.map((tactic) => (
                   <div key={tactic.tacticKey} className="space-y-1">
                     <div className="flex justify-between text-xs">
-                      <span className="text-slate-300 font-medium truncate max-w-[240px]">{tactic.tacticLabel}</span>
-                      <span className="text-amber-400 font-bold">{tactic.percentage}% ({tactic.count})</span>
+                      <span className="text-slate-300 font-medium truncate max-w-[260px]">{tactic.tacticLabel}</span>
+                      <span className="text-amber-400 font-mono font-bold">{tactic.percentage}% (n={tactic.count})</span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500"
+                        className="bg-amber-500 h-full rounded-full transition-all duration-500"
                         style={{ width: `${tactic.percentage}%` }}
                       />
                     </div>
@@ -913,13 +951,13 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
             </div>
 
             {/* Chart: Verification Habits Pre-App */}
-            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 space-y-4">
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                Thói Quen Phản Ứng Ban Đầu Khi Nhận Thông Báo Nghi Vấn
+                <Activity className="w-4 h-4 text-sky-400" />
+                Phân Phối Thói Quen Kiểm Chứng Ban Đầu (Từ Khảo Sát Đầu Vào)
               </h4>
               <p className="text-xs text-slate-400">
-                Tỷ lệ người dùng hành động cảm tính vs kiểm chứng chính thống
+                Thống kê hành vi phản ứng thực tế của người tham gia trước khi học
               </p>
 
               <div className="space-y-3 pt-2">
@@ -927,11 +965,11 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                   <div key={habit.habitKey} className="space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-300 font-medium">{habit.habitLabel}</span>
-                      <span className="text-cyan-400 font-bold">{habit.percentage}% ({habit.count})</span>
+                      <span className="text-sky-400 font-mono font-bold">{habit.percentage}% (n={habit.count})</span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full rounded-full transition-all duration-500"
+                        className="bg-sky-500 h-full rounded-full transition-all duration-500"
                         style={{ width: `${habit.percentage}%` }}
                       />
                     </div>
@@ -1004,49 +1042,47 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           type="button"
           onClick={handleNextTab}
           disabled={!hasNextTab}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-25 disabled:cursor-not-allowed bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white shadow-md shadow-indigo-600/30 active:scale-95 cursor-pointer min-h-[42px]"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-25 disabled:cursor-not-allowed bg-sky-600 hover:bg-sky-500 text-white cursor-pointer min-h-[40px]"
           title={hasNextTab ? `Sang mục tiếp: ${nextTab?.label}` : 'Đang ở mục cuối cùng'}
         >
           <span>Tiếp theo{nextTab ? `: ${nextTab.short}` : ''}</span>
-          <ChevronRight className="w-4 h-4 text-cyan-200" />
+          <ChevronRight className="w-4 h-4 text-white" />
         </button>
       </div>
 
-      {/* MODAL: LIVE GOOGLE FORM SURVEY & FAST DIAGNOSTIC */}
+      {/* MODAL: LIVE SURVEY & FAST DIAGNOSTIC */}
       <AnimatePresence>
         {isSurveyModalOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-5 bg-black/85 backdrop-blur-sm overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.96 }}
-              className="relative w-full max-w-2xl bg-slate-900 border border-purple-500/40 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col"
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col"
             >
-              {/* Google Form Top Decorative Strip */}
-              <div className="h-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 w-full" />
+              <div className="h-1.5 bg-sky-600 w-full" />
 
               {recentPersonalResult ? (
-                /* Google Form Confirmation Screen */
                 <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-800 p-6 text-white text-center space-y-3">
-                    <div className="w-14 h-14 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto border border-emerald-400/50 shadow-lg">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-300" />
+                  <div className="bg-slate-950 border-b border-slate-800 p-6 text-white text-center space-y-3">
+                    <div className="w-12 h-12 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto border border-emerald-500/40">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                     </div>
-                    <h3 className="text-xl font-bold tracking-tight">Câu trả lời của bạn đã được ghi nhận!</h3>
-                    <p className="text-xs text-purple-100 max-w-lg mx-auto leading-relaxed">
-                      Dữ liệu khảo sát đã được tự động đẩy lên <strong>Biểu đồ Thống kê Tổng hợp Cả nước (N={analytics?.totalRespondents ?? 0}+)</strong>, trở thành bằng chứng thực nghiệm quan trọng cho đề tài ViSEF 2026.
+                    <h3 className="text-lg font-bold tracking-tight">Phiếu khảo sát đã được ghi nhận vào Dataset</h3>
+                    <p className="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
+                      Dữ liệu khảo sát của bạn đã được đồng bộ trực tiếp vào <strong>Tập mẫu nghiên cứu ViSEF 2026 (N = {analytics?.totalRespondents ?? 0})</strong> và cập nhật tức thời các chỉ số thống kê.
                     </p>
                   </div>
 
                   <div className="p-6 space-y-5">
-                    <div className="p-4 rounded-xl bg-slate-950 border border-purple-500/30 space-y-3">
+                    <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400 font-medium">Khảo nghiệm viên:</span>
-                        <span className="text-purple-300 font-bold">{recentPersonalResult.participantName} ({recentPersonalResult.demographicGroup})</span>
+                        <span className="text-slate-400">Đối tượng khảo sát:</span>
+                        <span className="text-slate-200 font-mono font-semibold">{recentPersonalResult.participantName} ({recentPersonalResult.demographicGroup})</span>
                       </div>
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-400 font-medium">Thời gian đồng bộ dữ liệu:</span>
-                        <span className="text-emerald-400 font-mono">{new Date().toLocaleTimeString('vi-VN')} — Realtime Sync</span>
+                        <span className="text-slate-400">Trạng thái đồng bộ:</span>
+                        <span className="text-emerald-400 font-mono">{new Date().toLocaleTimeString('vi-VN')} — Đã ghi vào Dataset</span>
                       </div>
                     </div>
 

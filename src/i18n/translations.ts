@@ -13,6 +13,30 @@ export type TranslationKey =
   | 'nav_mode_kids'
   | 'nav_mode_family'
   | 'nav_mode_school'
+  | 'ws_home'
+  | 'ws_check'
+  | 'ws_scamdna'
+  | 'ws_research'
+  | 'ws_roadmap'
+  | 'ws_train'
+  | 'ws_quests'
+  | 'ws_leaderboard'
+  | 'ws_more'
+  | 'ws_profile'
+  | 'ws_learn'
+  | 'ws_progress'
+  | 'ws_store'
+  | 'side_grp_intel'
+  | 'side_grp_train'
+  | 'side_grp_gov'
+  | 'side_emergency_title'
+  | 'side_emergency_sub'
+  | 'nav_search_placeholder'
+  | 'nav_streak_days'
+  | 'nav_streak_today_done'
+  | 'nav_streak_need_checkin'
+  | 'nav_logout'
+  | 'nav_emergency_btn'
   // Home View
   | 'home_badge_title'
   | 'home_hero_title'
@@ -190,6 +214,30 @@ export const TRANSLATIONS: Record<'vi' | 'en', Record<TranslationKey, string>> =
     nav_mode_kids: 'Trẻ Em',
     nav_mode_family: 'Gia Đình',
     nav_mode_school: 'Trường Học',
+    ws_home: 'Trung Tâm Chỉ Huy SOC',
+    ws_check: 'Giám Định AI & Pháp Y Số',
+    ws_scamdna: 'Bản Đồ Gen Scam DNA',
+    ws_research: 'Báo Cáo Khoa Học ViSEF 2026',
+    ws_roadmap: 'Lộ Trình Đào Tạo Phòng Vệ',
+    ws_train: 'Thao Trường Mô Phỏng Tác Chiến',
+    ws_quests: 'Chỉ Tiêu Huấn Luyện Định Kỳ',
+    ws_leaderboard: 'Bảng Xếp Hạng Năng Lực',
+    ws_more: 'Công Cụ Bảo Vệ Thiết Bị',
+    ws_profile: 'Hồ Sơ & Quyền Riêng Tư',
+    ws_learn: 'Thư Viện Tình Báo Mối Đe Dọa',
+    ws_progress: 'Báo Cáo Tiến Độ Phòng Thủ',
+    ws_store: 'Trung Tâm Nguồn Lực Tiếp Tế',
+    side_grp_intel: 'Phân Tích & Giám Định',
+    side_grp_train: 'Huấn Luyện & Đánh Giá',
+    side_grp_gov: 'Quản Trị & Tiện Ích',
+    side_emergency_title: 'Ứng Cứu Khẩn Cấp',
+    side_emergency_sub: 'Hotline 113 · Phong tỏa tài khoản',
+    nav_search_placeholder: 'Tra cứu phân hệ, kịch bản lừa đảo, URL, QR, OSINT...',
+    nav_streak_days: 'Ngày Chuỗi',
+    nav_streak_today_done: 'Đã điểm danh hôm nay',
+    nav_streak_need_checkin: 'Điểm danh ngay',
+    nav_logout: 'Đăng xuất',
+    nav_emergency_btn: 'Ứng Cứu SOS',
 
     // Home
     home_badge_title: 'Hệ Thống Phòng Thủ Nhận Thức & Chống Lừa Đảo AI',
@@ -376,6 +424,30 @@ export const TRANSLATIONS: Record<'vi' | 'en', Record<TranslationKey, string>> =
     nav_mode_kids: 'Kids',
     nav_mode_family: 'Family',
     nav_mode_school: 'School',
+    ws_home: 'SOC Command Center',
+    ws_check: 'AI Forensics & Scam Detection',
+    ws_scamdna: 'Scam DNA Genome Map',
+    ws_research: 'ViSEF 2026 Science Report',
+    ws_roadmap: 'Defense Training Roadmap',
+    ws_train: 'Tactical Combat Simulation',
+    ws_quests: 'Periodic Training Quests',
+    ws_leaderboard: 'Guardian Leaderboard',
+    ws_more: 'Device Security Tools',
+    ws_profile: 'Profile & Privacy Center',
+    ws_learn: 'Threat Intelligence Playbook',
+    ws_progress: 'Defense Progress Analytics',
+    ws_store: 'Resource & Supply Depot',
+    side_grp_intel: 'Threat Intelligence & Forensics',
+    side_grp_train: 'Training & Simulation',
+    side_grp_gov: 'Governance & Utilities',
+    side_emergency_title: 'Emergency SOS 24/7',
+    side_emergency_sub: 'Hotline 113 · Account Lockdown',
+    nav_search_placeholder: 'Search threats, tactics, scam keywords, tools...',
+    nav_streak_days: 'Day Streak',
+    nav_streak_today_done: 'Active today',
+    nav_streak_need_checkin: 'Check-in required',
+    nav_logout: 'Log out',
+    nav_emergency_btn: 'SOS Emergency',
 
     // Home
     home_badge_title: 'Universal Cognitive Scam Defense & Anti-Fraud Simulator',

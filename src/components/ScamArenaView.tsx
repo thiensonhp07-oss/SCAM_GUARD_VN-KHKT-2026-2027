@@ -33,10 +33,25 @@ import {
   Users,
   Layers,
   Filter,
+  Volume2,
+  VolumeX,
+  Mic,
+  MicOff,
+  PhoneCall,
+  PhoneOff,
+  FileText,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { ArenaMessage, ArenaSession, ScamScenario, DefenseScoreBreakdown } from '../types';
 import { SCAM_SCENARIOS } from '../data/scenarios';
 import { useTranslation } from '../i18n/LanguageContext';
+import {
+  speakVietnameseRealistic,
+  stopSpeaking,
+  playButtonClick,
+  playSuccessChime,
+} from '../utils/audioEffects';
 
 interface ScamArenaViewProps {
   selectedScenario?: ScamScenario | null;
@@ -68,11 +83,25 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [showFullGrid, setShowFullGrid] = useState<boolean>(true);
+  const [showFullGrid, setShowFullGrid] = useState<boolean>(false);
 
   // Hint penalty state
   const [revealedHintLevel, setRevealedHintLevel] = useState<number>(0);
   const [hintPenalty, setHintPenalty] = useState<number>(0);
+
+  // Vietnamese Voice Playback & Live Voice Call (gemini-3.8-live) state
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [autoSpeakEnabled, setAutoSpeakEnabled] = useState<boolean>(false);
+  const [isLiveVoiceCallActive, setIsLiveVoiceCallActive] = useState<boolean>(false);
+  const [isListeningMic, setIsListeningMic] = useState<boolean>(false);
+  const [liveVoiceStatus, setLiveVoiceStatus] = useState<string>('');
+  const liveWsRef = useRef<WebSocket | null>(null);
+  const speechRecRef = useRef<any>(null);
+
+  // Real-World Verification Toolkit state
+  const [activeVerificationModal, setActiveVerificationModal] = useState<
+    null | 'hotline' | 'blacklist' | 'evidence'
+  >(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -99,30 +128,52 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
     if (title.includes('công an') || title.includes('vneid') || title.includes('pháp lý') || title.includes('viện kiểm sát') || title.includes('truy nã')) {
       return [
         'Cho tôi xin số hiệu cán bộ và quyết định thụ lý bằng văn bản.',
-        'Tôi sẽ ra trực tiếp trụ sở công an phường nơi cư trú để làm việc.',
-        'Tại sao cơ quan nhà nước lại gọi điện thoại qua mạng xã hội?',
-        'Để tôi cúp máy và tự gọi lên tổng đài 113 xác minh vụ việc.',
+        'Tôi sẽ ra trực tiếp trụ sở công an phường nơi cư trú để làm việc, công an không làm việc qua Zalo.',
+        'Tại sao cơ quan nhà nước lại gọi điện yêu cầu chuyển tiền vào tài khoản cá nhân?',
+        'Tôi xin phép cúp máy và gọi trực tiếp lên tổng đài 113 để xác minh vụ việc.',
       ];
     } else if (title.includes('ngân hàng') || title.includes('thẻ') || title.includes('tiền') || title.includes('treo') || title.includes('khóa tài khoản')) {
       return [
-        'Tôi sẽ cúp máy và gọi số hotline ở mặt sau thẻ ngân hàng.',
-        'Tôi sẽ ra trực tiếp chi nhánh ngân hàng gần nhất để kiểm tra.',
-        'Ngân hàng luôn khuyến cáo tuyệt đối không cung cấp OTP cho ai.',
-        'Tại sao anh/chị lại yêu cầu tôi chuyển tiền vào tài khoản cá nhân?',
+        'Ủa giao dịch ở đâu vậy anh/chị? Làm sao để tôi kiểm tra?',
+        'Tại sao tổng đài ngân hàng lại gửi đường link có đuôi .online lạ như vậy?',
+        'Tôi sẽ cúp máy ngay và tự gọi vào số Hotline in ở mặt sau thẻ ngân hàng để xác minh.',
+        'Ngân hàng khuyến cáo không bao giờ cung cấp mã OTP, tôi sẽ ra trực tiếp chi nhánh làm việc.',
       ];
     } else if (title.includes('việc làm') || title.includes('ctv') || title.includes('shopee') || title.includes('tiktok') || title.includes('nhiệm vụ') || title.includes('hoa hồng')) {
       return [
-        'Tại sao làm việc online lại bắt tôi phải nạp tiền cọc trước?',
+        'Công việc cụ thể là làm gì và nhận tiền như thế nào vậy bạn?',
         'Công ty có hợp đồng lao động và mã số thuế chính thức không?',
-        'Tôi muốn rút số tiền vốn và hoa hồng của các đơn trước đã.',
-        'Tôi không tiếp tục làm nhiệm vụ nạp tiền này nữa.',
+        'Tại sao làm cộng tác viên lại bắt tôi phải nạp tiền trước? Đây là lừa đảo nhiệm vụ, tôi dừng lại và báo công an.',
       ];
     }
     return [
-      'Làm sao tôi biết chắc chắn bên bạn không phải lừa đảo?',
-      'Tôi cần thời gian để hỏi ý kiến gia đình và người thân.',
-      'Tôi từ chối cung cấp bất kỳ thông tin cá nhân hay OTP nào.',
-      'Tôi sẽ liên hệ với cơ quan chức năng để kiểm tra thông tin này.',
+      'Anh/chị nói rõ hơn xem bên mình thuộc đơn vị nào?',
+      'Làm sao tôi biết chắc chắn bên bạn không phải giả mạo?',
+      'Gia đình tôi có mật khẩu an toàn riêng, đọc đúng mật khẩu hoặc tôi sẽ cúp máy gọi lại số chính để xác minh!',
+      'Tôi từ chối chuyển tiền hay cung cấp OTP, tôi sẽ gọi tổng đài chính thức để kiểm chứng.',
+    ];
+  }, [activeScenario]);
+
+  const trapSimulationReplies = useMemo(() => {
+    const title = (activeScenario.title || '').toLowerCase();
+    if (title.includes('công an') || title.includes('vneid') || title.includes('viện kiểm sát')) {
+      return [
+        'Dạ em sợ quá, mã OTP 6 số gửi về máy em là 482910 anh gỡ lệnh bắt giúp em với!',
+        'Dạ trong tài khoản em có 45 triệu, để em chuyển khoản vào tài khoản tạm giữ của anh ngay ạ.',
+      ];
+    } else if (title.includes('ngân hàng') || title.includes('thẻ') || title.includes('khóa tài khoản')) {
+      return [
+        'Trời ơi hủy gấp giúp tôi! Mã OTP 6 số vừa gửi về máy tôi là 839201 nhé!',
+        'Tôi vừa bấm vào đường link và đăng nhập mật khẩu ngân hàng xong rồi đó!',
+      ];
+    } else if (title.includes('việc làm') || title.includes('ctv') || title.includes('nhiệm vụ')) {
+      return [
+        'Ok bạn, mình vừa chuyển khoản 2.000.000đ vào số tài khoản kế toán để kích hoạt gói VIP rồi nhé!',
+      ];
+    }
+    return [
+      'Dạ em vừa chuyển khoản đủ số tiền vào tài khoản anh/chị gửi rồi ạ!',
+      'Mã xác nhận OTP 6 số của tôi là 592018, anh/chị xử lý nhanh giúp tôi!',
     ];
   }, [activeScenario]);
 
@@ -210,10 +261,10 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    if (session) {
+    if (session && session.status === 'active') {
       localStorage.setItem('scamguard_active_arena_session', JSON.stringify(session));
     }
-  }, [session?.messages]);
+  }, [session?.messages, session?.status]);
 
   const startSimulation = async (scenarioId: string) => {
     setLoading(true);
@@ -255,6 +306,9 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
         ],
         currentPressure: 35,
         trustLevel: 10,
+        shieldIntegrity: 100,
+        scammerExposure: 0,
+        verdict: 'IN_PROGRESS',
         detectedTactics: [sc.tactics[0]],
         timeline: [],
         status: 'active',
@@ -277,6 +331,9 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
         ],
         currentPressure: 35,
         trustLevel: 10,
+        shieldIntegrity: 100,
+        scammerExposure: 0,
+        verdict: 'IN_PROGRESS',
         detectedTactics: [sc.tactics[0]],
         timeline: [],
         status: 'active',
@@ -297,16 +354,17 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
   const handleSendMessage = async (textToSend?: string) => {
     const messageText = textToSend || userInput;
     if (!messageText.trim() || loading) return;
+    if (session && session.status !== 'active') return;
 
     setUserInput('');
     setLoading(true);
 
     // Heuristic client PII warning
     const lower = messageText.toLowerCase();
-    if (/\b\d{4,6}\b/.test(lower) && (lower.includes('otp') || lower.includes('mã') || lower.includes('pass'))) {
-      setExposedWarning('Cảnh báo nguy hiểm: Bạn vừa nhập mã dạng OTP/Mật khẩu. Kẻ gian có thể chiếm quyền tài khoản!');
-    } else if (lower.includes('chuyển') && (lower.includes('triệu') || lower.includes('nghìn') || lower.includes('k'))) {
-      setExposedWarning('Cảnh báo: Bạn đang chấp thuận chuyển tiền. Luôn xác minh độc lập trước khi giao dịch!');
+    if (/\b\d{4,6}\b/.test(lower) && (lower.includes('otp') || lower.includes('mã') || lower.includes('pass') || lower.includes('số'))) {
+      setExposedWarning('🚨 BÁO ĐỘNG ĐỎ: Bạn vừa tiết lộ mã OTP/Mật khẩu! Trọng tài Gemini AI đang ghi nhận hành vi sập bẫy!');
+    } else if (lower.includes('chuyển') && (lower.includes('rồi') || lower.includes('ngay') || lower.includes('để em') || lower.includes('để tôi'))) {
+      setExposedWarning('🚨 BÁO ĐỘNG ĐỎ: Bạn vừa đồng ý chuyển tiền cho đối tượng chưa xác minh!');
     } else {
       setExposedWarning(null);
     }
@@ -326,6 +384,9 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
       ],
       currentPressure: 35,
       trustLevel: 10,
+      shieldIntegrity: 100,
+      scammerExposure: 0,
+      verdict: 'IN_PROGRESS' as const,
       detectedTactics: [activeScenario.tactics[0]],
       timeline: [],
       status: 'active' as const,
@@ -360,67 +421,131 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
 
       if (res.ok) {
         const data = await res.json();
-        const nextSession = data.session || data;
+        const nextSession: ArenaSession = data.session || data;
         if (nextSession && Array.isArray(nextSession.messages)) {
+          const isEnded =
+            Boolean(data.evaluation?.sessionEnded) ||
+            nextSession.status === 'scammed' ||
+            nextSession.status === 'passed' ||
+            nextSession.verdict === 'SCAMMED' ||
+            nextSession.verdict === 'PASSED';
+
+          if (isEnded && nextSession.defenseScore && hintPenalty > 0) {
+            nextSession.defenseScore.overallScore = Math.max(
+              10,
+              nextSession.defenseScore.overallScore - hintPenalty
+            );
+          }
+
           setSession(nextSession);
           if (data.evaluation?.aiCoachTip) {
             setAiCoachRealtimeTip(data.evaluation.aiCoachTip);
+          }
+          const lastScammerMsg = [...nextSession.messages].reverse().find((m: ArenaMessage) => m.sender === 'scammer');
+          if ((autoSpeakEnabled || isLiveVoiceCallActive) && lastScammerMsg) {
+            handleSpeakArenaMessage(lastScammerMsg.id, lastScammerMsg.text);
+          }
+
+          if (isEnded) {
+            localStorage.removeItem('scamguard_active_arena_session');
+            const finalVerdict = nextSession.verdict || data.evaluation?.verdict;
+            if (finalVerdict === 'PASSED' || nextSession.status === 'passed') {
+              playSuccessChime();
+              onComplete(nextSession.defenseScore?.overallScore || 94);
+              onAddXp(160);
+            } else {
+              onComplete(nextSession.defenseScore?.overallScore || 25);
+              onAddXp(35);
+            }
+            setTimeout(() => {
+              setShowScoreModal(true);
+            }, 900);
           }
           return;
         }
       }
       throw new Error('Fallback needed');
     } catch {
-      // Local high-fidelity Vietnamese in-character fallback generator
       const sc = activeScenario;
       const turnCount = interimSession.messages.filter((m) => m.sender === 'user').length;
-      const isVerifying = lower.includes('xác minh') || lower.includes('gọi') || lower.includes('hotline') || lower.includes('trụ sở') || lower.includes('chi nhánh') || lower.includes('chứng minh');
-      const isRefusing = lower.includes('không') || lower.includes('từ chối') || lower.includes('lừa đảo') || lower.includes('cúp') || lower.includes('báo công an');
-      const isComplying = lower.includes('vâng') || lower.includes('dạ') || lower.includes('chuyển') || lower.includes('mã') || lower.includes('otp');
+      const hasOtpOrMoneyTrap =
+        (/\b\d{4,8}\b/.test(lower) && !lower.includes('113') && !lower.includes('1900')) ||
+        lower.includes('mã otp là') ||
+        lower.includes('vừa chuyển khoản') ||
+        lower.includes('đã chuyển khoản') ||
+        lower.includes('bấm vào đường link và đăng nhập') ||
+        (lower.includes('chuyển khoản') && (lower.includes('rồi') || lower.includes('để em') || lower.includes('ngay')));
 
-      let scammerReply = '';
+      const isVerifying =
+        lower.includes('xác minh') ||
+        lower.includes('gọi lại') ||
+        lower.includes('hotline') ||
+        lower.includes('mặt sau') ||
+        lower.includes('trụ sở') ||
+        lower.includes('công an phường') ||
+        lower.includes('chi nhánh') ||
+        lower.includes('mật khẩu an toàn') ||
+        lower.includes('photoshop');
+      const isRefusing =
+        lower.includes('không') ||
+        lower.includes('từ chối') ||
+        lower.includes('lừa đảo') ||
+        lower.includes('cúp máy') ||
+        lower.includes('báo công an') ||
+        lower.includes('dừng lại');
+      const isDecisivePass =
+        (isVerifying && isRefusing) ||
+        lower.includes('mặt sau thẻ') ||
+        lower.includes('công an phường nơi cư trú') ||
+        lower.includes('mật khẩu an toàn gia đình') ||
+        lower.includes('con dấu cắt ghép') ||
+        (turnCount >= 3 && (isVerifying || isRefusing));
+
       const tactic = sc.tactics[turnCount % sc.tactics.length] || 'Urgency';
+      let scammerReply = '';
       let tip = '';
+      let fallbackVerdict: 'IN_PROGRESS' | 'SCAMMED' | 'PASSED' = 'IN_PROGRESS';
 
-      if (sc.category === 'Banking' || sc.id === 'scam-01' || sc.id === 'scam-13' || sc.id === 'scam-19') {
-        if (isVerifying) {
-          scammerReply = `Tôi là ${sc.attackerProfile.name} - Trực ban An ninh Ngân hàng số hiệu CB-8492! Anh/Chị không được tự ý cúp máy hay gọi đi nơi khác vì hệ thống đang khóa cổng giao dịch khẩn cấp. Mọi thao tác chậm trễ sẽ khiến số tiền 54.500.000 VNĐ bị trừ vĩnh viễn!`;
-          tip = 'Tốt lắm! Giữ vững lập trường, tuyệt đối không cung cấp thông tin qua cuộc gọi đến.';
-        } else if (isRefusing) {
-          scammerReply = `Nếu anh/chị từ chối hợp tác xác minh, hệ thống sẽ lập tức gửi lệnh phong tỏa vĩnh viễn thẻ và ghi nhận nợ xấu CIC toàn quốc sau 10 phút nữa!`;
-          tip = 'Xuất sắc! Kẻ gian đang dùng đòn hù dọa phong tỏa, hãy tiếp tục từ chối dứt khoát.';
-        } else {
-          scammerReply = `Để hủy lệnh trừ tiền ngay lập tức, anh/chị cần nhấp vào cổng hủy lệnh hoặc xác nhận số thẻ để hệ thống đối soát tự động. Không được chậm trễ!`;
-          tip = 'Cảnh báo: Tuyệt đối không bấm link hay chuyển tiền theo hướng dẫn của người lạ.';
-        }
-      } else if (sc.category === 'Government' || sc.id === 'scam-02' || sc.id === 'scam-07' || sc.id === 'scam-15' || sc.id === 'scam-16') {
-        if (isVerifying) {
-          scammerReply = `Tôi là ${sc.attackerProfile.name} - Cơ quan Cảnh sát điều tra! Đây là chuyên án mật cấp quốc gia, anh/chị yêu cầu giấy mời là làm lộ bí mật điều tra. Yêu cầu chấp hành nghiêm túc trước khi có lệnh áp giải!`;
-          tip = 'Công an, Viện kiểm sát không bao giờ làm việc qua điện thoại hay bắt chuyển tiền kiểm tra.';
-        } else if (isRefusing) {
-          scammerReply = `Chúng tôi sẽ chuyển hồ sơ sang bộ phận truy nã và phối hợp công an khu vực áp giải anh/chị về trụ sở trong ngày hôm nay!`;
-          tip = 'Rất chuẩn xác! Cúp máy và báo ngay cho công an địa phương hoặc tổng đài 113.';
-        } else {
-          scammerReply = `Anh/Chị phải chuyển toàn bộ số dư vào tài khoản giám định an toàn của cơ quan điều tra để chứng minh không liên quan đường dây rửa tiền!`;
-          tip = 'Nguy hiểm: Không có bất kỳ "Tài khoản kiểm tra an toàn" nào từ phía công an.';
-        }
-      } else if (sc.category === 'Jobs' || sc.id === 'scam-04' || sc.id === 'scam-10' || sc.id === 'scam-18') {
-        if (isVerifying) {
-          scammerReply = `Bên em là đối tác chiến lược cấp 1 của sàn TMĐT có giấy phép kinh doanh đầy đủ! Chỉ cần làm đơn này 3 phút là nhận ngay hoa hồng 35% về tài khoản liền ạ.`;
-          tip = 'Không có công việc nào việc nhẹ lương cao nạp tiền nhận hoa hồng. Đó là bẫy giật tiền!';
-        } else {
-          scammerReply = `Anh/Chị đã hoàn thành 80% nhiệm vụ rồi, chỉ cần nạp thêm đợt cuối là hệ thống mở khóa rút toàn bộ cả vốn lẫn lãi về ngay lập tức ạ!`;
-          tip = 'Dừng lại ngay! Kẻ gian liên tục yêu cầu nạp tiền để "mở khóa rút vốn".';
-        }
+      if (hasOtpOrMoneyTrap) {
+        fallbackVerdict = 'SCAMMED';
+        scammerReply = `💥 [BÁO ĐỘNG GIAO DỊCH]: Kẻ lừa đảo vừa sử dụng mã OTP / tiền chuyển khoản của bạn để rút sạch tài sản sang tài khoản trung gian! Ngay sau đó, đối tượng "${sc.attackerProfile.name}" đã chặn Zalo và xóa dấu vết!`;
+        tip = 'BẠN ĐÃ BỊ LỪA! Phiên mô phỏng kết thúc do bạn tiết lộ OTP hoặc chuyển tiền cho kẻ gian.';
+      } else if (isDecisivePass) {
+        fallbackVerdict = 'PASSED';
+        scammerReply = `"Thôi chết, gặp trúng người cảnh giác cao độ và nắm rõ quy trình xác minh rồi!" — [Đối tượng "${sc.attackerProfile.name}" đã hoảng sợ ngắt kết nối và xóa tài khoản ngay lập tức!]`;
+        tip = 'XUẤT SẮC! Bạn đã bóc mẽ và đánh bại hoàn toàn kịch bản lừa đảo này!';
       } else {
-        if (isVerifying || isRefusing) {
-          scammerReply = `Anh/Chị yên tâm, bên tôi làm việc uy tín và có hàng ngàn người xác nhận. Nếu anh/chị không xử lý ngay lúc này thì quyền lợi bảo vệ sẽ bị hủy vĩnh viễn.`;
-          tip = 'Rất tốt! Luôn kiểm chứng độc lập và không để cảm xúc hoảng sợ chi phối.';
+        if (isVerifying) {
+          scammerReply = `Anh/chị nghe rõ đây! Cổng xử lý hồ sơ khẩn cấp chỉ còn mở đúng 3 phút nữa thôi. Anh/chị mà tự ý ra quầy hoặc chờ gọi tổng đài là hệ thống khóa vĩnh viễn và trừ sạch tiền đấy nhé!`;
+          tip = 'Rất tỉnh táo! Hãy khẳng định dứt khoát bạn sẽ cúp máy và tự gọi Hotline chính thức / ra trụ sở làm việc để hạ gục đối tượng!';
+        } else if (isRefusing) {
+          scammerReply = `Anh/chị định không hợp tác đúng không? Vậy tôi lập biên bản chuyển hồ sơ sang bộ phận cưỡng chế khóa toàn bộ tài khoản gắn với CCCD của anh/chị ngay bây giờ nhé!`;
+          tip = 'Đừng sợ lời đe dọa! Hãy nêu rõ phương thức xác minh độc lập (Hotline mặt sau thẻ / Công an phường) để kết thúc phiên.';
         } else {
-          scammerReply = `Vui lòng làm theo hướng dẫn gửi ngay thông tin để hệ thống hoàn tất thủ tục trước khi hết thời gian quy định.`;
-          tip = 'Hãy cẩn trọng, kiểm tra lại địa chỉ website và người gửi trước khi tương tác.';
+          scammerReply = `Nhanh lên anh/chị ơi, hệ thống đang báo đèn đỏ rồi! Đọc ngay 6 số mã xác nhận vừa gửi về tin nhắn điện thoại hoặc chuyển khoản đối soát để tôi xử lý kịp giờ!`;
+          tip = 'Tuyệt đối không đọc mã OTP 6 số và không chuyển tiền theo lời hối thúc!';
         }
       }
+
+      const updatedUserMsg: ArenaMessage = {
+        ...userMsg,
+        refereeNote:
+          fallbackVerdict === 'SCAMMED'
+            ? '🚨 SAI LẦM CHÍ MẠNG: Bạn đã sập bẫy cung cấp OTP / chuyển tiền cho kẻ gian!'
+            : fallbackVerdict === 'PASSED'
+            ? '🏆 ĐÒN QUYẾT ĐỊNH: Bạn đã áp dụng chuẩn xác quy tắc xác minh độc lập khiến kẻ gian tháo chạy!'
+            : isVerifying || isRefusing
+            ? '✓ Phản xạ tốt: Bạn đang dồn ép ngược lại kẻ gian. Hãy ra đòn quyết định!'
+            : '⚖️ Trọng tài AI: Kẻ gian đang gia tăng áp lực, hãy giữ vững nguyên tắc bảo mật!',
+        turnImpact:
+          fallbackVerdict === 'SCAMMED'
+            ? 'critical_fail'
+            : fallbackVerdict === 'PASSED'
+            ? 'winning_blow'
+            : isVerifying || isRefusing
+            ? 'positive'
+            : 'neutral',
+      };
 
       const scammerMsg: ArenaMessage = {
         id: `msg_scammer_${Date.now()}`,
@@ -429,22 +554,255 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         detectedTactic: tactic,
         tacticExplanation: `Đối tượng gia tăng đòn tâm lý ${tactic} nhằm dồn ép và thao túng bạn.`,
-        psychPressureDelta: isComplying ? -5 : 15,
+        psychPressureDelta: fallbackVerdict === 'PASSED' ? -20 : 15,
         userVerificationDetected: isVerifying,
-        complianceDetected: isComplying,
+        complianceDetected: hasOtpOrMoneyTrap,
       };
 
-      const fallbackCompletedSession: ArenaSession = {
+      const nextExposure =
+        fallbackVerdict === 'PASSED'
+          ? 100
+          : Math.min(95, (currentSession.scammerExposure ?? 0) + (isVerifying ? 45 : isRefusing ? 35 : 15));
+      const nextShield =
+        fallbackVerdict === 'SCAMMED'
+          ? 0
+          : Math.max(20, (currentSession.shieldIntegrity ?? 100) - (isVerifying || isRefusing ? 0 : 15));
+
+      const fallbackSession: ArenaSession = {
         ...interimSession,
-        messages: [...interimSession.messages, scammerMsg],
-        currentPressure: Math.min(100, Math.max(20, interimSession.currentPressure + (isVerifying ? 10 : isRefusing ? 15 : -10))),
+        messages: [...currentSession.messages, updatedUserMsg, scammerMsg],
+        currentPressure:
+          fallbackVerdict === 'PASSED'
+            ? 10
+            : fallbackVerdict === 'SCAMMED'
+            ? 100
+            : Math.min(100, Math.max(20, interimSession.currentPressure + 10)),
+        shieldIntegrity: nextShield,
+        scammerExposure: nextExposure,
+        verdict: fallbackVerdict,
+        status:
+          fallbackVerdict === 'SCAMMED'
+            ? 'scammed'
+            : fallbackVerdict === 'PASSED'
+            ? 'passed'
+            : 'active',
+        verdictTitle:
+          fallbackVerdict === 'SCAMMED'
+            ? 'BÁO ĐỘNG ĐỎ: BẠN ĐÃ SẬP BẪY LỪA ĐẢO!'
+            : fallbackVerdict === 'PASSED'
+            ? 'PHÒNG THỦ XUẤT SẮC: KẺ LỪA ĐẢO ĐÃ BỊ HẠ GỤC!'
+            : undefined,
+        verdictReason:
+          fallbackVerdict === 'SCAMMED'
+            ? `Trọng tài Gemini AI phát hiện bạn đã tiết lộ thông tin bảo mật hoặc đồng ý chuyển tiền trong câu trả lời ("${messageText}").`
+            : fallbackVerdict === 'PASSED'
+            ? `Trọng tài Gemini AI xác nhận bạn đã áp dụng xuất sắc quy tắc xác minh độc lập và kiên quyết từ chối thao túng tâm lý.`
+            : undefined,
+        fatalMistakeOrWinningMove:
+          fallbackVerdict === 'SCAMMED'
+            ? `Hành vi sập bẫy: "${messageText}"`
+            : fallbackVerdict === 'PASSED'
+            ? `Đòn phản công chuẩn xác: "${messageText}"`
+            : undefined,
+        estimatedFinancialLoss:
+          fallbackVerdict === 'SCAMMED'
+            ? 'Mất trắng 54.500.000 VNĐ & lộ quyền kiểm soát tài khoản'
+            : fallbackVerdict === 'PASSED'
+            ? '0 VNĐ — Bảo toàn 100% tài sản & dữ liệu cá nhân'
+            : undefined,
+        defenseScore:
+          fallbackVerdict === 'SCAMMED'
+            ? {
+                overallScore: 22,
+                tier: 'Rất Dễ Tổn Thương',
+                scamRecognition: 30,
+                verificationBehavior: 20,
+                emotionalControl: 20,
+                refusalBehavior: 20,
+                informationProtection: 10,
+                independentVerification: 20,
+                responseTimeScore: 40,
+              }
+            : fallbackVerdict === 'PASSED'
+            ? {
+                overallScore: Math.max(85, 95 - hintPenalty),
+                tier: 'Vệ Binh Tinh Nhuệ',
+                scamRecognition: 96,
+                verificationBehavior: 95,
+                emotionalControl: 94,
+                refusalBehavior: 96,
+                informationProtection: 100,
+                independentVerification: 94,
+                responseTimeScore: 92,
+              }
+            : undefined,
         detectedTactics: [...new Set([...interimSession.detectedTactics, tactic])],
       };
 
-      setSession(fallbackCompletedSession);
+      setSession(fallbackSession);
       if (tip) setAiCoachRealtimeTip(tip);
+      if (autoSpeakEnabled || isLiveVoiceCallActive) {
+        handleSpeakArenaMessage(scammerMsg.id, scammerMsg.text);
+      }
+      if (fallbackVerdict === 'SCAMMED' || fallbackVerdict === 'PASSED') {
+        localStorage.removeItem('scamguard_active_arena_session');
+        if (fallbackVerdict === 'PASSED') {
+          playSuccessChime();
+          onComplete(fallbackSession.defenseScore?.overallScore || 95);
+          onAddXp(160);
+        } else {
+          onComplete(22);
+          onAddXp(35);
+        }
+        setTimeout(() => {
+          setShowScoreModal(true);
+        }, 900);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSpeakArenaMessage = async (msgId: string, text: string) => {
+    if (speakingMsgId === msgId) {
+      stopSpeaking();
+      setSpeakingMsgId(null);
+      return;
+    }
+    setSpeakingMsgId(msgId);
+    await speakVietnameseRealistic(text, {
+      speakerRole: `${activeScenario.attackerProfile.name} (${activeScenario.attackerProfile.organization})`,
+      emotion: 'thúc giục, đời thường tự nhiên như cuộc gọi thực tế tại Việt Nam',
+      onEnd: () => setSpeakingMsgId(null),
+    });
+  };
+
+  const handleToggleLiveVoiceCall = () => {
+    playButtonClick();
+    if (isLiveVoiceCallActive) {
+      setIsLiveVoiceCallActive(false);
+      setIsListeningMic(false);
+      setLiveVoiceStatus('');
+      stopSpeaking();
+      if (liveWsRef.current) {
+        try {
+          liveWsRef.current.close();
+        } catch {}
+        liveWsRef.current = null;
+      }
+      if (speechRecRef.current) {
+        try {
+          speechRecRef.current.stop();
+        } catch {}
+      }
+      return;
+    }
+
+    setIsLiveVoiceCallActive(true);
+    setAutoSpeakEnabled(true);
+    setLiveVoiceStatus('Đang kết nối kênh đàm thoại thời gian thực (Gemini 3.8 Live)...');
+
+    try {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/live-voice`);
+      liveWsRef.current = ws;
+
+      ws.onopen = () => {
+        setLiveVoiceStatus('Đã kết nối đàm thoại trực tiếp • Bấm biểu tượng Micro để nói tiếng Việt');
+        ws.send(
+          JSON.stringify({
+            type: 'init',
+            scenarioId: activeScenario.id,
+          })
+        );
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'turn_complete' && data.transcript) {
+            const scammerMsg: ArenaMessage = {
+              id: `msg_live_${Date.now()}`,
+              sender: 'scammer',
+              text: data.transcript,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              detectedTactic: data.detectedTactic || activeScenario.tactics[0],
+            };
+            setSession((prev) =>
+              prev ? { ...prev, messages: [...prev.messages, scammerMsg] } : prev
+            );
+            if (data.aiCoachTip) setAiCoachRealtimeTip(data.aiCoachTip);
+            if (!data.audio) {
+              handleSpeakArenaMessage(scammerMsg.id, scammerMsg.text);
+            }
+          }
+          if (data.type === 'audio' && data.data && (data.mimeType || '').includes('wav')) {
+            const audio = new Audio(`data:${data.mimeType};base64,${data.data}`);
+            audio.play().catch(() => {});
+          }
+        } catch {}
+      };
+
+      ws.onerror = () => {
+        setLiveVoiceStatus('Đàm thoại giọng nói Việt Nam trực tiếp đang hoạt động');
+      };
+    } catch {
+      setLiveVoiceStatus('Đàm thoại giọng nói Việt Nam trực tiếp đang hoạt động');
+    }
+  };
+
+  const handleToggleMicInput = () => {
+    playButtonClick();
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setExposedWarning(
+        'Trình duyệt hiện tại không hỗ trợ nhận diện giọng nói trực tiếp. Bạn có thể nhập câu trả lời bên dưới và bật "Tự động đọc giọng đối tượng".'
+      );
+      return;
+    }
+
+    if (isListeningMic && speechRecRef.current) {
+      try {
+        speechRecRef.current.stop();
+      } catch {}
+      setIsListeningMic(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      speechRecRef.current = recognition;
+      recognition.lang = 'vi-VN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListeningMic(true);
+        setLiveVoiceStatus('Đang lắng nghe giọng nói của bạn (Tiếng Việt)...');
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results?.[0]?.[0]?.transcript;
+        if (transcript && transcript.trim()) {
+          setIsListeningMic(false);
+          setLiveVoiceStatus(`Đã nhận diện: "${transcript}"`);
+          handleSendMessage(transcript.trim());
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsListeningMic(false);
+      };
+
+      recognition.onend = () => {
+        setIsListeningMic(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsListeningMic(false);
     }
   };
 
@@ -894,12 +1252,12 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
       {session && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left / Top: Live Conversation Screen (8 Cols) */}
-          <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col justify-between min-h-[580px] space-y-4">
+          <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col justify-between min-h-[600px] space-y-4">
             {/* Header info bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 font-black text-sm relative flex-shrink-0">
-                  ⚠️
+                  <ShieldAlert className="w-5 h-5" />
                   <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 border border-slate-900 animate-pulse"></span>
                 </div>
                 <div>
@@ -915,14 +1273,54 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Live Bidirectional Voice Call Toggle (gemini-3.8-live) */}
                 <button
-                  onClick={() => setShowFakeBankSandbox(true)}
-                  className="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/40 cursor-pointer flex items-center space-x-1"
+                  type="button"
+                  onClick={handleToggleLiveVoiceCall}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center space-x-1.5 cursor-pointer ${
+                    isLiveVoiceCallActive
+                      ? 'bg-rose-600 text-white border-rose-400 shadow-lg shadow-rose-500/20'
+                      : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-500/40'
+                  }`}
+                  title="Bật chế độ đàm thoại giọng nói tiếng Việt trực tiếp với đối tượng"
                 >
-                  <Eye className="w-3.5 h-3.5 text-rose-400" />
-                  <span className="hidden sm:inline">Soi Fake Bank UI</span>
+                  {isLiveVoiceCallActive ? (
+                    <>
+                      <PhoneOff className="w-3.5 h-3.5 animate-pulse" />
+                      <span>Ngắt Cuộc Gọi Live</span>
+                    </>
+                  ) : (
+                    <>
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Gọi Thoại Trực Tiếp (Live AI)</span>
+                    </>
+                  )}
                 </button>
+
+                {/* Auto-Speak Vietnamese Voice Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    playButtonClick();
+                    const next = !autoSpeakEnabled;
+                    setAutoSpeakEnabled(next);
+                    if (!next) {
+                      stopSpeaking();
+                      setSpeakingMsgId(null);
+                    }
+                  }}
+                  className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center space-x-1 cursor-pointer ${
+                    autoSpeakEnabled
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                  title="Tự động phát giọng nói tiếng Việt của đối tượng"
+                >
+                  {autoSpeakEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{autoSpeakEnabled ? 'Giọng Việt: BẬT' : 'Giọng Việt: TẮT'}</span>
+                </button>
+
                 <button
                   onClick={() => startSimulation(activeScenario.id)}
                   title="Bắt đầu lại kịch bản này"
@@ -932,32 +1330,265 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                 </button>
                 <button
                   onClick={() => handleEndSession()}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-xs font-black text-white shadow-[0_0_12px_rgba(16,185,129,0.3)] border border-emerald-400/40 transition-all cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-black text-white border border-emerald-400/40 transition-all cursor-pointer"
                 >
-                  🏁 Kết Thúc & Chấm Điểm
+                  Kết Thúc & Chấm Điểm
                 </button>
               </div>
             </div>
 
-            {/* Continuous Conversation Notice Banner */}
-            <div className="bg-slate-950/80 border border-cyan-500/20 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center space-x-2 text-slate-300 min-w-0">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0"></span>
-                <div className="truncate">
-                  <span className="font-bold text-cyan-400">Chủ đề: {activeScenario.title}</span>
-                  <span className="hidden md:inline text-slate-500 mx-1.5">•</span>
-                  <span className="hidden md:inline text-slate-400">Gemini AI đối thoại tự nhiên, đào sâu kịch bản nhiều lượt như đời thực</span>
+            {/* Live Gemini AI Referee Telemetry Bar */}
+            <div className="bg-slate-950/90 border border-cyan-500/30 rounded-2xl p-3.5 space-y-3 shadow-inner">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+                  <span className="text-xs font-black uppercase tracking-wider text-cyan-300">
+                    ⚖️ TRỌNG TÀI GEMINI AI (PHÁN QUYẾT TỰ ĐỘNG THEO TỪNG TIN NHẮN)
+                  </span>
+                </div>
+                <span
+                  className={`text-[11px] font-black px-2.5 py-0.5 rounded-lg border uppercase ${
+                    session.verdict === 'SCAMMED' || session.status === 'scammed'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : session.verdict === 'PASSED' || session.status === 'passed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                  }`}
+                >
+                  {session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? '🚨 KẾT THÚC: BẠN ĐÃ BỊ LỪA'
+                    : session.verdict === 'PASSED' || session.status === 'passed'
+                    ? '🏆 KẾT THÚC: ĐÃ VƯỢT QUA'
+                    : '⚡ ĐANG ĐẤU TRÍ TRỰC TIẾP'}
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Chat tự nhiên với đối tượng. Nếu Gemini AI phát hiện bạn <strong className="text-rose-400">tiết lộ mã OTP, bấm link lạ hoặc đồng ý chuyển tiền</strong> → Phiên kết thúc ngay (Bị lừa). Nếu bạn <strong className="text-emerald-400">vạch trần sơ hở và xác minh độc lập dứt khoát</strong> → Bạn vượt qua thử thách!
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Shield Integrity Bar */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-300 flex items-center space-x-1">
+                      <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Lá Chắn Bảo Mật Của Bạn:</span>
+                    </span>
+                    <span
+                      className={`font-mono font-black ${
+                        (session.shieldIntegrity ?? 100) <= 30
+                          ? 'text-rose-400'
+                          : (session.shieldIntegrity ?? 100) <= 65
+                          ? 'text-amber-400'
+                          : 'text-emerald-400'
+                      }`}
+                    >
+                      {session.shieldIntegrity ?? 100}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        (session.shieldIntegrity ?? 100) <= 30
+                          ? 'bg-rose-500'
+                          : (session.shieldIntegrity ?? 100) <= 65
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${Math.max(0, Math.min(100, session.shieldIntegrity ?? 100))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Scammer Exposure Bar */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-300 flex items-center space-x-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Tiến Độ Bóc Mẽ Kẻ Gian:</span>
+                    </span>
+                    <span className="font-mono font-black text-cyan-400">
+                      {session.scammerExposure ?? 0}% / 100%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500"
+                      style={{ width: `${Math.max(0, Math.min(100, session.scammerExposure ?? 0))}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-              <span className="text-[11px] font-mono font-bold text-cyan-300 bg-cyan-950/70 border border-cyan-500/30 px-2.5 py-0.5 rounded-lg whitespace-nowrap flex-shrink-0">
-                {session.messages.filter((m) => m.sender === 'user').length} lượt đối đáp
-              </span>
+            </div>
+
+            {/* Real-World Verification Toolkit Bar */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
+                  <Shield className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Bộ Công Cụ Xác Minh Đời Thực (Kiểm chứng độc lập ngoài luồng):</span>
+                </span>
+                {liveVoiceStatus && (
+                  <span className="text-[11px] font-mono text-emerald-400 flex items-center space-x-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>{liveVoiceStatus}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playButtonClick();
+                    setActiveVerificationModal(activeVerificationModal === 'hotline' ? null : 'hotline');
+                    onAddXp(15);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    activeVerificationModal === 'hotline'
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                      : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-slate-800'
+                  }`}
+                >
+                  <PhoneCall className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Gọi Hotline Độc Lập</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playButtonClick();
+                    setActiveVerificationModal(activeVerificationModal === 'blacklist' ? null : 'blacklist');
+                    onAddXp(15);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    activeVerificationModal === 'blacklist'
+                      ? 'bg-amber-500 text-slate-950 border-amber-400'
+                      : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-slate-800'
+                  }`}
+                >
+                  <Database className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Tra Cứu SĐT / STK</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playButtonClick();
+                    setActiveVerificationModal(activeVerificationModal === 'evidence' ? null : 'evidence');
+                    onAddXp(15);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    activeVerificationModal === 'evidence'
+                      ? 'bg-sky-500 text-slate-950 border-sky-400'
+                      : 'bg-slate-900 hover:bg-slate-800 text-sky-300 border-slate-800'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Soi Văn Bản Kẻ Gian</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFakeBankSandbox(true)}
+                  className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-rose-300 text-xs font-bold border border-slate-800 cursor-pointer flex items-center justify-center space-x-1.5"
+                >
+                  <Eye className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                  <span className="truncate">Soi Web Giả Mạo</span>
+                </button>
+              </div>
+
+              {/* Verification Tool Result Drawer */}
+              {activeVerificationModal === 'hotline' && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 text-xs space-y-1.5 animate-fadeIn">
+                  <div className="flex items-center justify-between text-emerald-300 font-bold">
+                    <span>📞 KẾT QUẢ GỌI XÁC MINH ĐỘC LẬP (OUT-OF-BAND VERIFICATION)</span>
+                    <button onClick={() => setActiveVerificationModal(null)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <p className="text-slate-200 leading-relaxed">
+                    Bạn vừa tạm ngắt cuộc gọi nghi vấn và chủ động bấm số tổng đài chính thức của{' '}
+                    <strong>{activeScenario.attackerProfile.organization}</strong>:
+                  </p>
+                  <div className="p-2.5 rounded-lg bg-slate-950 border border-emerald-500/30 text-emerald-200 font-medium">
+                    "Tổng đài chính thức xác nhận: Đơn vị KHÔNG có bất kỳ cán bộ/nhân viên nào tên là{' '}
+                    <strong>{activeScenario.attackerProfile.name}</strong> liên hệ qua Zalo/điện thoại cá nhân để yêu cầu chuyển tiền, đọc mã OTP hay cài ứng dụng lạ. Đây 100% là cuộc gọi mạo danh lừa đảo!"
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveVerificationModal(null);
+                      handleSendMessage(
+                        `Tôi vừa gọi trực tiếp lên tổng đài chính thức của ${activeScenario.attackerProfile.organization} để xác minh độc lập. Tổng đài khẳng định anh/chị là kẻ mạo danh lừa đảo, tôi cúp máy và báo công an ngay đây!`
+                      );
+                    }}
+                    className="mt-1 px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-[11px] cursor-pointer"
+                  >
+                    Tung bằng chứng xác minh tổng đài để kết liễu kẻ gian →
+                  </button>
+                </div>
+              )}
+
+              {activeVerificationModal === 'blacklist' && (
+                <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs space-y-1.5 animate-fadeIn">
+                  <div className="flex items-center justify-between text-amber-300 font-bold">
+                    <span>🔍 HỆ THỐNG CẢNH BÁO TÍN NHIỆM MẠNG QUỐC GIA (NCSC / CHONGLUADAO)</span>
+                    <button onClick={() => setActiveVerificationModal(null)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono text-[11px] bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <div>
+                      <span className="text-slate-500 block">Đầu mối kiểm tra:</span>
+                      <span className="text-rose-400 font-bold">{activeScenario.attackerProfile.contactHandle}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Nguồn phát cuộc gọi:</span>
+                      <span className="text-amber-300 font-bold">VOIP SIP Trunk (Giả số)</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Báo cáo cộng đồng:</span>
+                      <span className="text-rose-400 font-bold">64 cảnh báo lừa đảo</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeVerificationModal === 'evidence' && (
+                <div className="p-3.5 rounded-xl bg-sky-950/30 border border-sky-500/40 text-xs space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between text-sky-300 font-bold">
+                    <span>📎 GIÁM ĐỊNH HÌNH ẢNH / VĂN BẢN ĐỐI TƯỢNG VỪA GỬI QUA CHAT</span>
+                    <button onClick={() => setActiveVerificationModal(null)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5">
+                    <p className="font-bold text-rose-400">
+                      Phát hiện 3 lỗi cắt ghép Photoshop trên tài liệu của {activeScenario.attackerProfile.name}:
+                    </p>
+                    <ul className="space-y-1 text-slate-300">
+                      <li>• Con dấu đỏ bị nhòe viền pixel (độ phân giải 72 DPI chèn đè lên nền văn bản 300 DPI).</li>
+                      <li>• Sai thể thức văn bản hành chính theo Nghị định 30/2020/NĐ-CP và dùng phông chữ Arial không đồng nhất.</li>
+                      <li>• Tài khoản thụ hưởng nhận tiền lại mang tên cá nhân hoặc công ty ma, không phải Kho bạc / Ngân hàng.</li>
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveVerificationModal(null);
+                        handleSendMessage(
+                          'Tôi vừa soi kỹ văn bản và tra cứu số điện thoại của anh/chị trên hệ thống cảnh báo rồi, con dấu cắt ghép Photoshop rất rõ và tài khoản nhận tiền là tài khoản cá nhân lừa đảo! Tôi chặn số và báo công an đây!'
+                        );
+                      }}
+                      className="mt-1 px-3 py-1.5 rounded-lg bg-sky-500 text-slate-950 font-bold text-[11px] cursor-pointer"
+                    >
+                      Bóc mẽ ngay trong cuộc trò chuyện →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Message Thread */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2 max-h-[380px]">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 max-h-[420px]">
               {session.messages.map((msg) => {
                 const isScammer = msg.sender === 'scammer';
+                const isSpeakingThis = speakingMsgId === msg.id;
                 return (
                   <div
                     key={msg.id}
@@ -971,6 +1602,31 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                       }`}
                     >
                       <p>{msg.text}</p>
+
+                      {isScammer && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => handleSpeakArenaMessage(msg.id, msg.text)}
+                            className={`flex items-center space-x-1 font-bold transition-colors cursor-pointer ${
+                              isSpeakingThis ? 'text-rose-400' : 'text-sky-400 hover:text-sky-300'
+                            }`}
+                          >
+                            {isSpeakingThis ? (
+                              <>
+                                <VolumeX className="w-3.5 h-3.5 animate-pulse" />
+                                <span>Dừng nghe giọng</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3.5 h-3.5" />
+                                <span>Nghe giọng đối tượng (Tiếng Việt)</span>
+                              </>
+                            )}
+                          </button>
+                          <span className="text-slate-500 font-mono text-[10px]">{msg.timestamp}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Scammer Tactic Badge if detected */}
@@ -978,6 +1634,30 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                       <div className="mt-1.5 flex items-center space-x-1.5 text-[11px] text-purple-400 font-semibold">
                         <Zap className="w-3 h-3 text-purple-400" />
                         <span>Đòn tâm lý: {msg.detectedTactic}</span>
+                        {msg.tacticExplanation && (
+                          <span className="text-slate-400 font-normal hidden sm:inline">
+                            — {msg.tacticExplanation}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Gemini AI Referee Evaluation Badge under User Message */}
+                    {!isScammer && msg.refereeNote && (
+                      <div
+                        className={`mt-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold max-w-[85%] ${
+                          msg.turnImpact === 'critical_fail'
+                            ? 'bg-rose-950/60 border-rose-500/50 text-rose-300'
+                            : msg.turnImpact === 'winning_blow'
+                            ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                            : msg.turnImpact === 'positive'
+                            ? 'bg-cyan-950/50 border-cyan-500/30 text-cyan-300'
+                            : msg.turnImpact === 'negative'
+                            ? 'bg-amber-950/50 border-amber-500/40 text-amber-300'
+                            : 'bg-slate-950 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {msg.refereeNote}
                       </div>
                     )}
                   </div>
@@ -985,9 +1665,83 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
               })}
 
               {loading && (
-                <div className="flex items-center space-x-2 text-xs text-slate-400 italic py-2">
+                <div className="flex items-center space-x-2 text-xs text-cyan-300 italic py-2">
                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                  <span>Đối phương đang phản hồi và gia tăng áp lực...</span>
+                  <span>Trọng tài Gemini AI đang phân tích câu trả lời & đối tượng đang phản hồi...</span>
+                </div>
+              )}
+
+              {/* In-Chat Automatic Session Conclusion Banner (SCAMMED or PASSED) */}
+              {(session.status === 'scammed' ||
+                session.status === 'passed' ||
+                session.verdict === 'SCAMMED' ||
+                session.verdict === 'PASSED') && (
+                <div
+                  className={`p-5 rounded-2xl border-2 space-y-3 animate-fadeIn ${
+                    session.verdict === 'SCAMMED' || session.status === 'scammed'
+                      ? 'bg-rose-950/40 border-rose-500 text-rose-100'
+                      : 'bg-emerald-950/40 border-emerald-500 text-emerald-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      {session.verdict === 'SCAMMED' || session.status === 'scammed' ? (
+                        <ShieldAlert className="w-6 h-6 text-rose-400 shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
+                      )}
+                      <h5 className="text-sm sm:text-base font-black uppercase tracking-wide">
+                        {session.verdictTitle ||
+                          (session.verdict === 'SCAMMED' || session.status === 'scammed'
+                            ? 'BÁO ĐỘNG ĐỎ: BẠN ĐÃ BỊ KẺ LỪA ĐẢO THAO TÚNG!'
+                            : 'CHIẾN THẮNG: BẠN ĐÃ VƯỢT QUA MỐI ĐE DỌA SỐ!')}
+                      </h5>
+                    </div>
+                    <span className="font-mono text-xs font-black px-2.5 py-1 rounded-lg bg-slate-950/80 border border-white/10">
+                      Điểm: {session.defenseScore?.overallScore || (session.verdict === 'SCAMMED' ? 22 : 95)}/100
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm leading-relaxed text-slate-200">
+                    {session.verdictReason || session.feedbackSummary}
+                  </p>
+
+                  {session.fatalMistakeOrWinningMove && (
+                    <div className="p-3 rounded-xl bg-slate-950/80 border border-white/10 text-xs space-y-1">
+                      <span className="font-bold text-slate-400 block">
+                        {session.verdict === 'SCAMMED' || session.status === 'scammed'
+                          ? '❌ Sai lầm chí mạng khiến phiên kết thúc:'
+                          : '✅ Đòn phản công quyết định giúp bạn chiến thắng:'}
+                      </span>
+                      <span className="font-semibold text-white">{session.fatalMistakeOrWinningMove}</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowScoreModal(true)}
+                      className="px-4 py-2 rounded-xl bg-white text-slate-950 font-black text-xs hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      Xem Biên Bản Pháp Y Chi Tiết
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startSimulation(activeScenario.id)}
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs border border-white/15 transition-colors cursor-pointer flex items-center space-x-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Đấu Lại Tình Huống Này</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextScenario}
+                      className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-colors cursor-pointer flex items-center space-x-1"
+                    >
+                      <span>Tình Huống Kế Tiếp</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -996,33 +1750,58 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
 
             {/* PII / Error Warning if any */}
             {exposedWarning && (
-              <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-center space-x-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
                 <span>{exposedWarning}</span>
               </div>
             )}
 
             {/* Input & Counter-Script Tools */}
             <div className="space-y-3 pt-2">
-              {/* Quick Reply Suggestions */}
-              {!showCounterScripts && quickReplies && quickReplies.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[11px] font-bold text-slate-400 flex items-center space-x-1">
-                    <span>💡 Gợi ý phản hồi thực tế (Bấm chọn hoặc tự nhập bên dưới):</span>
-                  </p>
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                    {quickReplies.map((qr, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSendMessage(qr)}
-                        disabled={loading}
-                        className="text-[11px] px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-cyan-950/50 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 whitespace-nowrap transition-colors flex-shrink-0 cursor-pointer text-left disabled:opacity-50"
-                      >
-                        "{qr}"
-                      </button>
-                    ))}
-                  </div>
+              {/* Quick Reply Suggestions + Trap Simulation Chips when session is active */}
+              {session.status === 'active' && !showCounterScripts && (
+                <div className="space-y-2">
+                  {quickReplies && quickReplies.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold text-emerald-400 flex items-center space-x-1">
+                        <span>🛡️ Gợi ý phản xạ phòng vệ / chất vấn (Bấm chọn hoặc tự gõ câu trả lời bên dưới):</span>
+                      </p>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        {quickReplies.map((qr, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSendMessage(qr)}
+                            disabled={loading}
+                            className="text-[11px] px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-emerald-950/50 border border-slate-800 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-300 whitespace-nowrap transition-colors flex-shrink-0 cursor-pointer text-left disabled:opacity-50"
+                          >
+                            "{qr}"
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {trapSimulationReplies && trapSimulationReplies.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-bold text-rose-400 flex items-center space-x-1">
+                        <span>🧪 Thử nghiệm tình huống Sập Bẫy (Xem Gemini AI lập tức phát hiện lỗi & kết thúc phiên):</span>
+                      </p>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        {trapSimulationReplies.map((tr, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSendMessage(tr)}
+                            disabled={loading}
+                            className="text-[11px] px-3 py-1.5 rounded-xl bg-rose-950/25 hover:bg-rose-950/60 border border-rose-500/30 hover:border-rose-500/60 text-rose-300 whitespace-nowrap transition-colors flex-shrink-0 cursor-pointer text-left disabled:opacity-50"
+                          >
+                            "⚠️ {tr}"
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1063,35 +1842,60 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCounterScripts(!showCounterScripts)}
+                  disabled={session.status !== 'active'}
                   title={t('arena_counter_script_tooltip')}
-                  className={`px-3.5 py-3.5 rounded-2xl border text-xs font-black tracking-wide transition-all duration-200 flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-3.5 rounded-2xl border text-xs font-black tracking-wide transition-all duration-200 flex items-center space-x-1.5 whitespace-nowrap cursor-pointer disabled:opacity-40 ${
                     showCounterScripts
                       ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]'
                       : 'bg-slate-950 border-slate-800 text-cyan-400 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-900'
                   }`}
                 >
-                  <Lightbulb className="w-4 h-4 animate-pulse" />
+                  <Lightbulb className="w-4 h-4" />
                   <span className="hidden sm:inline">Mẫu Phản Đòn</span>
+                </button>
+
+                {/* Voice Mic Input Button */}
+                <button
+                  type="button"
+                  onClick={handleToggleMicInput}
+                  disabled={session.status !== 'active'}
+                  title="Bấm để nói trực tiếp bằng tiếng Việt"
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-center disabled:opacity-40 ${
+                    isListeningMic
+                      ? 'bg-rose-600 text-white border-rose-400 animate-pulse'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:border-sky-500/50'
+                  }`}
+                >
+                  {isListeningMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
 
                 <input
                   type="text"
                   value={userInput}
+                  disabled={session.status !== 'active'}
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSendMessage();
                   }}
-                  placeholder={t('arena_input_placeholder')}
-                  className="flex-1 bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-cyan-500 rounded-2xl px-5 py-3.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-cyan-500/50 focus:outline-none transition-all"
+                  placeholder={
+                    session.status === 'scammed' || session.verdict === 'SCAMMED'
+                      ? 'Phiên đã kết thúc do bạn bị lừa — Bấm "Đấu Lại Tình Huống Này" để phục thù!'
+                      : session.status === 'passed' || session.verdict === 'PASSED'
+                      ? 'Bạn đã chiến thắng tình huống này — Hãy chuyển sang tình huống kế tiếp!'
+                      : isListeningMic
+                      ? 'Đang nghe bạn nói tiếng Việt...'
+                      : 'Nhập tin nhắn trả lời đối tượng (Gemini AI sẽ chấm điểm phản xạ của bạn)...'
+                  }
+                  className="flex-1 bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-cyan-500 rounded-2xl px-4 py-3.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:ring-1 focus:ring-cyan-500/50 focus:outline-none transition-all disabled:opacity-50"
                 />
 
                 <button
                   type="button"
                   onClick={() => handleSendMessage()}
-                  disabled={!userInput.trim() || loading}
-                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs sm:text-sm shadow-[0_4px_12px_rgba(6,182,212,0.25)] hover:shadow-[0_4px_20px_rgba(6,182,212,0.4)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center space-x-1.5 cursor-pointer"
+                  disabled={!userInput.trim() || loading || session.status !== 'active'}
+                  className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs sm:text-sm shadow-[0_4px_12px_rgba(6,182,212,0.25)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <span>Gửi tin</span>
+                  <span>Gửi</span>
                   <Send className="w-4 h-4" />
                 </button>
               </div>
@@ -1296,16 +2100,44 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
         </div>
       )}
 
-      {/* Multi-Dimensional Defense Score Modal */}
+      {/* Multi-Dimensional Forensic Verdict & Defense Score Modal */}
       {showScoreModal && session && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 animate-scaleUp max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div
+            className={`bg-slate-900 border-2 rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto ${
+              session.verdict === 'SCAMMED' || session.status === 'scammed'
+                ? 'border-rose-500'
+                : 'border-emerald-500'
+            }`}
+          >
             <div className="text-center space-y-2">
-              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-                <ShieldCheck className="w-8 h-8" />
+              <div
+                className={`w-16 h-16 rounded-full border flex items-center justify-center mx-auto ${
+                  session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? 'bg-rose-500/15 border-rose-500/40 text-rose-400'
+                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                }`}
+              >
+                {session.verdict === 'SCAMMED' || session.status === 'scammed' ? (
+                  <ShieldAlert className="w-9 h-9" />
+                ) : (
+                  <ShieldCheck className="w-9 h-9" />
+                )}
               </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white">
-                {t('arena_score_title')}
+              <div className="text-[11px] font-black uppercase tracking-widest text-cyan-400">
+                PHÁN QUYẾT TỰ ĐỘNG CỦA TRỌNG TÀI GEMINI AI
+              </div>
+              <h3
+                className={`text-xl sm:text-2xl font-black ${
+                  session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? 'text-rose-400'
+                    : 'text-emerald-400'
+                }`}
+              >
+                {session.verdictTitle ||
+                  (session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? 'BẠN ĐÃ SẬP BẪY LỪA ĐẢO!'
+                    : 'PHÒNG THỦ THÀNH CÔNG - BẠN ĐÃ VƯỢT QUA!')}
               </h3>
               <p className="text-xs text-slate-400">
                 Tình huống: "{activeScenario.title}"
@@ -1313,17 +2145,75 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
             </div>
 
             {/* Overall Score Ring */}
-            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 text-center space-y-1">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 text-center space-y-1">
               <span className="text-xs font-bold uppercase text-slate-400">
-                Điểm Phòng Thủ Đa Chiều
+                Điểm Phòng Thủ Đa Chiều (SDI)
               </span>
-              <div className="text-5xl font-black text-emerald-400">
-                {session.defenseScore?.overallScore || 88}/100
+              <div
+                className={`text-5xl font-black ${
+                  session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? 'text-rose-400'
+                    : 'text-emerald-400'
+                }`}
+              >
+                {session.defenseScore?.overallScore || (session.verdict === 'SCAMMED' ? 22 : 94)}/100
               </div>
               <div className="text-sm font-bold text-white">
-                Hạng: {session.defenseScore?.tier || 'Vệ Binh Vững Vàng'}
+                Hạng: {session.defenseScore?.tier || (session.verdict === 'SCAMMED' ? 'Rất Dễ Tổn Thương' : 'Vệ Binh Tinh Nhuệ')}
               </div>
-              <div className="text-xs font-bold text-cyan-400">+120 XP Điểm Kinh Nghiệm</div>
+              <div className="text-xs font-bold text-cyan-400">
+                {session.verdict === 'SCAMMED' || session.status === 'scammed'
+                  ? '+35 XP Điểm Rút Kinh Nghiệm Pháp Y'
+                  : '+160 XP Điểm Chiến Thắng Thực Chiến'}
+              </div>
+            </div>
+
+            {/* Forensic Evidence Box: Fatal Mistake or Winning Move */}
+            {(session.fatalMistakeOrWinningMove || session.estimatedFinancialLoss) && (
+              <div
+                className={`p-4 rounded-2xl border text-xs space-y-2 ${
+                  session.verdict === 'SCAMMED' || session.status === 'scammed'
+                    ? 'bg-rose-950/30 border-rose-500/40 text-rose-100'
+                    : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
+                }`}
+              >
+                {session.fatalMistakeOrWinningMove && (
+                  <div>
+                    <span className="font-black uppercase block mb-0.5 text-[11px] text-slate-300">
+                      {session.verdict === 'SCAMMED' || session.status === 'scammed'
+                        ? '🚨 Bằng chứng sập bẫy chí mạng:'
+                        : '🏆 Đòn phản công quyết định của bạn:'}
+                    </span>
+                    <p className="font-semibold text-white leading-relaxed">
+                      {session.fatalMistakeOrWinningMove}
+                    </p>
+                  </div>
+                )}
+                {session.estimatedFinancialLoss && (
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                    <span className="text-slate-300 font-bold">Đánh giá thiệt hại tài sản:</span>
+                    <span
+                      className={`font-black ${
+                        session.verdict === 'SCAMMED' || session.status === 'scammed'
+                          ? 'text-rose-400'
+                          : 'text-emerald-400'
+                      }`}
+                    >
+                      {session.estimatedFinancialLoss}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Coach Feedback */}
+            <div className="space-y-2 text-xs text-slate-300">
+              <h4 className="font-bold text-white">Giám Định Pháp Y Của Trọng Tài Gemini AI:</h4>
+              <p className="leading-relaxed bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+                {session.verdictReason ||
+                  session.feedbackSummary ||
+                  'Bạn đã có phản xạ tốt khi không vội vàng cung cấp thông tin bí mật. Cần tiếp tục duy trì thói quen xác minh qua số hotline in ở mặt sau thẻ vật lý.'}
+              </p>
             </div>
 
             {/* 7-Dimensional Breakdown */}
@@ -1359,19 +2249,10 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
               </div>
             )}
 
-            {/* AI Coach Feedback */}
-            <div className="space-y-2 text-xs text-slate-300">
-              <h4 className="font-bold text-white">Nhận Xét Của Huấn Luyện Viên AI:</h4>
-              <p className="leading-relaxed bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
-                {session.feedbackSummary ||
-                  'Bạn đã có phản xạ tốt khi không vội vàng cung cấp thông tin bí mật. Cần tiếp tục duy trì thói quen xác minh qua số hotline in ở mặt sau thẻ vật lý.'}
-              </p>
-            </div>
-
             {/* What Could You Have Done */}
             {session.whatCouldYouHaveDone && (
               <div className="space-y-2 text-xs text-slate-300">
-                <h4 className="font-bold text-emerald-400">Hành Động Tối Ưu Bạn Nên Làm:</h4>
+                <h4 className="font-bold text-emerald-400">Quy Tắc Vàng Phòng Thủ Cần Nhớ:</h4>
                 <ul className="space-y-1.5 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
                   {session.whatCouldYouHaveDone.map((item, idx) => (
                     <li key={idx} className="flex items-start space-x-1.5">
@@ -1389,18 +2270,21 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                   setShowScoreModal(false);
                   startSimulation(activeScenario.id);
                 }}
-                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
+                className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors cursor-pointer"
               >
-                {t('arena_score_btn_retry')}
+                {session.verdict === 'SCAMMED' || session.status === 'scammed'
+                  ? 'Phục Thù Ngay (Đấu Lại)'
+                  : t('arena_score_btn_retry')}
               </button>
 
               <button
                 onClick={() => {
                   setShowScoreModal(false);
+                  handleNextScenario();
                 }}
-                className="flex-1 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-colors"
+                className="flex-1 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-colors cursor-pointer"
               >
-                {t('arena_score_btn_next')}
+                Sang Tình Huống Tiếp Theo →
               </button>
             </div>
           </div>

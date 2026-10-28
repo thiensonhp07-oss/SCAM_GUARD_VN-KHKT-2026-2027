@@ -12,8 +12,23 @@ export default defineConfig(() => {
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: false,
+      watch: null,
+    },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'lucide-react',
+        'motion/react',
+        'canvas-confetti',
+        'qrcode',
+        'jspdf',
+        'firebase/app',
+        'firebase/auth',
+        'firebase/firestore',
+      ],
     },
     build: {
       chunkSizeWarningLimit: 3000,

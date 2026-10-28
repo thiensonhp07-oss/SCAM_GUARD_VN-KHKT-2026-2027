@@ -144,6 +144,7 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
   const [customInput, setCustomInput] = useState<string>('');
   const [analyzedResult, setAnalyzedResult] = useState<ScriptPreset | null>(PRESET_SCRIPTS[0]);
   const [copiedCounter, setCopiedCounter] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Clean up synthetic speech on close or unmount
   useEffect(() => {
@@ -166,8 +167,51 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
     setAnalyzedResult(preset);
   };
 
-  const handleRunCustomAnalysis = () => {
-    if (!customInput.trim()) return;
+  const handleRunCustomAnalysis = async () => {
+    if (!customInput.trim() || isAnalyzing) return;
+    setIsAnalyzing(true);
+
+    try {
+      const res = await fetch('/api/analyze/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: customInput.trim() }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (data && typeof data.scamScore === 'number') {
+          setAnalyzedResult({
+            id: 'custom_analysis_gemini',
+            title: data.title || 'Kịch Bản Phân Tích Bằng Gemini 3.8 Flash',
+            category: data.category || 'Phân Tích Ngôn Ngữ Học Pháp Y AI',
+            transcript: customInput.trim(),
+            scamScore: data.scamScore,
+            tactics: {
+              urgency: data.tactics?.urgency ?? 75,
+              panic: data.tactics?.panic ?? 70,
+              greed: data.tactics?.greed ?? 35,
+              authority: data.tactics?.authority ?? 65,
+              isolation: data.tactics?.isolation ?? 60,
+            },
+            keyRedFlags: Array.isArray(data.keyRedFlags) && data.keyRedFlags.length > 0
+              ? data.keyRedFlags
+              : ['Phát hiện cấu trúc thao túng tâm lý qua phân tích ngữ nghĩa Gemini AI'],
+            counterScript:
+              data.counterScript ||
+              'Tôi đang ghi âm cuộc gọi này. Vui lòng gửi giấy mời làm việc chính thức về công an địa phương.',
+            recommendedAction:
+              data.recommendedAction || 'Cúp máy ngay lập tức và xác minh qua kênh độc lập.',
+          });
+          window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+          setIsAnalyzing(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Speech decoder API fallback:', err);
+    }
 
     const lower = customInput.toLowerCase();
     let score = 75;
@@ -218,6 +262,7 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
     };
 
     setAnalyzedResult(newResult);
+    setIsAnalyzing(false);
   };
 
   const handleCopyCounterScript = (text: string) => {
@@ -301,10 +346,15 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
           {customInput.trim() && (
             <button
               onClick={handleRunCustomAnalysis}
-              className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-slate-950 font-black text-xs transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-lg"
+              disabled={isAnalyzing}
+              className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-60 text-slate-950 font-black text-xs transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-lg"
             >
-              <Zap className="w-4 h-4" />
-              <span>CHẠY BÓC TÁCH KỊCH BẢN NÀY (CYBERGUARD AI)</span>
+              <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+              <span>
+                {isAnalyzing
+                  ? 'ĐANG BÓC TÁCH BẰNG GEMINI 3.8 FLASH & GHI NHẬN DATASET...'
+                  : 'CHẠY BÓC TÁCH KỊCH BẢN NÀY (GEMINI 3.8 FLASH)'}
+              </span>
             </button>
           )}
         </div>
@@ -316,7 +366,7 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
                 <span className="text-[10px] font-black uppercase text-indigo-400 tracking-wider">
-                  KẾT QUẢ PHÂN TÍCH CHỈ SỐ LỪA ĐẢO
+                  KẾT QUẢ PHÂN TÍCH CHỈ SỐ LỪA ĐẢO · {analyzedResult.category}
                 </span>
                 <h3 className="text-base sm:text-lg font-black text-white">{analyzedResult.title}</h3>
               </div>
@@ -348,7 +398,7 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
             {/* 5 Psychological Meters */}
             <div className="space-y-2">
               <span className="text-xs font-black uppercase text-indigo-300 block">
-                🧠 5 Đòn Tác Động Tâm Lý Được Bóc Tách:
+                5 Đòn Tác Động Tâm Lý Được Bóc Tách:
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[11px]">
                 <div className="p-2 bg-slate-900 rounded-xl border border-slate-800">
@@ -384,6 +434,24 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
               </div>
             </div>
 
+            {/* Key Red Flags */}
+            {analyzedResult.keyRedFlags && analyzedResult.keyRedFlags.length > 0 && (
+              <div className="p-3.5 bg-rose-950/30 border border-rose-500/30 rounded-xl space-y-1.5">
+                <span className="text-xs font-black uppercase text-rose-300 flex items-center space-x-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Dấu Hiệu Nhận Diện Pháp Y (Red Flags):</span>
+                </span>
+                <ul className="space-y-1 text-xs text-slate-200">
+                  {analyzedResult.keyRedFlags.map((flag, idx) => (
+                    <li key={idx} className="flex items-start space-x-2">
+                      <span className="text-rose-400 font-bold">•</span>
+                      <span>{flag}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* CyberGuard Counter-Script */}
             <div className="p-4 bg-emerald-950/60 border border-emerald-500/50 rounded-2xl space-y-2">
               <div className="flex items-center justify-between">
@@ -403,7 +471,7 @@ export const ScamSpeechDecoderModal: React.FC<ScamSpeechDecoderModalProps> = ({
                 "{analyzedResult.counterScript}"
               </p>
               <p className="text-[11px] text-emerald-300/80 italic">
-                💡 Nói câu này khi nghe điện thoại sẽ khiến kẻ gian lập tức tịt ngòi và cúp máy!
+                Khuyến nghị hành động: {analyzedResult.recommendedAction}
               </p>
             </div>
           </div>

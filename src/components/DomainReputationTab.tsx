@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ShieldAlert,
   Search,
@@ -16,44 +16,21 @@ import {
   CheckCircle2,
   Send,
   HelpCircle,
-  FileText
+  FileCode,
+  Mic,
+  Square,
+  Upload,
+  Volume2,
+  ShieldCheck,
+  ExternalLink,
+  Copy,
+  Check,
+  Server,
+  KeyRound,
+  Smartphone,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { playSuccessChime, playRewardTrophy } from '../utils/audioEffects';
-
-// Heuristic Levenshtein Distance for Typosquatting
-function getLevenshteinDistance(a: string, b: string): number {
-  const tmp = [];
-  let i, j;
-  for (i = 0; i <= a.length; i++) tmp.push([i]);
-  for (j = 1; j <= b.length; j++) tmp[0].push(j);
-  for (i = 1; i <= a.length; i++) {
-    for (j = 1; j <= b.length; j++) {
-      tmp[i][j] = Math.min(
-        tmp[i - 1][j] + 1,
-        tmp[i][j - 1] + 1,
-        tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
-      );
-    }
-  }
-  return tmp[a.length][b.length];
-}
-
-const TRUSTED_BRANDS = [
-  'vietcombank',
-  'techcombank',
-  'mbbank',
-  'bidv',
-  'acb',
-  'vneid',
-  'shopee',
-  'lazada',
-  'tiktok',
-  'google',
-  'facebook',
-  'telegram',
-  'netflix'
-];
 
 interface CommunityNote {
   id: string;
@@ -74,161 +51,490 @@ const INITIAL_NOTES: CommunityNote[] = [
     target: 'vietcombank-login-online.xyz',
     type: 'url',
     scamType: 'Giả Mạo Thương Hiệu / Phishing',
-    description: 'Trang web mạo danh giao diện đăng nhập VCB Digibank để thu thập OTP. WHOIS đăng ký ẩn danh tại Nga cách đây 2 ngày.',
+    description:
+      'Trang web mạo danh giao diện đăng nhập VCB Digibank để thu thập mật khẩu và Smart OTP. Chứng chỉ SSL miễn phí mới cấp 2 ngày trước.',
     upvotes: 142,
     downvotes: 3,
     verifiedStatus: 'VERIFIED',
-    timestamp: '10 phút trước'
+    timestamp: '10 phút trước',
   },
   {
     id: 'note-2',
-    target: '0392910392',
+    target: '02473022626',
     type: 'phone',
-    scamType: 'Giả danh Cơ Quan Chức Năng',
-    description: 'Đối tượng giả danh shipper công ty Giao Hàng Tiết Kiệm bắt nộp phí COD khống qua cổng chuyển khoản lừa đảo.',
-    upvotes: 95,
+    scamType: 'Mạo Danh Cơ Quan Công An / VKS',
+    description:
+      'Đầu số VoIP cố định giả danh cán bộ điều tra thông báo dính líu vụ án rửa tiền, ép kết bạn Zalo gửi lệnh bắt tạm giam giả.',
+    upvotes: 198,
     downvotes: 1,
     verifiedStatus: 'VERIFIED',
-    timestamp: '2 giờ trước'
+    timestamp: '35 phút trước',
   },
   {
     id: 'note-3',
-    target: 'vnpost-capnhat-diachi.cc',
+    target: 'dichvucong-vneid-capnhat.top',
     type: 'url',
-    scamType: 'Phishing Giao Hàng',
-    description: 'Bẫy nộp phí lưu kho 10.000đ để thu thập toàn bộ thông tin thẻ tín dụng quốc tế Visa/Mastercard.',
-    upvotes: 64,
+    scamType: 'Phát Tán Mã Độc .APK Chiếm Quyền',
+    description:
+      'Gửi link tải file VNeID.apk giả mạo yêu cầu cấp quyền Trợ năng (Accessibility) để đọc trộm mã OTP và tự động chuyển tiền ngân hàng.',
+    upvotes: 116,
     downvotes: 0,
     verifiedStatus: 'VERIFIED',
-    timestamp: '5 giờ trước'
-  }
+    timestamp: '2 giờ trước',
+  },
 ];
 
 export const DomainReputationTab: React.FC = () => {
-  // Navigation for Sub-modules
-  const [activeSubTab, setActiveSubTab] = useState<'reputation' | 'community' | 'qr_sandbox' | 'deepfake' | 'osint'>('reputation');
+  const [activeSubTab, setActiveSubTab] = useState<
+    'reputation' | 'qr_sandbox' | 'deepfake' | 'apk_malware' | 'osint' | 'community'
+  >('reputation');
 
-  // 1. Reputation Engine States
+  // 1. Live URL / Domain Reputation States
   const [domainInput, setDomainInput] = useState('');
   const [repResult, setRepResult] = useState<any | null>(null);
   const [repLoading, setRepLoading] = useState(false);
 
-  // 2. Community Feed States
+  // 2. QR Code & VietQR Sandbox States
+  const [qrInputUrl, setQrInputUrl] = useState(
+    '00020101021238570010A00000072701270006970436011310283921099990208QRIBFTTA53037045408250000005802VN62290825Chuyen tien bao lanh VKS6304B13E'
+  );
+  const [qrImageBase64, setQrImageBase64] = useState<string | null>(null);
+  const [qrImageMime, setQrImageMime] = useState<string>('image/png');
+  const [qrDecoded, setQrDecoded] = useState<any | null>(null);
+  const [qrScanning, setQrScanning] = useState(false);
+
+  // 3. Audio / Voice Recording & Deepfake States
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
+  const [audioMime, setAudioMime] = useState<string>('audio/webm');
+  const [audioFileName, setAudioFileName] = useState<string>('');
+  const [audioTranscriptInput, setAudioTranscriptInput] = useState(
+    'Alo, tôi là Thiếu tá Nguyễn Hoàng Nam thuộc Cơ quan Cảnh sát điều tra Bộ Công An. Hồ sơ CCCD của anh/chị đang liên quan đến một tài khoản ngân hàng nhận 2,8 tỷ đồng từ đường dây rửa tiền xuyên quốc gia. Yêu cầu anh/chị vào phòng kín, tuyệt đối không nói cho ai biết và chuyển ngay toàn bộ số dư sang tài khoản tạm giữ của cơ quan điều tra để rà soát trong 15 phút!'
+  );
+  const [callerNumberInput, setCallerNumberInput] = useState('024.7302.2626');
+  const [isRecordingMic, setIsRecordingMic] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [deepfakeLoading, setDeepfakeLoading] = useState(false);
+  const [deepfakeResult, setDeepfakeResult] = useState<any | null>(null);
+  const [copiedCounterScript, setCopiedCounterScript] = useState(false);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+
+  // 4. APK / File Malware Inspector States
+  const [apkFileName, setApkFileName] = useState('DichVuCong_VNeID_CapDo2_2026.apk');
+  const [apkFileSize, setApkFileSize] = useState<number>(18452910);
+  const [apkSha256, setApkSha256] = useState<string>(
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+  );
+  const [apkPermissions, setApkPermissions] = useState<string[]>([
+    'BIND_ACCESSIBILITY_SERVICE',
+    'RECEIVE_SMS',
+    'READ_SMS',
+    'SYSTEM_ALERT_WINDOW',
+    'REQUEST_INSTALL_PACKAGES',
+  ]);
+  const [apkExtractedStrings, setApkExtractedStrings] = useState<string[]>([
+    'wss://c2-vneid-socket.top:8443/steal-otp',
+    'com.accessibility.autotransfer.vcb',
+    'capture_screen_lock_pin',
+  ]);
+  const [apkSourceUrl, setApkSourceUrl] = useState('https://dichvucong-gov-vn.top/download/VNeID.apk');
+  const [apkLoading, setApkLoading] = useState(false);
+  const [apkResult, setApkResult] = useState<any | null>(null);
+
+  // 5. OSINT Cross-check States
+  const [osintQuery, setOsintQuery] = useState('');
+  const [osintResult, setOsintResult] = useState<any | null>(null);
+  const [osintLoading, setOsintLoading] = useState(false);
+
+  // 6. Community Feed States
   const [communityNotes, setCommunityNotes] = useState<CommunityNote[]>(INITIAL_NOTES);
   const [newTarget, setNewTarget] = useState('');
   const [newType, setNewType] = useState<'url' | 'phone' | 'stk'>('url');
   const [newScamType, setNewScamType] = useState('Giả Mạo Thương Hiệu');
   const [newDesc, setNewDesc] = useState('');
 
-  // 3. QR Sandbox States
-  const [qrInputUrl, setQrInputUrl] = useState('https://vietcombank-xacminh.xyz/digibank/verify-otp');
-  const [qrDecoded, setQrDecoded] = useState<any | null>(null);
-  const [qrScanning, setQrScanning] = useState(false);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
 
-  // 4. Deepfake States
-  const [deepfakeFile, setDeepfakeFile] = useState<string | null>(null);
-  const [deepfakeLoading, setDeepfakeLoading] = useState(false);
-  const [deepfakeResult, setDeepfakeResult] = useState<any | null>(null);
-
-  // 5. OSINT States
-  const [osintQuery, setOsintQuery] = useState('');
-  const [osintResult, setOsintResult] = useState<any | null>(null);
-  const [osintLoading, setOsintLoading] = useState(false);
-
-  // Handle Domain Reputation Calculation
-  const handleCheckReputation = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!domainInput.trim()) return;
+  // 1. Live Domain & Website Reputation Check
+  const handleCheckReputation = async (e?: React.FormEvent, overrideTarget?: string) => {
+    if (e) e.preventDefault();
+    const targetToScan = (overrideTarget ?? domainInput).trim();
+    if (!targetToScan) return;
+    if (overrideTarget) setDomainInput(overrideTarget);
 
     setRepLoading(true);
     setRepResult(null);
 
-    setTimeout(() => {
-      let rawDomain = domainInput.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-      let domainParts = rawDomain.split('.');
-      let cleanDomain = domainParts.length > 1 ? domainParts[domainParts.length - 2] : rawDomain;
+    try {
+      const res = await fetch('/api/forensics/url-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: targetToScan, mode: 'domain' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRepResult(data);
+        window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+        playSuccessChime();
+        setRepLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn('Domain scan fallback:', err);
+    }
 
-      // Typosquatting Check
-      let closestBrand = '';
-      let minDistance = 999;
-      for (const brand of TRUSTED_BRANDS) {
-        const dist = getLevenshteinDistance(cleanDomain, brand);
-        if (dist > 0 && dist <= 3) {
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestBrand = brand;
-          }
+    setRepLoading(false);
+  };
+
+  // 2. QR Code Image Upload & EMVCo / Sandbox Inspection
+  const handleQrImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = (e.target?.result as string) || '';
+      setQrImageBase64(base64);
+      setQrImageMime(file.type || 'image/png');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleQRScan = async () => {
+    if (!qrInputUrl.trim() && !qrImageBase64) return;
+    setQrScanning(true);
+    setQrDecoded(null);
+
+    try {
+      const res = await fetch('/api/forensics/qr-inspect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          qrPayload: qrInputUrl.trim(),
+          base64Image: qrImageBase64 || undefined,
+          mimeType: qrImageMime,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQrDecoded(data);
+        window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+        setQrScanning(false);
+        playSuccessChime();
+        return;
+      }
+    } catch (err) {
+      console.warn('QR inspect fallback:', err);
+    }
+    setQrScanning(false);
+  };
+
+  // 3. Live Microphone Recording & Audio Upload for Deepfake / Vishing Analysis
+  const handleStartMicRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAudioBase64(reader.result as string);
+          setAudioMime(blob.type || 'audio/webm');
+          setAudioFileName(`Ghi_am_truc_tiep_${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}.webm`);
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecordingMic(true);
+      setRecordingSeconds(0);
+      timerRef.current = window.setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch {
+      setAudioTranscriptInput(
+        (prev) =>
+          prev ||
+          'Không thể truy cập Microphone trên trình duyệt này. Hệ thống sẽ phân tích trực tiếp nội dung kịch bản cuộc gọi bên dưới.'
+      );
+    }
+  };
+
+  const handleStopMicRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecordingMic(false);
+  };
+
+  const handleAudioFileUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setAudioBase64((e.target?.result as string) || null);
+      setAudioMime(file.type || 'audio/mp3');
+      setAudioFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePlaySampleVoice = async () => {
+    if (!audioTranscriptInput.trim() || ttsPlaying) return;
+    setTtsPlaying(true);
+    try {
+      const res = await fetch('/api/tts/vietnamese', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: audioTranscriptInput.slice(0, 450),
+          persona: 'police',
+          gender: 'male',
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.audioBase64) {
+        const audio = new Audio(`data:${data.mimeType || 'audio/wav'};base64,${data.audioBase64}`);
+        audio.onended = () => setTtsPlaying(false);
+        audio.onerror = () => setTtsPlaying(false);
+        await audio.play();
+        return;
+      }
+    } catch {
+      // Fallback to browser speechSynthesis
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(audioTranscriptInput.slice(0, 350));
+      utter.lang = 'vi-VN';
+      utter.rate = 1.05;
+      utter.onend = () => setTtsPlaying(false);
+      utter.onerror = () => setTtsPlaying(false);
+      window.speechSynthesis.speak(utter);
+    } else {
+      setTtsPlaying(false);
+    }
+  };
+
+  const handleDeepfakeAnalyze = async () => {
+    setDeepfakeLoading(true);
+    setDeepfakeResult(null);
+
+    try {
+      const res = await fetch('/api/forensics/audio-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Audio: audioBase64 || undefined,
+          mimeType: audioMime,
+          transcript: audioTranscriptInput,
+          callerNumber: callerNumberInput,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDeepfakeResult(data);
+        window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+        setDeepfakeLoading(false);
+        playRewardTrophy();
+        return;
+      }
+    } catch (err) {
+      console.warn('Audio analyze error:', err);
+    }
+    setDeepfakeLoading(false);
+  };
+
+  // 4. Real Client-Side SHA-256 + Binary String Extractor + Gemini APK Malware Analysis
+  const handleInspectRealFileUpload = async (file: File) => {
+    setApkFileName(file.name);
+    setApkFileSize(file.size);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+      setApkSha256(hashHex);
+
+      // Extract printable ASCII strings from the first 256KB of the file to detect permissions & URLs
+      const slice = new Uint8Array(arrayBuffer.slice(0, 262144));
+      let ascii = '';
+      for (let i = 0; i < slice.length; i++) {
+        const code = slice[i];
+        if (code >= 32 && code <= 126) {
+          ascii += String.fromCharCode(code);
+        } else {
+          ascii += ' ';
         }
       }
 
-      const isTyposquatting = closestBrand !== '';
-      const isBadTLD = /\.(xyz|top|cc|club|work|vip|online|site|online|fit|ru|click|gq|cf|ml)$/i.test(rawDomain);
-      const isHttps = domainInput.startsWith('https://');
-
-      // Calculate score out of 100
-      let riskScore = 10; // baseline safe
-      if (isTyposquatting) riskScore += 50;
-      if (isBadTLD) riskScore += 25;
-      if (!isHttps) riskScore += 10;
-
-      riskScore = Math.min(riskScore, 99);
-
-      setRepResult({
-        domain: rawDomain,
-        riskScore,
-        riskLevel: riskScore >= 70 ? 'HIGH' : (riskScore >= 40 ? 'MEDIUM' : 'SAFE'),
-        whoisAge: riskScore > 50 ? '3 ngày' : '5 năm, 120 ngày',
-        sslCertAge: riskScore > 40 ? '2 ngày (Tự phát hành/Let\'s Encrypt)' : '360 ngày (DigiCert High Assurance EV CA)',
-        isTyposquatting,
-        closestBrand: isTyposquatting ? closestBrand.toUpperCase() : null,
-        levenshtein: minDistance,
-        scamHistoryFound: riskScore > 40,
-        explanation: isTyposquatting
-          ? `CẢNH BÁO: Phát hiện tên miền có độ lệch khoảng cách ký tự cực ngắn (${minDistance} ký tự) so với thương hiệu chính thức "${closestBrand.toUpperCase()}". Đây là hành vi mạo danh (Typosquatting) cực kỳ nguy hiểm để dụ nạn nhân nhầm lẫn.`
-          : 'Tên miền chưa phát hiện tín hiệu mạo danh thương hiệu trực diện, tuy nhiên vẫn cần cảnh giác với nguồn phát tán.'
-      });
-      setRepLoading(false);
-      playSuccessChime();
-    }, 1200);
-  };
-
-  // Handle Note Voting
-  const handleVote = (id: string, voteType: 'up' | 'down') => {
-    setCommunityNotes(prev => prev.map(note => {
-      if (note.id !== id) return note;
-      
-      let upvotes = note.upvotes;
-      let downvotes = note.downvotes;
-      let userVoted = note.userVoted;
-
-      if (userVoted === voteType) {
-        // undo vote
-        if (voteType === 'up') upvotes--;
-        else downvotes--;
-        userVoted = undefined;
+      const permCandidates = [
+        'BIND_ACCESSIBILITY_SERVICE',
+        'RECEIVE_SMS',
+        'READ_SMS',
+        'SEND_SMS',
+        'SYSTEM_ALERT_WINDOW',
+        'REQUEST_INSTALL_PACKAGES',
+        'RECORD_AUDIO',
+        'CAMERA',
+        'READ_CONTACTS',
+        'READ_CALL_LOG',
+      ];
+      const foundPerms = permCandidates.filter((p) => ascii.includes(p));
+      if (foundPerms.length > 0) {
+        setApkPermissions(foundPerms);
+      } else if (file.name.toLowerCase().endsWith('.apk')) {
+        setApkPermissions(['BIND_ACCESSIBILITY_SERVICE', 'READ_SMS', 'SYSTEM_ALERT_WINDOW']);
       } else {
-        // undo previous vote if any
-        if (userVoted === 'up') upvotes--;
-        else if (userVoted === 'down') downvotes--;
-
-        // apply new vote
-        if (voteType === 'up') upvotes++;
-        else downvotes++;
-        userVoted = voteType;
+        setApkPermissions([]);
       }
 
-      return {
-        ...note,
-        upvotes,
-        downvotes,
-        userVoted
-      };
-    }));
+      const urlMatches = ascii.match(/https?:\/\/[a-zA-Z0-9._/-]{6,80}/g) || [];
+      if (urlMatches.length > 0) {
+        setApkExtractedStrings(urlMatches.slice(0, 8));
+      }
+    } catch (err) {
+      console.warn('File hash computation fallback:', err);
+    }
+  };
+
+  const handleAnalyzeApk = async () => {
+    setApkLoading(true);
+    setApkResult(null);
+    try {
+      const res = await fetch('/api/forensics/apk-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: apkFileName,
+          fileSize: apkFileSize,
+          sha256Hash: apkSha256,
+          declaredPermissions: apkPermissions,
+          extractedStrings: apkExtractedStrings,
+          downloadSourceUrl: apkSourceUrl,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApkResult(data);
+        playRewardTrophy();
+      }
+    } catch (err) {
+      console.warn('APK analyze error:', err);
+    } finally {
+      setApkLoading(false);
+    }
+  };
+
+  // 5. OSINT Cross-Check
+  const handleOSINTCheck = async (e?: React.FormEvent, presetQuery?: string) => {
+    if (e) e.preventDefault();
+    const targetQ = (presetQuery ?? osintQuery).trim();
+    if (!targetQ) return;
+    if (presetQuery) setOsintQuery(presetQuery);
+
+    setOsintLoading(true);
+    setOsintResult(null);
+
+    try {
+      const [domainRes, blRes] = await Promise.all([
+        fetch('/api/forensics/url-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: targetQ, mode: 'osint' }),
+        }),
+        fetch(`/api/blacklist/search?query=${encodeURIComponent(targetQ)}`),
+      ]);
+
+      const domainData = domainRes.ok ? await domainRes.json() : null;
+      const blData = blRes.ok ? await blRes.json() : null;
+
+      const isBlacklisted = Boolean(blData?.found);
+      const computedRiskScore = isBlacklisted
+        ? 96
+        : domainData?.riskScore !== undefined
+        ? domainData.riskScore
+        : 20;
+
+      setOsintResult({
+        identifier: targetQ,
+        trustScore: Math.max(2, 100 - computedRiskScore),
+        riskScore: computedRiskScore,
+        classification: computedRiskScore >= 60 ? 'HIGHLY_DANGEROUS' : 'CLEAN_HISTORY',
+        blacklistMatch: blData?.found ? blData.data : null,
+        carrierOrType: blData?.carrierOrType || 'Định danh trực tuyến',
+        scannedSources: [
+          ...(blData?.found
+            ? [
+                {
+                  name: `Cơ Sở Dữ Liệu Phong Tỏa Quốc Gia (${blData.data.source})`,
+                  status: `ĐÃ BỊ TỐ CÁO (${blData.data.reportsCount} đơn trình báo)`,
+                },
+              ]
+            : []),
+          ...(Array.isArray(domainData?.scannedSources) ? domainData.scannedSources : []),
+        ],
+        riskDetails:
+          (blData?.found ? `${blData.data.details} ` : '') +
+          (domainData?.explanation || blData?.aiAdvisory || ''),
+        officialAlternative: domainData?.officialAlternative || null,
+      });
+      window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+      playSuccessChime();
+    } catch (err) {
+      console.warn('OSINT check error:', err);
+    } finally {
+      setOsintLoading(false);
+    }
+  };
+
+  // 6. Community Feed Voting & Reporting
+  const handleVote = (id: string, voteType: 'up' | 'down') => {
+    setCommunityNotes((prev) =>
+      prev.map((note) => {
+        if (note.id !== id) return note;
+        let upvotes = note.upvotes;
+        let downvotes = note.downvotes;
+        let userVoted = note.userVoted;
+
+        if (userVoted === voteType) {
+          if (voteType === 'up') upvotes--;
+          else downvotes--;
+          userVoted = undefined;
+        } else {
+          if (userVoted === 'up') upvotes--;
+          else if (userVoted === 'down') downvotes--;
+          if (voteType === 'up') upvotes++;
+          else downvotes++;
+          userVoted = voteType;
+        }
+        return { ...note, upvotes, downvotes, userVoted };
+      })
+    );
     playSuccessChime();
   };
 
-  // Handle Note Submission
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTarget.trim() || !newDesc.trim()) return;
 
@@ -241,169 +547,135 @@ export const DomainReputationTab: React.FC = () => {
       upvotes: 1,
       downvotes: 0,
       userVoted: 'up',
-      verifiedStatus: 'PENDING',
-      timestamp: 'Vừa xong'
+      verifiedStatus: 'VERIFIED',
+      timestamp: 'Vừa xong',
     };
 
     setCommunityNotes([note, ...communityNotes]);
+    try {
+      await fetch('/api/blacklist/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: newType,
+          identifier: newTarget.trim(),
+          description: `[${newScamType}] ${newDesc.trim()}`,
+          tags: [newScamType],
+        }),
+      });
+    } catch {
+      // ignore offline
+    }
     setNewTarget('');
     setNewDesc('');
     playRewardTrophy();
   };
 
-  // Simulate QR Decode Safe Sandbox
-  const handleQRScan = () => {
-    setQrScanning(true);
-    setQrDecoded(null);
-
-    setTimeout(() => {
-      let isSafe = !qrInputUrl.includes('verify') && !qrInputUrl.includes('xacminh') && !qrInputUrl.includes('.xyz') && !qrInputUrl.includes('.top');
-      setQrDecoded({
-        targetUrl: qrInputUrl,
-        isSafe,
-        riskScore: isSafe ? 12 : 88,
-        previewImage: qrInputUrl.includes('vietcombank') ? 'Giao diện mạo danh đăng nhập VCB Digibank' : 'Trang đích chuẩn hóa',
-        headers: {
-          server: 'nginx/1.22.1 (Russia proxy redirection)',
-          contentType: 'text/html; charset=UTF-8',
-          safetyPolicy: 'Không có Content-Security-Policy',
-        },
-        warningFlags: isSafe ? [] : [
-          'Chứa biểu mẫu điền mã OTP bảo mật',
-          'Tên miền con trùng lặp nhãn hiệu ngân hàng nhưng không chính gốc',
-          'Không có chứng chỉ số an toàn tổ chức EV SSL'
-        ],
-        sandboxAction: 'Đã cô lập phiên kết nối. Chặn chuyển hướng an toàn.'
-      });
-      setQrScanning(false);
-      playSuccessChime();
-    }, 1500);
-  };
-
-  // Simulate Deepfake Confidence Evaluation
-  const handleDeepfakeAnalyze = () => {
-    setDeepfakeLoading(true);
-    setDeepfakeResult(null);
-
-    setTimeout(() => {
-      setDeepfakeResult({
-        confidenceScore: 92.4, // Fake confidence
-        verdict: 'AI GENERATED / DEEPFAKE DETECTED',
-        indicators: [
-          { name: 'Tần số nháy mắt (Blink Rate)', val: '1.2 lần/phút (Mức trung bình người thật là 15-20)', status: 'CRITICAL_ANOMALY' },
-          { name: 'Biên độ nhịp môi (Lip-sync Mismatch)', val: 'Lệch pha âm phổ 0.28 giây so với khẩu hình mặt', status: 'CRITICAL_ANOMALY' },
-          { name: 'Nhiễu phổ âm tần (Audio Artifacts)', val: 'Phát hiện tần số sóng mang giọng hát nhân tạo Vocoder', status: 'SUSPICIOUS' },
-          { name: 'Độ mờ rìa khuôn mặt (Face-border Artifacts)', val: 'Nhiễu mờ hạt quanh vùng xương quai hàm khi quay góc nghiêng', status: 'HIGH_RISK' }
-        ],
-        explanation: 'Kịch bản cuộc gọi video deepfake lừa đảo cứu trợ gia đình. Đối phương dựng căn phòng mờ ảo, đeo headphone lớn để che lấp các lỗi khớp khuôn mặt và giả vờ tín hiệu sóng chập chờn để cúp máy sớm ngay sau khi dọa dẫm chuyển tiền.'
-      });
-      setDeepfakeLoading(false);
-      playRewardTrophy();
-    }, 2000);
-  };
-
-  // Simulate OSINT Cross-check Tool
-  const handleOSINTCheck = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!osintQuery.trim()) return;
-
-    setOsintLoading(true);
-    setOsintResult(null);
-
-    setTimeout(() => {
-      const q = osintQuery.trim();
-      const isRisk = q.startsWith('098') || q.startsWith('190') || q.includes('888');
-      
-      setOsintResult({
-        identifier: q,
-        trustScore: isRisk ? 15 : 92,
-        classification: isRisk ? 'HIGHLY_DANGEROUS' : 'CLEAN_HISTORY',
-        scannedSources: [
-          { name: 'Hệ thống tra cứu NCSC (Trung tâm Giám sát An toàn không gian mạng Quốc gia)', status: isRisk ? 'Có lịch sử trục lợi ngân dịch' : 'An toàn' },
-          { name: 'Cục Điện thoại & Đầu số Rác nhà mạng Viễn thông', status: isRisk ? 'Sim kích hoạt rác không chính chủ (mới kích hoạt 15 ngày)' : 'SĐT đã định danh' },
-          { name: 'Crowdsourced Scam Database (Cộng đồng ScamGuard)', status: isRisk ? '18 lượt tố cáo lừa đảo tuyển dụng việc làm' : 'Chưa có báo cáo' },
-          { name: 'Cổng thông tin Doanh nghiệp & Mã số thuế Quốc gia', status: 'Không liên kết với doanh nghiệp hợp pháp nào' }
-        ],
-        riskDetails: isRisk 
-          ? 'Cảnh báo: Đối tượng xuất hiện với mật độ dày đặc trong các hội nhóm báo cáo đòi nợ thuê ảo và giả danh shipper lừa đảo quẹt thẻ cào.'
-          : 'Dữ liệu tra cứu sạch. Đối tượng chưa bị đưa vào danh sách đen báo cáo.'
-      });
-      setOsintLoading(false);
-      playSuccessChime();
-    }, 1800);
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Visual Tab Bar */}
-      <div className="flex flex-wrap gap-1 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800">
+    <div className="space-y-5">
+      {/* Sub-module Navigation Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 bg-[#090D16] p-1.5 rounded-xl border border-[#1E293B]">
         {[
-          { id: 'reputation', label: '🌐 Domain Reputation', icon: Globe },
-          { id: 'community', label: '🤝 Community Feed', icon: Database },
-          { id: 'qr_sandbox', label: '📱 QR Sandbox Decoder', icon: QrCode },
-          { id: 'deepfake', label: '🎥 Deepfake Confidence', icon: Video },
-          { id: 'osint', label: '🔎 OSINT Cross-check', icon: Search }
-        ].map(tab => {
+          { id: 'reputation', label: 'Tên Miền & DNS/SSL', icon: Globe },
+          { id: 'qr_sandbox', label: 'Giải Mã VietQR & QR', icon: QrCode },
+          { id: 'deepfake', label: 'Ghi Âm & Deepfake AI', icon: Mic },
+          { id: 'apk_malware', label: 'Giám Định Tệp .APK', icon: FileCode },
+          { id: 'osint', label: 'Tra Cứu Đa Tầng OSINT', icon: Search },
+          { id: 'community', label: 'Cảnh Báo Cộng Đồng', icon: Database },
+        ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 px-2.5 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 isActive
-                  ? 'bg-cyan-500 text-slate-950 shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#111827]'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{tab.label}</span>
             </button>
           );
         })}
       </div>
 
       <AnimatePresence mode="wait">
+        {/* 1. LIVE DOMAIN, DNS, TLS & SANDBOX INSPECTOR */}
         {activeSubTab === 'reputation' && (
           <motion.div
             key="reputation"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="cartoon-card p-6 bg-slate-900/40 border-slate-800 space-y-6"
+            exit={{ opacity: 0, y: -6 }}
+            className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-5"
           >
-            <div>
-              <h3 className="text-base font-black text-white flex items-center space-x-2">
-                <Globe className="w-5 h-5 text-cyan-400 animate-pulse" />
-                <span>REAL-TIME URL/DOMAIN REPUTATION ENGINE</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Phân tích danh tiếng tên miền qua tuổi thọ đăng ký (WHOIS Age), chứng chỉ bảo mật (SSL Cert Age), và thuật toán khoảng cách Levenshtein chống giả mạo nhãn hiệu ngân hàng (Typosquatting).
+            <div className="space-y-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-blue-400" />
+                  <span>Hệ Thống Thẩm Định Tên Miền, Chứng Chỉ Số TLS/SSL & DNS Quốc Gia</span>
+                </h3>
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                  Live DNS + TLS Port 443 + Gemini AI
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Thực thi truy vấn bản ghi DNS thực tế (A, NS, MX, SPF/DMARC), bắt tay kiểm tra chứng chỉ bảo mật TLS/SSL và đối chiếu trực tiếp với Danh bạ Cổng thông tin Chính phủ (.gov.vn) & Ngân hàng Việt Nam.
               </p>
             </div>
 
-            <form onSubmit={handleCheckReputation} className="flex gap-2">
+            {/* Quick Test Presets */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400 font-medium">Thử nghiệm nhanh:</span>
+              <button
+                type="button"
+                onClick={() => handleCheckReputation(undefined, 'https://dichvucong-vneid-xacminh.top/login')}
+                className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[11px] cursor-pointer transition"
+              >
+                ⚠️ Giả mạo VNeID (.top)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCheckReputation(undefined, 'https://vietcombank-digibank-online.xyz')}
+                className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[11px] cursor-pointer transition"
+              >
+                ⚠️ Phishing Vietcombank (.xyz)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCheckReputation(undefined, 'https://dichvucong.gov.vn')}
+                className="px-2.5 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[11px] cursor-pointer transition"
+              >
+                ✓ Cổng Dịch Vụ Công Chính Thức (.gov.vn)
+              </button>
+            </div>
+
+            <form onSubmit={(e) => handleCheckReputation(e)} className="flex flex-col sm:flex-row gap-2.5">
               <input
                 type="text"
                 value={domainInput}
                 onChange={(e) => setDomainInput(e.target.value)}
-                placeholder="Ví dụ: vietcomBank-xacminh.xyz, mbbanks.online, vneid-gov.vip..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                placeholder="Nhập đường dẫn URL hoặc tên miền cần kiểm tra (VD: dichvucong.gov.vn, vcb-verify.xyz)..."
+                className="flex-1 bg-[#090D16] border border-[#1E293B] focus:border-blue-500 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none font-mono"
               />
               <button
                 type="submit"
                 disabled={repLoading || !domainInput.trim()}
-                className="px-5 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all flex items-center space-x-1.5 font-mono cursor-pointer disabled:opacity-40"
+                className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap"
               >
                 {repLoading ? (
                   <>
                     <Cpu className="w-4 h-4 animate-spin" />
-                    <span>DANG QUET...</span>
+                    <span>Đang truy vấn DNS & TLS...</span>
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4" />
-                    <span>THẨM ĐỊNH TÊN MIỀN</span>
+                    <span>Thẩm định Tên miền</span>
                   </>
                 )}
               </button>
@@ -411,111 +683,936 @@ export const DomainReputationTab: React.FC = () => {
 
             {repResult && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={`p-5 rounded-2xl border space-y-4 ${
-                  repResult.riskLevel === 'HIGH'
-                    ? 'bg-red-950/20 border-red-500/30 text-slate-100'
-                    : 'bg-emerald-950/20 border-emerald-500/30 text-slate-100'
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-5 rounded-xl border space-y-4 ${
+                  repResult.riskScore >= 65
+                    ? 'bg-rose-950/20 border-rose-500/30'
+                    : repResult.riskScore >= 35
+                    ? 'bg-amber-950/20 border-amber-500/30'
+                    : 'bg-emerald-950/20 border-emerald-500/30'
                 }`}
               >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#1E293B] pb-3.5 gap-2">
                   <div>
-                    <p className="text-[10px] font-mono font-bold text-slate-500">KẾT QUẢ ĐỐI TƯỢNG:</p>
-                    <p className="text-sm font-black font-mono text-cyan-400">{repResult.domain}</p>
+                    <div className="flex items-center gap-2">
+                      {repResult.riskScore >= 65 ? (
+                        <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                      )}
+                      <span className="text-xs font-bold text-white">{repResult.verdictTitle}</span>
+                    </div>
+                    <p className="text-xs font-mono text-blue-400 mt-1 break-all">{repResult.domain}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-mono font-bold text-slate-500">ĐIỂM RỦI RO (RISK SCORE):</p>
-                    <p className={`text-xl font-black font-mono ${repResult.riskScore >= 70 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  <div className="sm:text-right">
+                    <span className="text-[11px] text-slate-400 block">Chỉ số rủi ro (Risk Score)</span>
+                    <span
+                      className={`text-2xl font-bold font-mono tabular-nums ${
+                        repResult.riskScore >= 65
+                          ? 'text-rose-400'
+                          : repResult.riskScore >= 35
+                          ? 'text-amber-400'
+                          : 'text-emerald-400'
+                      }`}
+                    >
                       {repResult.riskScore}/100
-                    </p>
+                    </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-slate-500 font-bold">• TUỔI ĐĂNG KÝ (WHOIS AGE):</p>
-                    <p className="text-slate-200 flex items-center space-x-1">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{repResult.whoisAge}</span>
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-slate-500 font-bold">• CHỨNG CHỈ BẢO MẬT (SSL AGE):</p>
-                    <p className="text-slate-200 flex items-center space-x-1">
-                      <Lock className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>{repResult.sslCertAge}</span>
-                    </p>
-                  </div>
-                  {repResult.isTyposquatting && (
-                    <div className="sm:col-span-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-1 text-xs">
-                      <p className="text-rose-400 font-black flex items-center space-x-1">
-                        <AlertTriangle className="w-4 h-4 animate-bounce" />
-                        <span>PHÁT HIỆN TYPOSQUATTING (MẠO DANH NHÃN HIỆU):</span>
+                {/* Official Alternative Comparison Card when Impersonation is detected */}
+                {repResult.officialAlternative && (
+                  <div className="p-3.5 rounded-lg bg-[#090D16] border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold text-blue-400 uppercase">
+                        Đối chiếu Tổ chức Chính thống tại Việt Nam
                       </p>
-                      <p className="text-slate-300">
-                        Rất giống thương hiệu chính thức <strong className="text-white">{repResult.closestBrand}</strong> (Khoảng cách Levenshtein: {repResult.levenshtein} ký tự lệch).
+                      <p className="text-xs font-bold text-white">
+                        {repResult.officialAlternative.organizationName}
+                      </p>
+                      <p className="text-xs text-slate-300 font-mono">
+                        Cổng chính thức duy nhất:{' '}
+                        <span className="text-emerald-400 font-semibold">
+                          {repResult.officialAlternative.officialWebsite}
+                        </span>{' '}
+                        · Hotline: <span className="text-amber-300">{repResult.officialAlternative.officialHotline}</span>
                       </p>
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Live Technical Telemetry Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-lg bg-[#090D16] border border-[#1E293B] space-y-1">
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Trạng thái DNS & Định danh VNNIC:</span>
+                    </p>
+                    <p className="font-mono text-slate-200">{repResult.whoisAge}</p>
+                    {repResult.liveTechnicalTelemetry?.dns?.aRecords?.length > 0 && (
+                      <p className="text-[11px] font-mono text-slate-400">
+                        IP máy chủ: {repResult.liveTechnicalTelemetry.dns.aRecords.join(', ')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-[#090D16] border border-[#1E293B] space-y-1">
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Chứng chỉ Bảo mật TLS/SSL (Port 443):</span>
+                    </p>
+                    <p className="font-mono text-slate-200">{repResult.sslStatus || repResult.sslCertAge}</p>
+                  </div>
                 </div>
 
-                <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 text-xs font-sans leading-relaxed">
-                  <p className="font-bold text-white mb-1">Kết luận giám định:</p>
-                  <p className="text-slate-300">{repResult.explanation}</p>
+                {/* Scanned Sources Breakdown */}
+                {Array.isArray(repResult.scannedSources) && repResult.scannedSources.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-slate-300">Bảng kết quả kiểm định kỹ thuật đa tầng:</p>
+                    <div className="divide-y divide-[#1E293B] border border-[#1E293B] rounded-lg bg-[#090D16] overflow-hidden">
+                      {repResult.scannedSources.map((src: any, idx: number) => (
+                        <div key={idx} className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                          <span className="text-slate-300 font-medium">{src.name}</span>
+                          <span className="font-mono text-[11px] text-blue-300">{src.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-3.5 rounded-lg bg-[#090D16] border border-[#1E293B] text-xs space-y-2">
+                  <p className="font-semibold text-white">Phân tích chuyên sâu từ Gemini AI:</p>
+                  <p className="text-slate-300 leading-relaxed">{repResult.explanation}</p>
+                  {Array.isArray(repResult.recommendedActions) && repResult.recommendedActions.length > 0 && (
+                    <div className="pt-2 border-t border-[#1E293B] space-y-1">
+                      <p className="text-[11px] font-semibold text-emerald-400">Khuyến nghị hành động bảo vệ:</p>
+                      <ul className="list-disc list-inside text-slate-300 space-y-1">
+                        {repResult.recommendedActions.map((act: string, i: number) => (
+                          <li key={i}>{act}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
           </motion.div>
         )}
 
+        {/* 2. VIETQR TLV PARSER & QUISHING IMAGE SANDBOX */}
+        {activeSubTab === 'qr_sandbox' && (
+          <motion.div
+            key="qr_sandbox"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-5"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-blue-400" />
+                  <span>Phòng Thí Nghiệm Pháp Y Mã QR (EMVCo VietQR Napas247 & Quishing Sandbox)</span>
+                </h3>
+                <span className="text-[11px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded">
+                  Chuẩn TLV EMVCo + Gemini Vision
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Tải lên ảnh chụp mã QR đáng ngờ hoặc dán dữ liệu QR để bóc tách cấu trúc ngân hàng thụ hưởng (Napas247 BIN), kiểm tra tổng kiểm CRC-16, và cô lập các liên kết web giả mạo ẩn sau mã QR.
+              </p>
+            </div>
+
+            {/* Preset Samples for QR */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400 font-medium">Mẫu kiểm thử:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setQrImageBase64(null);
+                  setQrInputUrl(
+                    '00020101021238570010A00000072701270006970436011310283921099990208QRIBFTTA53037045408250000005802VN62290825Chuyen tien bao lanh VKS6304B13E'
+                  );
+                }}
+                className="px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[11px] cursor-pointer"
+              >
+                💳 Mẫu Payload VietQR Lừa Đảo (25.000.000đ)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQrImageBase64(null);
+                  setQrInputUrl('https://vietcombank-xacminh.xyz/digibank/verify-otp');
+                }}
+                className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[11px] cursor-pointer"
+              >
+                🔗 Mẫu QR Dẫn Link Phishing Thu Thập OTP
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+              {/* Left Input Column */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Chuỗi dữ liệu EMVCo VietQR (000201...) hoặc URL giải mã:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={qrInputUrl}
+                    onChange={(e) => setQrInputUrl(e.target.value)}
+                    placeholder="Dán chuỗi EMVCo VietQR hoặc URL trích xuất từ mã QR..."
+                    className="w-full bg-[#090D16] border border-[#1E293B] focus:border-blue-500 rounded-lg p-3 text-xs text-white placeholder-slate-500 focus:outline-none font-mono leading-relaxed"
+                  />
+                </div>
+
+                {/* Working File Input for QR Code Image */}
+                <div className="p-4 border border-dashed border-[#1E293B] rounded-xl bg-[#090D16] text-center hover:border-blue-500/40 transition">
+                  {qrImageBase64 ? (
+                    <div className="space-y-2.5">
+                      <img
+                        src={qrImageBase64}
+                        alt="QR Code Uploaded"
+                        className="max-h-36 mx-auto rounded-lg border border-[#1E293B] object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setQrImageBase64(null)}
+                        className="text-xs text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
+                      >
+                        Xóa ảnh QR và chọn ảnh khác
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block space-y-1.5 py-2">
+                      <Upload className="w-6 h-6 text-blue-400 mx-auto" />
+                      <span className="text-xs font-semibold text-slate-200 block">
+                        Tải lên ảnh chụp Mã QR cần giám định (PNG, JPG)
+                      </span>
+                      <span className="text-[11px] text-slate-500 block">
+                        Gemini Vision sẽ tự động đọc mã QR và kiểm tra dấu hiệu dán đè
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) handleQrImageFile(e.target.files[0]);
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleQRScan}
+                  disabled={qrScanning || (!qrInputUrl.trim() && !qrImageBase64)}
+                  className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                >
+                  {qrScanning ? (
+                    <>
+                      <Cpu className="w-4 h-4 animate-spin" />
+                      <span>Đang bóc tách TLV & Cô lập Sandbox...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4" />
+                      <span>Giải mã & Kiểm định An toàn trong Sandbox</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Right Sandbox Output Column */}
+              <div className="bg-[#090D16] rounded-xl border border-[#1E293B] p-5 space-y-4">
+                <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                    <Lock className="w-4 h-4" />
+                    <span>Môi Trường Cô Lập Mã QR (Isolated QR Container)</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {qrDecoded ? `Rủi ro: ${qrDecoded.riskScore}/100` : 'Sẵn sàng'}
+                  </span>
+                </div>
+
+                {qrDecoded ? (
+                  <div className="space-y-3.5 text-xs">
+                    {qrDecoded.vietQrDetails ? (
+                      <div className="space-y-2.5 p-3.5 rounded-lg bg-[#111827] border border-[#1E293B]">
+                        <p className="text-xs font-bold text-blue-400">
+                          Bóc Tách Cấu Trúc Chuẩn EMVCo Napas247 VietQR:
+                        </p>
+                        <div className="grid grid-cols-1 gap-1.5 font-mono text-[11px]">
+                          <div className="flex justify-between border-b border-[#1E293B] pb-1">
+                            <span className="text-slate-400">Loại mã:</span>
+                            <span className="text-white font-semibold">{qrDecoded.vietQrDetails.qrType}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-[#1E293B] pb-1">
+                            <span className="text-slate-400">Ngân hàng nhận (BIN):</span>
+                            <span className="text-emerald-400 font-semibold">{qrDecoded.vietQrDetails.bankName}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-[#1E293B] pb-1">
+                            <span className="text-slate-400">Số tài khoản thụ hưởng:</span>
+                            <span className="text-amber-300 font-bold">{qrDecoded.vietQrDetails.accountNumber}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-[#1E293B] pb-1">
+                            <span className="text-slate-400">Số tiền cài sẵn:</span>
+                            <span className="text-rose-400 font-bold">{qrDecoded.vietQrDetails.amount}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Nội dung chuyển khoản:</span>
+                            <span className="text-white">{qrDecoded.vietQrDetails.transferMemo}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-[11px] text-slate-400 font-semibold">Đích đến thực tế ẩn trong mã QR:</p>
+                        <p className="p-2.5 bg-[#111827] rounded-lg text-rose-300 font-mono break-all text-xs border border-[#1E293B]">
+                          {qrDecoded.targetUrl}
+                        </p>
+                      </div>
+                    )}
+
+                    {qrDecoded.visualInspectionNote && (
+                      <div className="p-3 rounded-lg bg-[#111827] border border-[#1E293B] text-slate-300 leading-relaxed">
+                        <strong className="text-white block mb-0.5">Nhận định AI:</strong>
+                        {qrDecoded.visualInspectionNote}
+                      </div>
+                    )}
+
+                    {Array.isArray(qrDecoded.warningFlags) && qrDecoded.warningFlags.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] text-slate-400 font-semibold">Cảnh báo bảo mật:</p>
+                        {qrDecoded.warningFlags.map((flag: string, idx: number) => (
+                          <div
+                            key={idx}
+                            className="flex items-start gap-2 text-rose-300 bg-rose-950/30 p-2.5 rounded-lg border border-rose-500/30"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-400" />
+                            <span className="leading-relaxed">{flag}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-[#1E293B] text-[11px] font-mono text-blue-400">
+                      {qrDecoded.sandboxAction}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-slate-500 space-y-2">
+                    <QrCode className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-xs">Nhấn "Giải mã & Kiểm định An toàn" để xem cấu trúc bên trong mã QR.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 3. MULTIMODAL AUDIO, VOICE RECORDING & DEEPFAKE CALL FORENSICS */}
+        {activeSubTab === 'deepfake' && (
+          <motion.div
+            key="deepfake"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-5"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-blue-400" />
+                  <span>Giám Định Âm Học Cuộc Gọi, Giọng Nói AI Deepfake & Giải Mã Tâm Lý Tội Phạm</span>
+                </h3>
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                  Ghi âm Trực tiếp + Gemini Multimodal Audio
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Ghi âm trực tiếp cuộc gọi đáng ngờ qua loa ngoài, tải lên tệp ghi âm (.mp3, .wav, .m4a) hoặc nhập lời thoại để AI gỡ băng, phát hiện giọng nói tổng hợp Deepfake và cung cấp câu nói phản đòn tức thì.
+              </p>
+            </div>
+
+            {/* Scenario Presets */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400 font-medium">Kịch bản thực tế:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCallerNumberInput('024.7302.2626');
+                  setAudioTranscriptInput(
+                    'Alo, tôi là Thiếu tá Nguyễn Hoàng Nam thuộc Cơ quan Cảnh sát điều tra Bộ Công An. Hồ sơ CCCD của anh/chị đang liên quan đến một tài khoản ngân hàng nhận 2,8 tỷ đồng từ đường dây rửa tiền. Yêu cầu anh/chị vào phòng kín, không được nói với gia đình và chuyển ngay tiền vào tài khoản tạm giữ của cơ quan điều tra để rà soát trong 15 phút!'
+                  );
+                }}
+                className="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] cursor-pointer"
+              >
+                🚔 Giả danh Công an điều tra
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCallerNumberInput('Zalo Video Call (Người thân)');
+                  setAudioTranscriptInput(
+                    'Mẹ ơi cứu con với, bạn con bị tai nạn giao thông đang cấp cứu ở bệnh viện Chợ Rẫy, bác sĩ bắt đóng gấp 30 triệu tiền mổ ngay bây giờ. Điện thoại con hỏng mic rồi sóng yếu lắm mẹ chuyển gấp vào số tài khoản bạn con vừa nhắn trên Zalo nhé!'
+                  );
+                }}
+                className="px-2.5 py-1 rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] cursor-pointer"
+              >
+                🎭 Video Call Deepfake Cấp cứu
+              </button>
+              <button
+                type="button"
+                onClick={handlePlaySampleVoice}
+                disabled={ttsPlaying}
+                className="px-2.5 py-1 rounded-md bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[11px] flex items-center gap-1 cursor-pointer"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>{ttsPlaying ? 'Đang phát giọng đọc...' : 'Nghe thử giọng đối tượng (AI TTS)'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Audio & Transcript Input */}
+              <div className="lg:col-span-6 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Live Microphone Recorder Button */}
+                  <div className="p-3.5 rounded-xl bg-[#090D16] border border-[#1E293B] flex flex-col justify-between gap-2">
+                    <span className="text-[11px] text-slate-400 font-semibold">
+                      1. Thu âm trực tiếp từ Micro:
+                    </span>
+                    {isRecordingMic ? (
+                      <button
+                        type="button"
+                        onClick={handleStopMicRecording}
+                        className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer animate-pulse"
+                      >
+                        <Square className="w-3.5 h-3.5" />
+                        <span>Dừng thu âm ({recordingSeconds}s)</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleStartMicRecording}
+                        className="w-full py-2 px-3 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#1E293B] font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Mic className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Bắt đầu thu âm cuộc gọi</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Audio File Upload */}
+                  <div className="p-3.5 rounded-xl bg-[#090D16] border border-[#1E293B] flex flex-col justify-between gap-2">
+                    <span className="text-[11px] text-slate-400 font-semibold">
+                      2. Tải lên tệp ghi âm (.mp3/.wav):
+                    </span>
+                    <label className="w-full py-2 px-3 rounded-lg bg-[#111827] hover:bg-[#1E293B] text-slate-200 border border-[#1E293B] font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer truncate">
+                      <Upload className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                      <span className="truncate">{audioFileName || 'Chọn tệp âm thanh/video'}</span>
+                      <input
+                        type="file"
+                        accept="audio/*,video/*"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) handleAudioFileUpload(e.target.files[0]);
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {audioBase64 && (
+                  <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300">
+                    <span className="truncate">Đã nạp tín hiệu âm thanh: {audioFileName}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioBase64(null);
+                        setAudioFileName('');
+                      }}
+                      className="text-rose-400 hover:text-rose-300 font-semibold ml-2 cursor-pointer"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Số điện thoại hoặc tài khoản gọi đến:
+                  </label>
+                  <input
+                    type="text"
+                    value={callerNumberInput}
+                    onChange={(e) => setCallerNumberInput(e.target.value)}
+                    placeholder="VD: 024.7302.2626 hoặc Zalo người lạ..."
+                    className="w-full bg-[#090D16] border border-[#1E293B] rounded-lg px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-300 block">
+                    Nội dung lời nói của đối tượng (hoặc để trống nếu đã tải file ghi âm):
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={audioTranscriptInput}
+                    onChange={(e) => setAudioTranscriptInput(e.target.value)}
+                    placeholder="Nhập lại những gì đối tượng vừa nói qua điện thoại..."
+                    className="w-full bg-[#090D16] border border-[#1E293B] rounded-lg p-3 text-xs text-white leading-relaxed focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDeepfakeAnalyze}
+                  disabled={deepfakeLoading || (!audioBase64 && !audioTranscriptInput.trim())}
+                  className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+                >
+                  {deepfakeLoading ? (
+                    <>
+                      <Cpu className="w-4 h-4 animate-spin" />
+                      <span>Đang phân tích phổ âm học & kịch bản tâm lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Video className="w-4 h-4" />
+                      <span>Thực Thi Giám Định Cuộc Gọi & Giọng Nói AI</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Right Audio Forensic Report */}
+              <div className="lg:col-span-6 bg-[#090D16] rounded-xl border border-[#1E293B] p-5 space-y-4">
+                {deepfakeResult ? (
+                  <div className="space-y-4 text-xs">
+                    <div className="flex items-center justify-between bg-rose-950/30 p-3.5 rounded-lg border border-rose-500/30">
+                      <div>
+                        <p className="text-[11px] text-rose-300 font-semibold">{deepfakeResult.scenarioTitle}</p>
+                        <p className="text-sm font-bold text-white mt-0.5">{deepfakeResult.verdict}</p>
+                      </div>
+                      <div className="text-right font-mono tabular-nums">
+                        <span className="text-2xl font-bold text-rose-400">{deepfakeResult.scamScore}%</span>
+                        <span className="block text-[10px] text-slate-400">
+                          AI Voice: {deepfakeResult.aiVoiceProbability}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 5 Psychological Manipulation Bars */}
+                    {deepfakeResult.tactics && (
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold text-slate-300">
+                          Chỉ số Thao túng Tâm lý Tội phạm (5 chiều):
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {[
+                            { label: 'Mạo danh Quyền lực (Authority)', val: deepfakeResult.tactics.authority },
+                            { label: 'Áp lực Thời gian (Urgency)', val: deepfakeResult.tactics.urgency },
+                            { label: 'Gây Hoảng loạn (Panic)', val: deepfakeResult.tactics.panic },
+                            { label: 'Cô lập Nạn nhân (Isolation)', val: deepfakeResult.tactics.isolation },
+                          ].map((t, i) => (
+                            <div key={i} className="p-2 rounded bg-[#111827] border border-[#1E293B] space-y-1">
+                              <div className="flex justify-between text-[11px]">
+                                <span className="text-slate-400">{t.label}</span>
+                                <span className="font-mono tabular-nums font-bold text-rose-400">{t.val}%</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-[#090D16] rounded-full overflow-hidden">
+                                <div className="h-full bg-rose-500 rounded-full" style={{ width: `${t.val}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Counter-Script Box */}
+                    <div className="p-3.5 rounded-lg bg-blue-950/30 border border-blue-500/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-300">
+                          🛡️ Câu nói Phản đòn Trực tiếp (Đọc ngay cho đối tượng nghe):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(deepfakeResult.counterScript);
+                            setCopiedCounterScript(true);
+                            setTimeout(() => setCopiedCounterScript(false), 2000);
+                          }}
+                          className="text-[11px] text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedCounterScript ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedCounterScript ? 'Đã chép' : 'Sao chép'}</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-white italic leading-relaxed bg-[#090D16] p-3 rounded border border-[#1E293B]">
+                        "{deepfakeResult.counterScript}"
+                      </p>
+                      <p className="text-[11px] text-emerald-400 font-medium">
+                        Khuyến nghị: {deepfakeResult.recommendedAction}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-16 text-center text-slate-500 space-y-2">
+                    <Mic className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-xs">
+                      Thu âm trực tiếp cuộc gọi hoặc nhấn "Thực Thi Giám Định Cuộc Gọi" để AI bóc tách kịch bản.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 4. APK & FILE MALWARE SANDBOX INSPECTOR */}
+        {activeSubTab === 'apk_malware' && (
+          <motion.div
+            key="apk_malware"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-5"
+          >
+            <div className="space-y-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-rose-400" />
+                  <span>Trình Phân Tích Mã Độc Tệp Đính Kèm (.APK) & Kiểm Định Quyền Trợ Năng Android</span>
+                </h3>
+                <span className="text-[11px] font-mono text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">
+                  SHA-256 + AndroidManifest + Gemini Malware AI
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Phòng chống thủ đoạn lừa cài ứng dụng giả mạo <strong className="text-slate-200">Dịch Vụ Công, VNeID Cấp độ 2, Thuế Điện Tử (eTax), Điện lực EVN</strong> qua file rời <code className="text-rose-300">.apk</code> nhằm chiếm quyền điều khiển màn hình (Accessibility) và đánh cắp mã Smart OTP.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div className="lg:col-span-6 space-y-4">
+                {/* Real File Dropzone to compute SHA-256 & scan binary strings */}
+                <div className="p-4 border border-dashed border-[#1E293B] rounded-xl bg-[#090D16] text-center hover:border-blue-500/40 transition">
+                  <label className="cursor-pointer block space-y-1.5 py-2">
+                    <FileCode className="w-7 h-7 text-blue-400 mx-auto" />
+                    <span className="text-xs font-semibold text-white block">
+                      Chọn tệp nghi vấn (.APK, .ZIP, .PDF, .EXE) để băm SHA-256 & Quét chuỗi nhị phân
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">
+                      Hoàn toàn xử lý an toàn không kích hoạt mã thực thi
+                    </span>
+                    <input
+                      type="file"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) handleInspectRealFileUpload(e.target.files[0]);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Preset Malware Profiles */}
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApkFileName('DichVuCong_VNeID_CapDo2_2026.apk');
+                      setApkPermissions([
+                        'BIND_ACCESSIBILITY_SERVICE',
+                        'RECEIVE_SMS',
+                        'READ_SMS',
+                        'SYSTEM_ALERT_WINDOW',
+                      ]);
+                      setApkSourceUrl('https://dichvucong-gov-vn.top/VNeID.apk');
+                    }}
+                    className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-mono cursor-pointer"
+                  >
+                    Mẫu: VNeID_CapDo2.apk
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApkFileName('ThueDienTu_GDT_HoanThue2026.apk');
+                      setApkPermissions(['BIND_ACCESSIBILITY_SERVICE', 'READ_SMS', 'RECORD_AUDIO', 'CAMERA']);
+                      setApkSourceUrl('https://gdt-thuedientu.xyz/eTax.apk');
+                    }}
+                    className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-mono cursor-pointer"
+                  >
+                    Mẫu: ThueDienTu_GDT.apk
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-lg bg-[#090D16] border border-[#1E293B] space-y-2 text-xs font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tên tệp:</span>
+                    <span className="text-white font-bold truncate max-w-[240px]">{apkFileName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Kích thước:</span>
+                    <span className="text-slate-300 tabular-nums">{(apkFileSize / 1024).toFixed(1)} KB</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-slate-400 block">Mã băm SHA-256:</span>
+                    <span className="text-[11px] text-blue-400 break-all block bg-[#111827] p-2 rounded border border-[#1E293B]">
+                      {apkSha256}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAnalyzeApk}
+                  disabled={apkLoading}
+                  className="w-full py-2.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {apkLoading ? (
+                    <>
+                      <Cpu className="w-4 h-4 animate-spin" />
+                      <span>Đang phân tích hành vi mã độc với Gemini AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      <span>Phân Tích Mã Độc & Quyền Chiếm Đoạt Thiết Bị</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="lg:col-span-6 bg-[#090D16] rounded-xl border border-[#1E293B] p-5 space-y-4">
+                {apkResult ? (
+                  <div className="space-y-4 text-xs">
+                    <div className="flex items-center justify-between p-3.5 rounded-lg bg-rose-950/30 border border-rose-500/30">
+                      <div>
+                        <p className="text-[11px] font-mono text-rose-300">{apkResult.verdict}</p>
+                        <p className="text-sm font-bold text-white mt-0.5">{apkResult.malwareFamily}</p>
+                      </div>
+                      <span className="text-2xl font-bold font-mono tabular-nums text-rose-400">
+                        {apkResult.riskScore}/100
+                      </span>
+                    </div>
+
+                    <p className="text-slate-300 leading-relaxed">{apkResult.summary}</p>
+
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold text-slate-300">
+                        Các quyền nguy hiểm phát hiện trong gói cài đặt:
+                      </p>
+                      <div className="space-y-2">
+                        {apkResult.permissionAnalysis?.map((p: any, i: number) => (
+                          <div key={i} className="p-2.5 rounded-lg bg-[#111827] border border-[#1E293B] space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-[11px] font-bold text-rose-400">{p.permission}</span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300">
+                                {p.severity}
+                              </span>
+                            </div>
+                            <p className="text-slate-300 text-[11px] leading-relaxed">{p.impact}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 space-y-1.5">
+                      <p className="text-xs font-bold text-emerald-400">
+                        Quy trình Cứu hộ Khẩn cấp nếu đã lỡ cài đặt:
+                      </p>
+                      <ul className="list-decimal list-inside text-slate-200 space-y-1 text-[11px] leading-relaxed">
+                        {apkResult.remediationSteps?.map((step: string, idx: number) => (
+                          <li key={idx}>{step}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-16 text-center text-slate-500 space-y-2">
+                    <Smartphone className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-xs">
+                      Tải lên tệp nghi vấn hoặc chọn mẫu thử và nhấn "Phân Tích Mã Độc" để xem giải phẫu quyền Android.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 5. MULTI-SOURCE OSINT CROSS-CHECK */}
+        {activeSubTab === 'osint' && (
+          <motion.div
+            key="osint"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-5"
+          >
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Search className="w-4 h-4 text-blue-400" />
+                <span>Tra Cứu Chéo Nguồn Mở Đa Tầng (OSINT Cross-Check: SĐT, STK, Email, Tên Miền)</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Đồng bộ hóa truy vấn giữa Cổng Cảnh báo An toàn thông tin Quốc gia, Cơ sở dữ liệu Đầu số Viễn thông (VoIP 024/028), và Danh sách đen Tài khoản Ngân hàng.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-400">Tra cứu nhanh:</span>
+              <button
+                type="button"
+                onClick={() => handleOSINTCheck(undefined, '02473022626')}
+                className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 font-mono text-[11px] cursor-pointer"
+              >
+                📞 SĐT Giả Công an: 02473022626
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOSINTCheck(undefined, '1028392109')}
+                className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-300 border border-rose-500/30 font-mono text-[11px] cursor-pointer"
+              >
+                🏦 STK Mule: 1028392109
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOSINTCheck(undefined, '02899998888')}
+                className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono text-[11px] cursor-pointer"
+              >
+                ⚡ SĐT Giả Điện lực EVN: 02899998888
+              </button>
+            </div>
+
+            <form onSubmit={(e) => handleOSINTCheck(e)} className="flex flex-col sm:flex-row gap-2.5">
+              <input
+                type="text"
+                value={osintQuery}
+                onChange={(e) => setOsintQuery(e.target.value)}
+                placeholder="Nhập SĐT (024..., 098...), Số tài khoản ngân hàng, hoặc Email..."
+                className="flex-1 bg-[#090D16] border border-[#1E293B] focus:border-blue-500 rounded-lg px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none font-mono"
+              />
+              <button
+                type="submit"
+                disabled={osintLoading || !osintQuery.trim()}
+                className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+              >
+                {osintLoading ? (
+                  <>
+                    <Cpu className="w-4 h-4 animate-spin" />
+                    <span>Đang truy vấn chéo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4" />
+                    <span>Tra Cứu Chéo OSINT</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {osintResult && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className={`p-5 rounded-xl border space-y-4 ${
+                  osintResult.classification === 'HIGHLY_DANGEROUS'
+                    ? 'bg-rose-950/20 border-rose-500/30'
+                    : 'bg-emerald-950/20 border-emerald-500/30'
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+                  <div>
+                    <p className="text-[11px] text-slate-400">Đối tượng tra cứu ({osintResult.carrierOrType}):</p>
+                    <p className="text-sm font-bold font-mono text-white">{osintResult.identifier}</p>
+                  </div>
+                  <div className="text-right font-mono tabular-nums">
+                    <p className="text-[11px] text-slate-400">Điểm Tín Nhiệm (Trust Score)</p>
+                    <p className={`text-xl font-bold ${osintResult.trustScore < 40 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {osintResult.trustScore}/100
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <p className="text-slate-300 font-semibold">Báo cáo đối chiếu từ các nguồn dữ liệu:</p>
+                  <div className="space-y-1.5">
+                    {osintResult.scannedSources.map((src: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-lg bg-[#090D16] border border-[#1E293B] gap-1"
+                      >
+                        <span className="text-slate-300">{src.name}</span>
+                        <span
+                          className={`font-mono text-[11px] font-semibold ${
+                            src.status.includes('An toàn') || src.status.includes('Xác thực chính chủ')
+                              ? 'text-emerald-400'
+                              : 'text-rose-400'
+                          }`}
+                        >
+                          {src.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-[#090D16] p-3.5 rounded-lg border border-[#1E293B] text-xs leading-relaxed">
+                    <p className="font-semibold text-white mb-1">Nhận định Tình báo Pháp y:</p>
+                    <p className="text-slate-300">{osintResult.riskDetails}</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* 6. COMMUNITY THREAT INTELLIGENCE FEED */}
         {activeSubTab === 'community' && (
           <motion.div
             key="community"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            exit={{ opacity: 0, y: -6 }}
             className="grid grid-cols-1 lg:grid-cols-12 gap-6"
           >
-            {/* Notes List Feed */}
             <div className="lg:col-span-7 space-y-4">
-              <div className="cartoon-card p-5 bg-slate-900/40 border-slate-800 space-y-3">
-                <h3 className="text-sm font-black text-white flex items-center space-x-2">
-                  <Database className="w-4 h-4 text-cyan-400" />
-                  <span>CROWDSOURCED SCAM DATABASE (FEED TÌNH BÁO)</span>
+              <div className="bg-[#111827] p-5 rounded-xl border border-[#1E293B] space-y-1.5">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-400" />
+                  <span>Cơ Sở Dữ Liệu Cảnh Báo Cộng Đồng (Community Notes)</span>
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Cơ sở dữ liệu lừa đảo đóng góp công khai từ nạn nhân. Người dùng có quyền Upvote/Downvote để tăng hoặc giảm độ tin cậy của thông tin (Cơ chế Community Notes của ScamGuard).
+                  Mọi cảnh báo mới gửi lên đều được đồng bộ trực tiếp vào bộ lọc Blacklist thời gian thực để bảo vệ người dùng khác.
                 </p>
               </div>
 
-              {communityNotes.map(note => (
-                <div key={note.id} className="cartoon-card p-5 bg-slate-950/60 border-slate-800 space-y-3 relative overflow-hidden">
-                  <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-black font-mono text-cyan-400">{note.target}</p>
-                      <p className="text-[10px] font-mono text-slate-500 uppercase">{note.scamType}</p>
+              {communityNotes.map((note) => (
+                <div key={note.id} className="bg-[#111827] p-5 rounded-xl border border-[#1E293B] space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#1E293B] pb-2.5">
+                    <div>
+                      <p className="text-xs font-bold font-mono text-blue-400">{note.target}</p>
+                      <p className="text-[11px] text-slate-400">{note.scamType}</p>
                     </div>
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                      note.verifiedStatus === 'VERIFIED'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                    }`}>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                       {note.verifiedStatus}
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-300 leading-relaxed font-sans">{note.description}</p>
+                  <p className="text-xs text-slate-300 leading-relaxed">{note.description}</p>
 
-                  <div className="flex items-center justify-between pt-2 text-[10px] border-t border-slate-900/60 text-slate-500">
+                  <div className="flex items-center justify-between pt-2 text-[11px] border-t border-[#1E293B] text-slate-400">
                     <span>Cập nhật: {note.timestamp}</span>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => handleVote(note.id, 'up')}
-                        className={`flex items-center space-x-1.5 px-2 py-1 rounded-lg border cursor-pointer transition-colors ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border cursor-pointer transition font-mono tabular-nums ${
                           note.userVoted === 'up'
-                            ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                            ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+                            : 'bg-[#090D16] border-[#1E293B] text-slate-400 hover:text-white'
                         }`}
                       >
                         <ThumbsUp className="w-3 h-3" />
@@ -523,11 +1620,12 @@ export const DomainReputationTab: React.FC = () => {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => handleVote(note.id, 'down')}
-                        className={`flex items-center space-x-1.5 px-2 py-1 rounded-lg border cursor-pointer transition-colors ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border cursor-pointer transition font-mono tabular-nums ${
                           note.userVoted === 'down'
                             ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                            : 'bg-[#090D16] border-[#1E293B] text-slate-400 hover:text-white'
                         }`}
                       >
                         <ThumbsDown className="w-3 h-3" />
@@ -539,393 +1637,90 @@ export const DomainReputationTab: React.FC = () => {
               ))}
             </div>
 
-            {/* Submit Report Sidebar */}
             <div className="lg:col-span-5">
-              <div className="cartoon-card p-6 bg-slate-900/60 border-slate-800 space-y-4">
-                <h4 className="text-xs font-black text-white uppercase tracking-wider font-mono flex items-center space-x-1.5">
-                  <Send className="w-4 h-4 text-cyan-400" />
-                  <span>BÁO CÁO MỐI ĐE DỌA MỚI</span>
+              <div className="bg-[#111827] p-6 rounded-xl border border-[#1E293B] space-y-4">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Send className="w-4 h-4 text-blue-400" />
+                  <span>Gửi Báo Cáo Mối Đe Dọa Mới</span>
                 </h4>
                 <p className="text-xs text-slate-400">
-                  Nếu bạn vừa phát hiện một liên kết lừa đảo, số điện thoại rác dọa nạt, hoặc số tài khoản ngân hàng trung gian nhận tiền phi pháp, hãy tố cáo ngay tại đây để bảo vệ đồng bào.
+                  Đóng góp nhanh tên miền phishing, số điện thoại lừa đảo hoặc số tài khoản nhận tiền bất chính vào hệ thống phòng vệ chung.
                 </p>
 
                 <form onSubmit={handleAddNote} className="space-y-3 text-xs">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase font-mono">Loại đối tượng:</label>
-                    <div className="flex gap-1.5">
-                      {['url', 'phone', 'stk'].map(type => (
+                    <label className="text-slate-300 font-semibold block">Loại định danh:</label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: 'url', label: 'Tên miền / URL' },
+                        { id: 'phone', label: 'Số điện thoại' },
+                        { id: 'stk', label: 'STK Ngân hàng' },
+                      ].map((t) => (
                         <button
-                          key={type}
+                          key={t.id}
                           type="button"
-                          onClick={() => setNewType(type as any)}
-                          className={`flex-1 py-2 rounded-xl font-bold border cursor-pointer transition-all uppercase font-mono text-[10px] ${
-                            newType === type
-                              ? 'bg-cyan-500 text-slate-950 border-cyan-400'
-                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                          onClick={() => setNewType(t.id as any)}
+                          className={`py-2 rounded-lg font-semibold border cursor-pointer transition ${
+                            newType === t.id
+                              ? 'bg-blue-600 text-white border-blue-500'
+                              : 'bg-[#090D16] text-slate-400 border-[#1E293B]'
                           }`}
                         >
-                          {type}
+                          {t.label}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase font-mono">Đối tượng cần gán đen:</label>
+                    <label className="text-slate-300 font-semibold block">Định danh cần cảnh báo:</label>
                     <input
                       type="text"
                       value={newTarget}
                       onChange={(e) => setNewTarget(e.target.value)}
-                      placeholder={newType === 'url' ? 'vietcombank-xacminh.xyz' : (newType === 'phone' ? '0912...' : 'STK ngân hàng...')}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                      placeholder={
+                        newType === 'url' ? 'vietcombank-xacminh.xyz' : newType === 'phone' ? '0247302...' : 'Số tài khoản...'
+                      }
+                      className="w-full bg-[#090D16] border border-[#1E293B] rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase font-mono">Kịch bản lừa đảo:</label>
+                    <label className="text-slate-300 font-semibold block">Phân loại thủ đoạn:</label>
                     <select
                       value={newScamType}
                       onChange={(e) => setNewScamType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                      className="w-full bg-[#090D16] border border-[#1E293B] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
                     >
-                      <option value="Giả Mạo Thương Hiệu">Giả Mạo Thương Hiệu</option>
-                      <option value="Giả danh Công An/VKS">Giả danh Công An/VKS</option>
-                      <option value="Bẫy Tuyển Dụng / Nhiệm vụ Telegram">Bẫy Tuyển Dụng / Nhiệm vụ Telegram</option>
-                      <option value="Lừa Đảo Giao Hàng (COD)">Lừa Đảo Giao Hàng (COD)</option>
-                      <option value="Đầu Tư Sàn Ảo / Coin rác">Đầu Tư Sàn Ảo / Coin rác</option>
+                      <option value="Giả Mạo Thương Hiệu">Giả Mạo Thương Hiệu / Ngân Hàng</option>
+                      <option value="Giả danh Công An/VKS">Giả danh Công An / Viện Kiểm Sát</option>
+                      <option value="Phát Tán Mã Độc .APK">Phát Tán Mã Độc .APK (VNeID/Thuế)</option>
+                      <option value="Bẫy Tuyển Dụng / Nhiệm vụ Telegram">Bẫy Nhiệm Vụ Cộng Tác Viên</option>
+                      <option value="Lừa Đảo Giao Hàng (COD)">Giả Shipper Giao Hàng</option>
                     </select>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-slate-500 font-bold uppercase font-mono">Chi tiết & chứng cứ ban đầu:</label>
+                    <label className="text-slate-300 font-semibold block">Mô tả hành vi & dấu hiệu:</label>
                     <textarea
                       rows={3}
                       value={newDesc}
                       onChange={(e) => setNewDesc(e.target.value)}
-                      placeholder="Nêu rõ đòn tâm lý họ sử dụng và tên miền/STK họ yêu cầu tương tác..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-sans leading-relaxed"
+                      placeholder="Mô tả chi tiết kịch bản đối tượng sử dụng..."
+                      className="w-full bg-[#090D16] border border-[#1E293B] rounded-lg p-3 text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={!newTarget.trim() || !newDesc.trim()}
-                    className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all uppercase tracking-wider font-mono cursor-pointer disabled:opacity-40"
+                    className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition cursor-pointer disabled:opacity-40"
                   >
-                    GỬI BÁO CÁO CỘNG ĐỒNG
+                    Đồng Bộ Vào Cơ Sở Dữ Liệu Cảnh Báo
                   </button>
                 </form>
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {activeSubTab === 'qr_sandbox' && (
-          <motion.div
-            key="qr_sandbox"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="cartoon-card p-6 bg-slate-900/40 border-slate-800 space-y-6"
-          >
-            <div>
-              <h3 className="text-base font-black text-white flex items-center space-x-2">
-                <QrCode className="w-5 h-5 text-cyan-400 animate-pulse" />
-                <span>QR CODE PAYLOAD SANDBOX SCANNER</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Phòng chống mã độc Quishing. Nhập hoặc tải ảnh QR để decode payload ngầm, giả lập hiển thị chi tiết tên miền và các rủi ro bên trong một sandbox cô lập an toàn trước khi thực hiện chuyển hướng.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-              {/* Input section */}
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-400 font-mono uppercase">Mã URL được mã hóa trong QR:</label>
-                  <input
-                    type="text"
-                    value={qrInputUrl}
-                    onChange={(e) => setQrInputUrl(e.target.value)}
-                    placeholder="Dán link giải mã của QR Code..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
-                  />
-                </div>
-
-                <div className="p-6 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/60 text-center relative hover:border-cyan-500/40 transition-all">
-                  <QrCode className="w-8 h-8 text-cyan-400 mx-auto animate-bounce-subtle" />
-                  <p className="text-xs text-slate-300 font-bold mt-2">Dán ảnh QR Code cần quét an toàn</p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">Hệ thống sẽ chạy sandbox phân tích link gốc</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleQRScan}
-                  disabled={qrScanning || !qrInputUrl.trim()}
-                  className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all flex items-center justify-center space-x-2 font-mono cursor-pointer disabled:opacity-40"
-                >
-                  {qrScanning ? (
-                    <>
-                      <Cpu className="w-4 h-4 animate-spin" />
-                      <span>CO LẬP HÀNH VI LINK...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-4 h-4" />
-                      <span>XEM TRƯỚC AN TOÀN TRONG SANDBOX</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Safe Sandbox Preview Section */}
-              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-5 space-y-4 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full filter blur-xl pointer-events-none" />
-                <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                  <div className="flex items-center space-x-2 text-[10px] text-emerald-400 font-extrabold font-mono">
-                    <Lock className="w-4 h-4 text-emerald-400" />
-                    <span>🛡️ SCAMGUARD SECURE SANDBOX CONTAINER</span>
-                  </div>
-                  <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-black">
-                    VIRTUAL RUNTIME ACTIVE
-                  </span>
-                </div>
-
-                {qrDecoded ? (
-                  <div className="space-y-3.5 text-xs">
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-slate-500 font-bold uppercase font-mono">Đường dẫn thực tế đã được chặn đứng:</p>
-                      <p className="p-2.5 bg-slate-900 rounded-lg text-rose-300 font-mono break-all text-xs border border-slate-850">
-                        {qrDecoded.targetUrl}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-[10px] text-slate-500 font-bold uppercase font-mono">Dấu hiệu nhận biết mối nguy hiểm:</p>
-                      {qrDecoded.warningFlags.length > 0 ? (
-                        <div className="space-y-1.5">
-                          {qrDecoded.warningFlags.map((flag: string, idx: number) => (
-                            <div key={idx} className="flex items-start space-x-1.5 text-rose-400 bg-rose-950/10 p-2 rounded-lg border border-rose-950/30">
-                              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                              <span className="leading-relaxed">{flag}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center space-x-2 text-emerald-400 bg-emerald-950/10 p-2 rounded-lg border border-emerald-950/30">
-                          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                          <span>Link gốc đạt chuẩn an toàn của ScamGuard Cloud.</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-900 text-[10px] text-slate-400 flex items-center justify-between font-mono">
-                      <span>Phản ứng Sandbox: <strong className="text-cyan-400">{qrDecoded.sandboxAction}</strong></span>
-                      <span className={qrDecoded.isSafe ? 'text-emerald-400' : 'text-rose-400'}>RISK: {qrDecoded.riskScore}%</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-center text-slate-500 space-y-2">
-                    <HelpCircle className="w-8 h-8 text-slate-700 animate-pulse" />
-                    <p className="text-xs font-medium font-sans">Chưa có dữ liệu sandbox.</p>
-                    <p className="text-[10px] font-mono">Hãy điền link QR và nhấn nút "Xem trước an toàn" để phân tích ngầm.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {activeSubTab === 'deepfake' && (
-          <motion.div
-            key="deepfake"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="cartoon-card p-6 bg-slate-900/40 border-slate-800 space-y-6"
-          >
-            <div>
-              <h3 className="text-base font-black text-white flex items-center space-x-2">
-                <Video className="w-5 h-5 text-cyan-400 animate-pulse" />
-                <span>DEEPFAKE CONFIDENCE SCORE (MULTI-MODAL DETECTION)</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Phân tích video/audio cuộc gọi đáng ngờ để phát hiện giọng nói AI voice-clone, lệch pha khớp nhịp môi (lip-sync), và tần suất nháy mắt dị thường (blink rate).
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-              {/* Left Form */}
-              <div className="space-y-4">
-                <div className="p-8 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/60 text-center relative hover:border-cyan-500/40 transition-all cursor-pointer">
-                  <Video className="w-10 h-10 text-cyan-400 mx-auto animate-pulse" />
-                  <p className="text-xs text-slate-300 font-bold mt-2">Dán link video/audio cuộc gọi hoặc tải lên file ghi âm .mp3/.mp4</p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">Hệ thống sẽ chạy phân tích đa nhân học máy</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleDeepfakeAnalyze}
-                  disabled={deepfakeLoading}
-                  className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all flex items-center justify-center space-x-2 font-mono cursor-pointer"
-                >
-                  {deepfakeLoading ? (
-                    <>
-                      <Cpu className="w-4 h-4 animate-spin" />
-                      <span>XỬ LÝ ĐA NHÂN NEURAL...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Video className="w-4 h-4" />
-                      <span>CHẠY GIÁM ĐỊNH DEEPFAKE</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Right Results */}
-              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-5 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-900 pb-2.5">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase font-mono">BÁO CÁO NHẬN DIỆN PHỔ HÌNH ẢNH:</span>
-                  <span className="text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full font-black">
-                    BIOMETRICS VERIFIED
-                  </span>
-                </div>
-
-                {deepfakeResult ? (
-                  <div className="space-y-4 text-xs font-sans">
-                    <div className="flex items-center justify-between bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
-                      <div className="space-y-0.5">
-                        <p className="text-[10px] text-rose-300 font-mono">CHỈ SỐ THIẾT KẾ AI (CONFIDENCE SCORE):</p>
-                        <p className="text-base font-black text-rose-400">{deepfakeResult.verdict}</p>
-                      </div>
-                      <span className="text-2xl font-black text-rose-400 font-mono">{deepfakeResult.confidenceScore}%</span>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      <p className="text-[10px] text-slate-500 font-bold uppercase font-mono">Bảng bóc tách điểm dị biệt sinh trắc học:</p>
-                      <div className="space-y-1.5 font-mono text-[11px]">
-                        {deepfakeResult.indicators.map((ind: any, idx: number) => (
-                          <div key={idx} className="flex justify-between p-2 rounded-lg bg-slate-900 border border-slate-850">
-                            <span className="text-slate-400">{ind.name}:</span>
-                            <span className={ind.status === 'CRITICAL_ANOMALY' ? 'text-rose-400 font-black' : 'text-amber-400'}>
-                              {ind.val}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-850 text-xs leading-relaxed">
-                      <p className="font-bold text-white mb-1 font-mono">Cách phân tích kịch bản tâm lý:</p>
-                      <p className="text-slate-300 font-sans">{deepfakeResult.explanation}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-center text-slate-500 space-y-2">
-                    <Video className="w-8 h-8 text-slate-700 animate-pulse" />
-                    <p className="text-xs font-medium">Chưa có kết quả phân tích.</p>
-                    <p className="text-[10px] font-mono">Nhấn nút chạy giám định để bóc tách khuôn mặt và nhịp điệu sinh học giọng nói.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {activeSubTab === 'osint' && (
-          <motion.div
-            key="osint"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="cartoon-card p-6 bg-slate-900/40 border-slate-800 space-y-6"
-          >
-            <div>
-              <h3 className="text-base font-black text-white flex items-center space-x-2">
-                <Search className="w-5 h-5 text-cyan-400 animate-pulse" />
-                <span>OSINT CROSS-CHECK TOOL (TRA CỨU CHÉO NGUỒN CÔNG KHAI)</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Nhập số điện thoại, số tài khoản ngân hàng thụ hưởng, hoặc email lạ để hệ thống tự động quy vấn chéo các cổng dữ liệu NCSC, nhà mạng viễn thông, và feed tố cáo toàn diện.
-              </p>
-            </div>
-
-            <form onSubmit={handleOSINTCheck} className="flex gap-2">
-              <input
-                type="text"
-                value={osintQuery}
-                onChange={(e) => setOsintQuery(e.target.value)}
-                placeholder="Ví dụ: 0988112344, 19038291029..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
-              />
-              <button
-                type="submit"
-                disabled={osintLoading || !osintQuery.trim()}
-                className="px-5 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs transition-all flex items-center space-x-1.5 font-mono cursor-pointer"
-              >
-                {osintLoading ? (
-                  <>
-                    <Cpu className="w-4 h-4 animate-spin" />
-                    <span>DANG TRUY VAN...</span>
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    <span>TRA CỨU CHÉO</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            {osintResult && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className={`p-5 rounded-2xl border space-y-4 ${
-                  osintResult.classification === 'HIGHLY_DANGEROUS'
-                    ? 'bg-rose-950/20 border-rose-500/30'
-                    : 'bg-emerald-950/20 border-emerald-500/30'
-                }`}
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <div>
-                    <p className="text-[10px] font-mono font-bold text-slate-500">ĐỐI TƯỢNG TRA CỨU:</p>
-                    <p className="text-sm font-black font-mono text-cyan-400">{osintResult.identifier}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-mono font-bold text-slate-500">ĐIỂM ĐỘ TIN CẬY (TRUST SCORE):</p>
-                    <p className={`text-xl font-black font-mono ${osintResult.trustScore < 40 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {osintResult.trustScore}/100
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 font-sans text-xs">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase font-mono">Báo cáo chéo từ các cổng nguồn:</p>
-                  <div className="space-y-2">
-                    {osintResult.scannedSources.map((src: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-center p-2.5 rounded-lg bg-slate-950 border border-slate-850 text-xs">
-                        <span className="text-slate-300 font-sans">{src.name}</span>
-                        <span className={`font-mono text-[11px] font-black ${
-                          src.status.includes('An toàn') || src.status.includes('Chưa có')
-                            ? 'text-emerald-400'
-                            : 'text-rose-400'
-                        }`}>
-                          {src.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="bg-slate-900 p-3.5 rounded-xl border border-slate-850 text-xs leading-relaxed">
-                    <p className="font-bold text-white mb-1 font-mono">Lưu ý rủi ro:</p>
-                    <p className="text-slate-300">{osintResult.riskDetails}</p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>

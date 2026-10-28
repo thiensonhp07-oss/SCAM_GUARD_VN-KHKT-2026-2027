@@ -232,29 +232,6 @@ export const MoreToolsView: React.FC<MoreToolsViewProps> = ({
             </p>
           </div>
 
-          {/* Theme Studio Customizer Tool */}
-          {onOpenTheme && (
-            <div
-              onClick={onOpenTheme}
-              className="cartoon-card p-6 cursor-pointer shadow-xl space-y-3 group relative overflow-hidden"
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border-2 border-cyan-500/40 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
-                  <Palette className="w-6 h-6 animate-pulse" />
-                </div>
-                <span className="text-[10px] font-black px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase tracking-wider">
-                  THEME STUDIO 2026
-                </span>
-              </div>
-              <h3 className="text-lg font-black text-white group-hover:text-cyan-400 transition-colors">
-                Tùy Biến Giao Diện & Màu Sắc Đa Dạng
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                Khám phá 10+ bộ chủ đề tương lai (Cyberpunk, Matrix, Synthwave, Hổ phách hoàng kim, OLED Black, Clean Light), hiệu ứng ánh sáng neon và chế độ hỗ trợ thị giác.
-              </p>
-            </div>
-          )}
-
           {/* Emergency 24/7 */}
           <div
             onClick={onOpenEmergency}

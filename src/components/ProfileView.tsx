@@ -1,13 +1,40 @@
 import React, { useState } from 'react';
-import { User, Shield, Flame, Sparkles, LogOut, Key, Mail, CheckCircle2, Palette, Check, Sliders } from 'lucide-react';
+import {
+  User,
+  Shield,
+  Flame,
+  Sparkles,
+  LogOut,
+  Mail,
+  CheckCircle2,
+  Palette,
+  Check,
+  Sliders,
+  Database,
+  RefreshCw,
+  Link2,
+  AlertCircle,
+} from 'lucide-react';
 import { UserProfile, UserAccount } from '../types';
 import { THEME_PRESETS, ThemePresetId, ThemeConfig, applyThemePreset } from '../utils/themeManager';
+import {
+  signInWithGoogleFirebase,
+  signInWithFacebookFirebase,
+  signInWithGithubFirebase,
+  linkAccountWithProvider,
+  syncUserProfileToFirestore,
+  logoutFromFirebase,
+} from '../services/firebaseAuthService';
+import { FIRESTORE_DATABASE_ID, FIREBASE_PROJECT_ID } from '../firebase';
+import { handleAvatarError } from '../utils/avatarFallback';
+import { playSuccessChime, playAlertWarning } from '../utils/audioEffects';
 
 interface ProfileViewProps {
   userProfile: UserProfile;
   currentUser: UserAccount | null;
   currentThemeConfig?: ThemeConfig;
   onOpenAuth: () => void;
+  onLoginSuccess?: (user: UserAccount) => void;
   onLogout: () => void;
   onOpenTheme?: () => void;
   onUpdateThemeConfig?: (config: ThemeConfig) => void;
@@ -19,30 +46,166 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   currentThemeConfig,
   onOpenAuth,
+  onLoginSuccess,
   onLogout,
   onOpenTheme,
   onUpdateThemeConfig,
   onNavigate,
 }) => {
+  const [syncing, setSyncing] = useState(false);
+  const [authLoading, setAuthLoading] = useState<'google' | 'facebook' | 'github' | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleQuickOAuthLogin = async (provider: 'google' | 'facebook' | 'github') => {
+    setStatusMessage(null);
+    setAuthLoading(provider);
+    try {
+      const res =
+        provider === 'google'
+          ? await signInWithGoogleFirebase(userProfile.mode)
+          : provider === 'facebook'
+          ? await signInWithFacebookFirebase(userProfile.mode)
+          : await signInWithGithubFirebase(userProfile.mode);
+
+      if (res.success && res.user) {
+        playSuccessChime();
+        setStatusMessage({
+          type: 'success',
+          text: `Đã đăng nhập ${provider.toUpperCase()} & tạo/tải Database (users/${res.user.id.slice(0, 8)}...) thành công!`,
+        });
+        onLoginSuccess?.(res.user);
+      } else {
+        playAlertWarning();
+        setStatusMessage({
+          type: 'error',
+          text: res.error || `Không thể đăng nhập qua ${provider.toUpperCase()}.`,
+        });
+        if (res.providerSetupRequired) {
+          onOpenAuth();
+        }
+      }
+    } finally {
+      setAuthLoading(null);
+    }
+  };
+
+  const handleLinkSocial = async (provider: 'google' | 'facebook' | 'github') => {
+    setStatusMessage(null);
+    setAuthLoading(provider);
+    try {
+      const res = await linkAccountWithProvider(provider);
+      if (res.success && res.user) {
+        playSuccessChime();
+        setStatusMessage({
+          type: 'success',
+          text: `Đã liên kết tài khoản ${provider.toUpperCase()} vào cùng Database Cloud Firestore của bạn!`,
+        });
+        onLoginSuccess?.(res.user);
+      } else {
+        playAlertWarning();
+        setStatusMessage({
+          type: 'error',
+          text: res.error || `Không thể liên kết tài khoản ${provider.toUpperCase()}.`,
+        });
+        if (res.providerSetupRequired) {
+          onOpenAuth();
+        }
+      }
+    } finally {
+      setAuthLoading(null);
+    }
+  };
+
+  const handleManualFirestoreSync = async () => {
+    if (!currentUser) return;
+    setSyncing(true);
+    setStatusMessage(null);
+    const ok = await syncUserProfileToFirestore(currentUser.id, userProfile);
+    setSyncing(false);
+    if (ok) {
+      playSuccessChime();
+      setStatusMessage({
+        type: 'success',
+        text: `Đã đồng bộ toàn bộ hồ sơ, điểm XP và tiến độ Lộ trình vào Cloud Firestore (users/${currentUser.id})!`,
+      });
+    } else {
+      playAlertWarning();
+      setStatusMessage({
+        type: 'error',
+        text: 'Vui lòng đăng nhập bằng tài khoản Firebase (Google / Facebook / GitHub / Email) để lưu lên Cloud Firestore.',
+      });
+    }
+  };
+
+  const linkedProviders = currentUser?.profile?.providersLinked || [];
+  const isGoogleLinked =
+    currentUser?.provider === 'google' || linkedProviders.some((p) => p.includes('google'));
+  const isFacebookLinked =
+    currentUser?.provider === 'facebook' || linkedProviders.some((p) => p.includes('facebook'));
+  const isGithubLinked =
+    currentUser?.provider === 'github' || linkedProviders.some((p) => p.includes('github'));
+
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-6 animate-fadeIn">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-6 animate-fadeIn">
       {/* Header Banner */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-blue-950/40 flex flex-col sm:flex-row items-center gap-6 shadow-xl">
-        <div className="w-20 h-20 rounded-3xl bg-blue-500/20 border-2 border-blue-500/40 flex items-center justify-center text-blue-400 text-3xl font-black shadow-xl shrink-0">
-          <User className="w-10 h-10" />
-        </div>
-        <div className="space-y-1 text-center sm:text-left flex-1">
+        {currentUser?.avatarUrl || userProfile.avatarUrl ? (
+          <img
+            src={currentUser?.avatarUrl || userProfile.avatarUrl}
+            alt={currentUser?.name || userProfile.name}
+            referrerPolicy="no-referrer"
+            onError={(e) => handleAvatarError(e, currentUser?.name || userProfile.name)}
+            className="w-20 h-20 rounded-3xl object-cover border-2 border-cyan-400 shadow-xl shrink-0"
+          />
+        ) : (
+          <div className="w-20 h-20 rounded-3xl bg-blue-500/20 border-2 border-blue-500/40 flex items-center justify-center text-blue-400 text-3xl font-black shadow-xl shrink-0">
+            <User className="w-10 h-10" />
+          </div>
+        )}
+
+        <div className="space-y-1.5 text-center sm:text-left flex-1">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-            <h1 className="text-2xl font-black text-white">{currentUser?.name || userProfile.name || 'Vệ Binh Khách'}</h1>
-            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-semibold">
-              {currentUser ? 'Đã Đồng Bộ Đám Mây' : 'Chế Độ Khách'}
+            <h1 className="text-2xl font-black text-white">
+              {currentUser?.name || userProfile.name || 'Vệ Binh Khách'}
+            </h1>
+            <span
+              className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold border ${
+                currentUser
+                  ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+            >
+              {currentUser ? `Đã Kết Nối Cloud Firestore (${currentUser.provider.toUpperCase()})` : 'Chế Độ Khách Cục Bộ'}
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            {currentUser?.email || 'Đăng nhập tài khoản để đồng bộ tiến trình học tập và chuỗi ngày phòng thủ trên mọi thiết bị.'}
+            {currentUser?.email ||
+              'Đăng nhập bằng Google, Facebook hoặc GitHub thực tế để khởi tạo Database cá nhân trên Cloud Firestore.'}
           </p>
+          {currentUser && (
+            <p className="text-[11px] font-mono text-cyan-400">
+              UID: {currentUser.id} · Dự án: {FIREBASE_PROJECT_ID}
+            </p>
+          )}
         </div>
       </div>
+
+      {statusMessage && (
+        <div
+          className={`p-4 rounded-2xl border text-xs flex items-center gap-2.5 ${
+            statusMessage.type === 'success'
+              ? 'bg-emerald-950/50 border-emerald-800 text-emerald-200'
+              : 'bg-rose-950/50 border-rose-800 text-rose-200'
+          }`}
+        >
+          {statusMessage.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          )}
+          <span>{statusMessage.text}</span>
+        </div>
+      )}
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -76,142 +239,157 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="glass-card rounded-2xl p-4 border border-slate-800 bg-slate-900/90 text-center space-y-1 shadow-md">
           <CheckCircle2 className="w-5 h-5 text-purple-400 mx-auto" />
           <div className="text-xl font-black text-purple-300 font-mono">
-            {userProfile.completedScenarios?.length ?? 0}
+            {(userProfile.completedRoadmapNodes?.length || 0) + (userProfile.completedScenarios?.length || 0)}
           </div>
-          <div className="text-[11px] text-slate-400 font-bold uppercase">Đòn Đã Giải Phẫu</div>
+          <div className="text-[11px] text-slate-400 font-bold uppercase">Bài & Kịch Bản Đã Lưu</div>
         </div>
       </div>
 
-      {/* Theme & Visual Appearance Customization Card */}
+      {/* Firebase Auth & Cloud Firestore User Database Control Center */}
       <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
-              <Palette className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <Database className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-black text-white">Tùy Biến Giao Diện & Màu Sắc</h3>
+              <h3 className="text-base font-black text-white">
+                Xác Thực OAuth & Cơ Sở Dữ Liệu Người Dùng (Cloud Firestore)
+              </h3>
               <p className="text-xs text-slate-400">
-                Lựa chọn giữa 10+ chủ đề tương lai, ánh sáng neon, chế độ sáng và hỗ trợ thị giác.
+                Mỗi tài khoản Google, Facebook hoặc GitHub được cấp phát một bản ghi độc lập tại{' '}
+                <code className="text-cyan-300">users/&#123;uid&#125;</code>
               </p>
             </div>
           </div>
 
-          {onOpenTheme && (
+          {currentUser && (
             <button
-              onClick={onOpenTheme}
-              className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer self-start sm:self-auto"
+              onClick={handleManualFirestoreSync}
+              disabled={syncing}
+              className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer self-start sm:self-auto disabled:opacity-50"
             >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Mở Studio Tùy Biến</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Đang lưu Cloud...' : 'Đồng Bộ Lên Firestore'}</span>
             </button>
           )}
         </div>
 
-        {/* Quick 1-click preset switches */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-2">
-          {(
-            [
-              'cyberpunk',
-              'emerald_matrix',
-              'synthwave_purple',
-              'solar_amber',
-              'crimson_alert',
-              'ocean_sapphire',
-              'sakura_cyber',
-              'oled_black',
-              'clean_light',
-              'nordic_forest',
-            ] as ThemePresetId[]
-          ).map((presetId) => {
-            const preset = THEME_PRESETS[presetId];
-            const isSelected = currentThemeConfig?.preset === presetId && !currentThemeConfig?.customMode;
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-slate-400">Đường dẫn Document Firestore:</span>
+              <p className="font-mono text-cyan-300 font-bold break-all">
+                users/{currentUser?.id || userProfile.id}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-slate-400">Database Instance ID:</span>
+              <p className="font-mono text-emerald-300 font-bold truncate">{FIRESTORE_DATABASE_ID}</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-slate-400">Email & Trạng Thái Xác Thực:</span>
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="font-bold text-white truncate">
+                  {currentUser?.email || userProfile.email}
+                </span>
+              </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+              <span className="text-slate-400">Đồng bộ lần cuối:</span>
+              <p className="font-bold text-white">
+                {userProfile.updatedAt
+                  ? new Date(userProfile.updatedAt).toLocaleString('vi-VN')
+                  : 'Vừa đồng bộ trực tiếp'}
+              </p>
+            </div>
+          </div>
 
-            return (
+          {/* Multi-provider linking section */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+              <Link2 className="w-4 h-4 text-cyan-400" />
+              <span>Các tài khoản OAuth đã liên kết với Database này:</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
-                key={presetId}
-                onClick={() => {
-                  if (currentThemeConfig && onUpdateThemeConfig) {
-                    const updated = applyThemePreset(presetId, currentThemeConfig);
-                    onUpdateThemeConfig(updated);
-                  } else if (onOpenTheme) {
-                    onOpenTheme();
-                  }
-                }}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
-                  isSelected
-                    ? 'border-cyan-400 bg-slate-800 shadow-md'
-                    : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                type="button"
+                disabled={Boolean(authLoading) || isGoogleLinked}
+                onClick={() => handleLinkSocial('google')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  isGoogleLinked
+                    ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300 cursor-default'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200 cursor-pointer'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5">
-                    <div
-                      className="w-3.5 h-3.5 rounded-full"
-                      style={{ backgroundColor: preset.accentColor }}
-                    />
-                    <div
-                      className="w-3.5 h-3.5 rounded-full"
-                      style={{ backgroundColor: preset.bgSurface }}
-                    />
-                  </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-cyan-400 stroke-[3]" />}
-                </div>
-                <div className="text-xs font-bold text-slate-200 truncate">{preset.name}</div>
+                <span>{isGoogleLinked ? 'Google (Đã liên kết)' : '+ Liên kết Google'}</span>
+                {isGoogleLinked && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               </button>
-            );
-          })}
+
+              <button
+                type="button"
+                disabled={Boolean(authLoading) || isFacebookLinked}
+                onClick={() => handleLinkSocial('facebook')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  isFacebookLinked
+                    ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300 cursor-default'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200 cursor-pointer'
+                }`}
+              >
+                <span>{isFacebookLinked ? 'Facebook (Đã liên kết)' : '+ Liên kết Facebook'}</span>
+                {isFacebookLinked && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+              </button>
+
+              <button
+                type="button"
+                disabled={Boolean(authLoading) || isGithubLinked}
+                onClick={() => handleLinkSocial('github')}
+                className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                  isGithubLinked
+                    ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300 cursor-default'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200 cursor-pointer'
+                }`}
+              >
+                <span>{isGithubLinked ? 'GitHub (Đã liên kết)' : '+ Liên kết GitHub'}</span>
+                {isGithubLinked && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={async () => {
+              await logoutFromFirebase();
+              onLogout();
+            }}
+            className="py-3 px-6 rounded-2xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-bold text-xs uppercase tracking-wider border border-rose-800 shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 w-full"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Đăng Xuất Tài Khoản (Quay về trang Đăng Nhập)</span>
+          </button>
         </div>
       </div>
 
-      {/* Auth Control Actions */}
-      <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 bg-slate-900/90 space-y-5 shadow-xl">
-        <h3 className="text-base font-black text-white">Quản Lý Tài Khoản Vệ Binh</h3>
-
-        {!currentUser ? (
-          <div className="space-y-4">
-            <p className="text-xs text-slate-300">
-              Tạo hồ sơ cá nhân ngay hôm nay để bảo vệ kết quả học tập và tham gia bảng xếp hạng toàn quốc.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={onOpenAuth}
-                className="flex-1 py-3 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer text-center"
-              >
-                Tạo Hồ Sơ Mới
-              </button>
-              <button
-                onClick={onOpenAuth}
-                className="flex-1 py-3 px-6 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer text-center"
-              >
-                Đăng Nhập Tài Khoản
-              </button>
+      {/* Unified Anti-Glare Security Daylight Standard Card */}
+      <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-200 bg-white space-y-3 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Chuẩn Giao Diện Security Daylight (Anti-Glare Edition)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Đồng bộ hoàn toàn nền trắng Alabaster dịu mắt (#F3F6FA) và sắc xanh dương an ninh (#0284C7) từ cổng xác thực đến trung tâm chỉ huy.
+              </p>
             </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Mail className="w-5 h-5 text-cyan-400" />
-                <div>
-                  <p className="text-xs font-bold text-white">{currentUser.email}</p>
-                  <p className="text-[10px] text-emerald-400">Trạng thái: Hoạt động an toàn</p>
-                </div>
-              </div>
-              <span className="text-xs px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
-                Đã xác thực
-              </span>
-            </div>
-
-            <button
-              onClick={onLogout}
-              className="py-3 px-6 rounded-2xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-bold text-xs uppercase tracking-wider border border-rose-800 shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 w-full"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Đăng Xuất Tài Khoản</span>
-            </button>
-          </div>
-        )}
+          <span className="px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-mono font-semibold text-sky-700 shrink-0">
+            CỐ ĐỊNH · TỐI ƯU THỊ GIÁC
+          </span>
+        </div>
       </div>
     </div>
   );

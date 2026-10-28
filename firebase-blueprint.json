@@ -1,35 +1,122 @@
 {
   "entities": {
     "UserProfile": {
-      "collection": "users",
-      "fields": {
-        "id": { "type": "string", "description": "Auth UID" },
-        "name": { "type": "string", "description": "Display name" },
-        "email": { "type": "string", "description": "Email address" },
-        "username": { "type": "string", "description": "Username handle" },
-        "mode": { "type": "string", "description": "Experience mode (adult, senior, teen, kids, family)" },
+      "title": "UserProfile",
+      "description": "Authenticated real user profile and cybersecurity training database record stored in Cloud Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID", "maxLength": 128 },
+        "uid": { "type": "string", "description": "Firebase Auth UID", "maxLength": 128 },
+        "name": { "type": "string", "description": "User display name", "maxLength": 150 },
+        "username": { "type": "string", "description": "Unique username handle", "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "description": "User email address", "maxLength": 254 },
+        "emailVerified": { "type": "boolean", "description": "Whether email is verified by OAuth provider" },
+        "mode": {
+          "type": "string",
+          "description": "Experience mode",
+          "enum": ["adult", "senior", "teen", "kids", "family", "school"]
+        },
+        "language": {
+          "type": "string",
+          "description": "UI language code",
+          "enum": ["vi", "en", "es", "zh"]
+        },
         "overallScore": { "type": "number", "description": "Overall defense score out of 100" },
         "xp": { "type": "number", "description": "Experience points" },
+        "gems": { "type": "number", "description": "Gamification gems balance" },
         "streakDays": { "type": "number", "description": "Daily defense streak" },
-        "completedScenarios": { "type": "array", "description": "List of completed scenario IDs" },
+        "completedScenarios": { "type": "array", "description": "Completed scenario IDs" },
+        "completedRoadmapNodes": { "type": "array", "description": "Completed roadmap station node IDs" },
+        "masteredFlashcards": { "type": "array", "description": "Mastered 100% memory flashcard IDs" },
+        "hasCompletedSurvey": { "type": "boolean", "description": "Whether user completed ViSEF diagnostic survey" },
         "trustedContacts": { "type": "array", "description": "Trusted emergency contacts" },
-        "avatarUrl": { "type": "string", "description": "Avatar image URL" },
-        "provider": { "type": "string", "description": "Auth provider" },
-        "createdAt": { "type": "string", "description": "Creation ISO timestamp" },
-        "updatedAt": { "type": "string", "description": "Last update ISO timestamp" }
-      }
+        "avatarUrl": { "type": "string", "description": "Avatar image URL", "maxLength": 1024 },
+        "provider": {
+          "type": "string",
+          "description": "Primary authentication provider",
+          "enum": ["google", "facebook", "github", "firebase", "local", "demo"]
+        },
+        "providersLinked": { "type": "array", "description": "List of linked OAuth providers (google.com, facebook.com, github.com, password)" },
+        "lastLoginAt": { "type": "string", "format": "date-time", "description": "Last login ISO timestamp" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation ISO timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update ISO timestamp" }
+      },
+      "required": ["id", "name", "mode"]
+    },
+    "SocialPost": {
+      "title": "SocialPost",
+      "description": "Real user community security alert post stored in Cloud Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Post ID", "maxLength": 128 },
+        "userId": { "type": "string", "description": "Author Firebase UID", "maxLength": 128 },
+        "userName": { "type": "string", "description": "Author display name", "maxLength": 150 },
+        "content": { "type": "string", "description": "Post content", "maxLength": 4000 },
+        "timestamp": { "type": "string", "description": "Display timestamp", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "content"]
     },
     "ScamReport": {
-      "collection": "scamReports",
-      "fields": {
-        "id": { "type": "string", "description": "Report ID" },
-        "userId": { "type": "string", "description": "Author user ID" },
-        "riskScore": { "type": "number", "description": "Calculated risk score" },
-        "riskLevel": { "type": "string", "description": "Risk level" },
-        "summary": { "type": "string", "description": "Analysis summary" },
-        "detectedTactics": { "type": "array", "description": "Tactics found" },
-        "createdAt": { "type": "string", "description": "Creation timestamp" }
-      }
+      "title": "ScamReport",
+      "description": "Forensic scam analysis report saved by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Report ID", "maxLength": 128 },
+        "userId": { "type": "string", "description": "Author Firebase UID", "maxLength": 128 },
+        "riskScore": { "type": "number", "description": "Calculated risk score (0-100)" },
+        "riskLevel": { "type": "string", "description": "Risk level classification", "enum": ["HIGH", "MEDIUM", "LOW", "SAFE"] },
+        "summary": { "type": "string", "description": "Forensic analysis summary", "maxLength": 4000 },
+        "detectedTactics": { "type": "array", "description": "Psychological manipulation tactics detected" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation ISO timestamp" }
+      },
+      "required": ["id", "userId", "riskScore", "riskLevel"]
+    },
+    "CommunitySurvey": {
+      "title": "CommunitySurvey",
+      "description": "ViSEF empirical research survey submission synchronized across devices",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Submission ID", "maxLength": 128 },
+        "participantName": { "type": "string", "description": "Participant display name or code", "maxLength": 150 },
+        "demographicGroup": { "type": "string", "description": "Demographic cohort", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission timestamp" }
+      },
+      "required": ["id"]
+    },
+    "PostAppCertification": {
+      "title": "PostAppCertification",
+      "description": "Post-training Cyber Guardian certification record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Certification ID", "maxLength": 128 },
+        "userId": { "type": "string", "description": "User ID", "maxLength": 128 },
+        "score": { "type": "number", "description": "Exam score percentage" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Certification timestamp" }
+      },
+      "required": ["id"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Real user Cloud Firestore database documents keyed by Firebase Auth UID"
+    },
+    "/social_posts/{postId}": {
+      "schema": { "$ref": "#/entities/SocialPost" },
+      "description": "Real user community posts and security alerts"
+    },
+    "/scamReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ScamReport" },
+      "description": "Forensic scam reports submitted by authenticated users"
+    },
+    "/community_surveys/{surveyId}": {
+      "schema": { "$ref": "#/entities/CommunitySurvey" },
+      "description": "ViSEF empirical research survey pool"
+    },
+    "/post_app_certifications/{certId}": {
+      "schema": { "$ref": "#/entities/PostAppCertification" },
+      "description": "Post-app certification records"
     }
   }
 }

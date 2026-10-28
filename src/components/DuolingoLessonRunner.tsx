@@ -32,6 +32,7 @@ import {
   SequenceStepItem,
 } from '../data/duolingoLessons';
 import { generateAdaptiveReplacementQuestion } from '../data/adaptiveQuestionEngine';
+import { SECTOR_MEMORY_BLUEPRINTS } from '../data/cyberPedagogyData';
 
 interface DuolingoLessonRunnerProps {
   lesson: DuolingoLesson;
@@ -88,6 +89,10 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
       setPracticeIndex(0);
       setReplacementCount(0);
       setLastQuestionResult(null);
+      setMaskKeyPoints(false);
+      setRevealedPointIndices([]);
+      setSelectedFeynmanOption(null);
+      setIsFeynmanVerified(false);
       resetQuestionStates();
     }
   }, [isOpen, lesson.id]);
@@ -108,6 +113,15 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
     setIsStoryChecked(false);
     setLastQuestionResult(null);
   };
+
+  // Memory & Feynman Mastery States
+  const [maskKeyPoints, setMaskKeyPoints] = useState<boolean>(false);
+  const [revealedPointIndices, setRevealedPointIndices] = useState<number[]>([]);
+  const [selectedFeynmanOption, setSelectedFeynmanOption] = useState<string | null>(null);
+  const [isFeynmanVerified, setIsFeynmanVerified] = useState<boolean>(false);
+
+  const memoryBlueprint =
+    SECTOR_MEMORY_BLUEPRINTS[unit.unitNumber] || SECTOR_MEMORY_BLUEPRINTS[1];
 
   const currentQuestion: PracticeQuestion | undefined = practiceQueue[practiceIndex];
 
@@ -357,7 +371,11 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
 
   // Final Claim
   const handleFinalClaim = () => {
-    onCompleteLesson(lesson.id, lesson.xpReward, lesson.shieldBadgeName);
+    onCompleteLesson(
+      lesson.id,
+      lesson.xpReward + (isFeynmanVerified ? 25 : 0),
+      lesson.shieldBadgeName
+    );
     onClose();
   };
 
@@ -455,6 +473,19 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
               </p>
             </div>
 
+            {/* 3-Second Memory Hook Preview */}
+            <div className="p-4 rounded-2xl bg-[#090D16] border border-blue-500/30 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-mono">
+                <span className="text-blue-400 font-bold uppercase">
+                  NEO TRÍ NHỚ 3 GIÂY (100% KHẮC SÂU)
+                </span>
+                <span className="text-slate-400">Phương pháp Mã hóa kép</span>
+              </div>
+              <p className="text-xs sm:text-sm font-bold text-white leading-relaxed">
+                &ldquo;{memoryBlueprint.mnemonicRhyme}&rdquo;
+              </p>
+            </div>
+
             {/* Quick Highlights & Rewards Grid */}
             <div className="grid grid-cols-3 gap-2.5 text-center">
               <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl space-y-1">
@@ -465,8 +496,8 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
 
               <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl space-y-1">
                 <Flame className="w-4 h-4 text-amber-400 mx-auto" />
-                <span className="text-[10px] text-slate-400 font-bold block uppercase">Thực chiến</span>
-                <span className="text-xs font-black text-amber-300">Tình huống thật</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase">Phương pháp</span>
+                <span className="text-xs font-black text-amber-300">Feynman + Phản xạ</span>
               </div>
 
               <div className="bg-slate-950/60 border border-slate-800/80 p-3 rounded-2xl space-y-1">
@@ -557,62 +588,180 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
           <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col items-center justify-start min-h-0 relative z-10">
             <div className="w-full max-w-3xl my-auto py-2">
               
-              {/* ===================== PHASE 1: THEORY ===================== */}
+              {/* ===================== PHASE 1: THEORY (DUAL-CODING & ACTIVE RECALL) ===================== */}
               {phase === 'theory' && (
                 <div className="space-y-5 animate-fade-in">
-                  <div className="flex items-center space-x-4 bg-slate-900/60 p-4 rounded-3xl border border-slate-800">
-                    <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-3xl shadow-md flex-shrink-0">
-                      {lesson.shieldBadgeIcon}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-800">
-                          Giai đoạn 1: Lý thuyết & Nhận thức
-                        </span>
-                        <span className="text-xs text-amber-400 font-bold flex items-center space-x-1">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>+{lesson.xpReward} XP</span>
-                        </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-3xl border border-slate-800">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-3xl shadow-md flex-shrink-0">
+                        {lesson.shieldBadgeIcon}
                       </div>
-                      <h2 className="text-lg sm:text-xl font-black text-white mt-1">
-                        Bài {lesson.number}: {lesson.title}
-                      </h2>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 bg-cyan-950 px-2.5 py-0.5 rounded-full border border-cyan-800">
+                            Giai đoạn 1 · Giải phẫu & Khắc sâu trí nhớ
+                          </span>
+                          <span className="text-amber-400 font-bold flex items-center space-x-1">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>+{lesson.xpReward} XP</span>
+                          </span>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-black text-white mt-1">
+                          Bài {lesson.number}: {lesson.title}
+                        </h2>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMaskKeyPoints((prev) => !prev);
+                        setRevealedPointIndices([]);
+                      }}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer shrink-0 ${
+                        maskKeyPoints
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {maskKeyPoints ? '👁️ Hiện toàn bộ đáp án' : '🧠 Chế độ Tự Kiểm Tra Trí Nhớ'}
+                    </button>
+                  </div>
+
+                  {/* 1. RHYTHMIC MNEMONIC ANCHOR & 3-SECOND REFLEX */}
+                  <div className="p-5 rounded-3xl bg-[#090D16] border border-blue-500/40 space-y-4 shadow-lg">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-blue-400">
+                        KHẨU QUYẾT VẦN ĐIỆU 3 GIÂY (ĐỌC LÊN ĐỂ NHỚ SUỐT ĐỜI)
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Bối cảnh học sinh: {memoryBlueprint.studentContext}
+                      </span>
+                    </div>
+
+                    <p className="text-base sm:text-lg font-black text-white leading-snug bg-blue-950/30 border border-blue-500/30 p-4 rounded-2xl">
+                      &ldquo;{memoryBlueprint.mnemonicRhyme}&rdquo;
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-rose-400 uppercase block">
+                          GIÂY THỨ 1 · PHANH NHẬN THỨC
+                        </span>
+                        <p className="text-xs text-slate-200 font-semibold leading-relaxed">
+                          {memoryBlueprint.threeSecondReflex.step1}
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-amber-400 uppercase block">
+                          GIÂY THỨ 2 · SOI ĐIỂM MÙ
+                        </span>
+                        <p className="text-xs text-slate-200 font-semibold leading-relaxed">
+                          {memoryBlueprint.threeSecondReflex.step2}
+                        </p>
+                      </div>
+                      <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase block">
+                          GIÂY THỨ 3 · KHÓA CHẶN
+                        </span>
+                        <p className="text-xs text-slate-200 font-semibold leading-relaxed">
+                          {memoryBlueprint.threeSecondReflex.step3}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-800/60 text-xs sm:text-sm text-cyan-200 flex items-start space-x-3">
-                    <Shield className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="font-bold text-white">Mục tiêu bài học: </strong>
-                      {lesson.targetGoal}
+                  {/* 2. BRAIN MECHANISM & DIRECT COMPARISON (TRAP VS REAL) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-2.5">
+                      <div className="text-xs font-bold text-purple-400 uppercase tracking-wider">
+                        🧠 Tại sao não bộ dễ sập bẫy này?
+                      </div>
+                      <p className="text-xs font-bold text-white">
+                        Đích ngắm: {memoryBlueprint.brainMechanism.hijackTarget}
+                      </p>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {memoryBlueprint.brainMechanism.whyStudentsFall}
+                      </p>
+                      <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-200 font-medium">
+                        <strong className="text-emerald-400">Lá chắn tư duy: </strong>
+                        {memoryBlueprint.brainMechanism.cognitiveShield}
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-2.5">
+                      <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                        ⚖️ Đối chiếu trực diện: Bẫy vs Thật
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-rose-400 uppercase block">
+                          ✗ DẤU HIỆU LỪA ĐẢO (100% BẪY)
+                        </span>
+                        <p className="text-xs text-slate-200 leading-relaxed">
+                          {memoryBlueprint.sideBySideComparison.trapSignal}
+                        </p>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 space-y-1">
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase block">
+                          ✓ QUY TRÌNH CHÍNH THỐNG
+                        </span>
+                        <p className="text-xs text-slate-200 leading-relaxed">
+                          {memoryBlueprint.sideBySideComparison.authenticSignal}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
+                  {/* 3. CORE LESSON THEORY WITH ACTIVE RECALL CLICK-TO-REVEAL */}
                   <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-3xl space-y-4 shadow-lg">
-                    <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                      <BookOpen className="w-5 h-5 text-emerald-400" />
-                      <span>{lesson.theory.title}</span>
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                        <BookOpen className="w-5 h-5 text-emerald-400" />
+                        <span>{lesson.theory.title}</span>
+                      </h3>
+                      <span className="text-[11px] text-slate-400">
+                        {maskKeyPoints ? 'Nhấp vào từng thẻ để tự nhẩm lại kiến thức' : 'Cốt lõi bài học'}
+                      </span>
+                    </div>
+
                     <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
                       {lesson.theory.summary}
                     </p>
 
                     <div className="space-y-2 pt-1">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Cốt lõi kiến thức phòng thủ:
+                        Cốt lõi kiến thức phòng thủ ({lesson.theory.keyPoints.length} nguyên tắc):
                       </span>
                       <div className="space-y-2">
-                        {lesson.theory.keyPoints.map((point, idx) => (
-                          <div
-                            key={idx}
-                            className="text-xs sm:text-sm text-slate-200 bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 leading-relaxed flex items-start space-x-2.5"
-                          >
-                            <span className="w-5 h-5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                              {idx + 1}
-                            </span>
-                            <span>{point}</span>
-                          </div>
-                        ))}
+                        {lesson.theory.keyPoints.map((point, idx) => {
+                          const isHidden = maskKeyPoints && !revealedPointIndices.includes(idx);
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                if (maskKeyPoints && !revealedPointIndices.includes(idx)) {
+                                  setRevealedPointIndices((prev) => [...prev, idx]);
+                                }
+                              }}
+                              className={`text-xs sm:text-sm bg-slate-950/80 p-3 rounded-2xl border leading-relaxed flex items-start space-x-2.5 transition ${
+                                isHidden
+                                  ? 'border-amber-500/40 cursor-pointer hover:border-amber-400'
+                                  : 'border-slate-800/80 text-slate-200'
+                              }`}
+                            >
+                              <span className="w-5 h-5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                                {idx + 1}
+                              </span>
+                              {isHidden ? (
+                                <span className="text-amber-300 font-semibold">
+                                  [Đang ẩn để thử trí nhớ — Hãy tự nhẩm nguyên tắc số {idx + 1} rồi nhấp vào đây để kiểm tra]
+                                </span>
+                              ) : (
+                                <span>{point}</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -629,7 +778,7 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                         </span>
                       </div>
                       <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 font-mono text-xs sm:text-sm text-slate-200 leading-relaxed">
-                        "{lesson.theory.visualMockup.content}"
+                        &ldquo;{lesson.theory.visualMockup.content}&rdquo;
                       </div>
                       {lesson.theory.visualMockup.highlightedRedFlags && (
                         <div className="flex flex-wrap gap-1.5 pt-1">
@@ -650,7 +799,7 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                     <span className="text-2xl">⭐</span>
                     <div>
                       <span className="text-amber-400 uppercase tracking-wider text-[10px] block">
-                        Quy tắc vàng bất biến
+                        Quy tắc vàng bất biến (100% Nhớ Mãi Mãi)
                       </span>
                       <span className="text-white">{lesson.theory.goldenRule}</span>
                     </div>
@@ -1353,12 +1502,12 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                 </div>
               )}
 
-              {/* ===================== PHASE 4: REWARD ===================== */}
+              {/* ===================== PHASE 4: REWARD + FEYNMAN MASTERY ===================== */}
               {phase === 'reward' && (
-                <div className="text-center py-6 sm:py-8 space-y-6 animate-scale-up">
+                <div className="text-center py-4 sm:py-6 space-y-6 animate-scale-up">
                   <div className="relative inline-block mx-auto">
-                    <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-amber-500 via-emerald-400 to-cyan-400 p-1.5 shadow-2xl animate-pulse-glow flex items-center justify-center">
-                      <div className="w-full h-full bg-slate-950 rounded-full flex flex-col items-center justify-center text-5xl shadow-inner border border-slate-800">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-amber-500 via-emerald-400 to-cyan-400 p-1.5 shadow-2xl animate-pulse-glow flex items-center justify-center">
+                      <div className="w-full h-full bg-slate-950 rounded-full flex flex-col items-center justify-center text-4xl shadow-inner border border-slate-800">
                         {lesson.shieldBadgeIcon}
                       </div>
                     </div>
@@ -1385,7 +1534,7 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                       </span>
                       <div className="text-2xl font-black text-amber-400 flex items-center space-x-1.5">
                         <Sparkles className="w-5 h-5 text-amber-400" />
-                        <span>+{lesson.xpReward} XP</span>
+                        <span>+{lesson.xpReward + (isFeynmanVerified ? 25 : 0)} XP</span>
                       </div>
                     </div>
 
@@ -1397,6 +1546,61 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                       <span className="text-[10px] text-emerald-400 font-bold block">
                         Đã kích hoạt hồ sơ
                       </span>
+                    </div>
+                  </div>
+
+                  {/* FEYNMAN TECHNIQUE: TEACH TO REMEMBER 100% FOREVER */}
+                  <div className="max-w-2xl mx-auto text-left p-5 rounded-3xl bg-[#090D16] border border-blue-500/40 space-y-3.5 shadow-xl">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-mono font-bold text-blue-400 uppercase">
+                        🎓 THỬ THÁCH FEYNMAN: DẠY LẠI ĐỂ NHỚ 100% MÃI MÃI (+25 XP)
+                      </span>
+                      {isFeynmanVerified && (
+                        <span className="text-xs font-bold text-emerald-400">
+                          ✓ Đã khắc sâu trí nhớ dài hạn
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-sm font-semibold text-white leading-relaxed">
+                      {memoryBlueprint.feynmanChallenge.question}
+                    </p>
+
+                    <div className="space-y-2">
+                      {memoryBlueprint.feynmanChallenge.options.map((opt) => {
+                        const isSelected = selectedFeynmanOption === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFeynmanOption(opt.id);
+                              if (opt.isBestExplanation) {
+                                setIsFeynmanVerified(true);
+                              }
+                            }}
+                            className={`w-full text-left p-3.5 rounded-2xl border text-xs transition cursor-pointer ${
+                              isSelected
+                                ? opt.isBestExplanation
+                                  ? 'bg-emerald-950/80 border-emerald-400 text-emerald-100'
+                                  : 'bg-rose-950/80 border-rose-400 text-rose-100'
+                                : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="font-semibold leading-relaxed">{opt.text}</div>
+                            {isSelected && (
+                              <div className="mt-1.5 pt-1.5 border-t border-white/10 text-[11px] font-medium">
+                                {opt.feedback}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300">
+                      <strong className="text-amber-400">Chân lý khắc cốt ghi tâm: </strong>
+                      {memoryBlueprint.keyTakeawayForever}
                     </div>
                   </div>
                 </div>

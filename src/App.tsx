@@ -22,7 +22,7 @@ import { EmergencyModal } from './components/EmergencyModal';
 import { TrustedContactsModal } from './components/TrustedContactsModal';
 import { FamilySchoolModal } from './components/FamilySchoolModal';
 import { PrivacyCenterModal } from './components/PrivacyCenterModal';
-import { AuthModal } from './components/AuthModal';
+import { AuthGate } from './components/AuthGate';
 import { FriendsHubModal } from './components/FriendsHubModal';
 import { FriendDuelModal } from './components/FriendDuelModal';
 import { DailyQuestsModal } from './components/DailyQuestsModal';
@@ -63,6 +63,15 @@ import { INITIAL_FRIENDS, INITIAL_QUESTS, INITIAL_ACTIVITY_FEED, INITIAL_SOCIAL_
 import { playSuccessChime, playRewardTrophy } from './utils/audioEffects';
 import { syncLiveSurveysWithServer } from './services/researchDataService';
 import {
+  subscribeToFirebaseAuth,
+  subscribeToUserFirestoreDoc,
+  subscribeToAllRealUsers,
+  subscribeToRealSocialPosts,
+  saveRealSocialPostToFirestore,
+  syncUserProfileToFirestore,
+  logoutFromFirebase,
+} from './services/firebaseAuthService';
+import {
   ThemeConfig,
   getStoredThemeConfig,
   applyThemeToDom,
@@ -95,7 +104,6 @@ export default function App() {
   const [isTrustedContactsOpen, setIsTrustedContactsOpen] = useState(false);
   const [isFamilySchoolOpen, setIsFamilySchoolOpen] = useState(false);
   const [isPrivacyCenterOpen, setIsPrivacyCenterOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Social & Gamification Modals
   const [isFriendsHubOpen, setIsFriendsHubOpen] = useState(false);
@@ -111,7 +119,8 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
-  // Social & Gamification Data State
+  // Real Accounts & Social Data State from Cloud Firestore (0 when nobody has logged in)
+  const [realUsers, setRealUsers] = useState<UserProfile[]>([]);
   const [friends, setFriends] = useState<FriendUser[]>(INITIAL_FRIENDS);
   const [activityFeed, setActivityFeed] = useState<FriendActivityEvent[]>(INITIAL_ACTIVITY_FEED);
   const [posts, setPosts] = useState<SocialPost[]>(INITIAL_SOCIAL_POSTS);
@@ -120,6 +129,7 @@ export default function App() {
 
   const handleAddPost = (newPost: SocialPost) => {
     setPosts((prev) => [newPost, ...prev]);
+    saveRealSocialPostToFirestore(newPost);
     handleEarnXp(90);
   };
 
@@ -139,11 +149,13 @@ export default function App() {
             newReactions[reaction] = (newReactions[reaction] || 0) + 1;
           }
 
-          return {
+          const updated = {
             ...p,
             myReaction: newMyReaction,
             reactions: newReactions,
           };
+          saveRealSocialPostToFirestore(updated);
+          return updated;
         }
         return p;
       })
@@ -156,20 +168,23 @@ export default function App() {
         if (p.id === postId) {
           const newComment: SocialComment = {
             id: `c_${Date.now()}`,
-            userId: 'current_user',
-            userName: userProfile.name || 'Bạn',
+            userId: currentUser?.id || 'unauthenticated',
+            userName: currentUser?.name || userProfile.name || 'Tài khoản Vệ Binh',
             userAvatar:
+              currentUser?.avatarUrl ||
               userProfile.avatarUrl ||
               'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
             content: commentText,
-            timestamp: 'Vừa xong',
+            timestamp: new Date().toLocaleString('vi-VN'),
             likesCount: 0,
           };
-          return {
+          const updated = {
             ...p,
             commentsCount: (p.commentsCount || p.comments.length) + 1,
             comments: [newComment, ...p.comments],
           };
+          saveRealSocialPostToFirestore(updated);
+          return updated;
         }
         return p;
       })
@@ -180,10 +195,12 @@ export default function App() {
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
-          return {
+          const updated = {
             ...p,
             sharesCount: p.sharesCount + 1,
           };
+          saveRealSocialPostToFirestore(updated);
+          return updated;
         }
         return p;
       })
@@ -255,7 +272,18 @@ export default function App() {
       const oldVal = userProfile.streakDays || 0;
       const newVal = oldVal + 1;
       setPrevStreakValue(oldVal);
-      setUserProfile((prev) => ({ ...prev, streakDays: newVal }));
+      setUserProfile((prev) => {
+        const updated = {
+          ...prev,
+          streakDays: newVal,
+          xp: (prev.xp ?? 0) + 25,
+          overallScore: Math.min(100, (prev.overallScore ?? 0) + 1),
+        };
+        if (currentUser && currentUser.id && currentUser.id !== 'unauthenticated') {
+          syncUserProfileToFirestore(currentUser.id, updated);
+        }
+        return updated;
+      });
       localStorage.setItem('scamguard_streak_days', newVal.toString());
       localStorage.setItem('scamguard_streak_last_date', todayStr);
       setIsStreakCelebrationOpen(true);
@@ -263,48 +291,102 @@ export default function App() {
     }
   };
 
-  // User & Auth State
+  // User & Auth State (Mandatory Sign Up / Sign In gate before entering the main web app)
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
-  // Helper to retrieve or create a unique persistent guest profile
-  const getOrCreateGuestProfile = (): UserProfile => {
-    const saved = localStorage.getItem('scamguard_guest_profile');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing guest profile', e);
-      }
-    }
-
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const newGuest: UserProfile = {
-      id: `guest_${randomNum}_${Date.now()}`,
-      name: `Khách Vệ Binh #${randomNum}`,
-      mode: 'adult',
-      language: 'vi',
-      overallScore: 70,
-      xp: 100,
-      streakDays: 1,
-      completedScenarios: [],
-      trustedContacts: [],
-      createdAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem('scamguard_guest_profile', JSON.stringify(newGuest));
-    return newGuest;
-  };
-
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    return getOrCreateGuestProfile();
+  const createEmptyUnauthenticatedProfile = (): UserProfile => ({
+    id: 'unauthenticated',
+    name: 'Chưa đăng nhập',
+    mode: 'adult',
+    language: 'vi',
+    overallScore: 0,
+    xp: 0,
+    gems: 0,
+    streakDays: 0,
+    completedScenarios: [],
+    trustedContacts: [],
+    createdAt: new Date().toISOString(),
   });
 
-  // Sync guest changes to localStorage in real-time if not logged in
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    localStorage.removeItem('scamguard_guest_profile');
+    return createEmptyUnauthenticatedProfile();
+  });
+
+  // Subscribe to real users and real social posts from Cloud Firestore
   useEffect(() => {
-    if (!currentUser) {
-      localStorage.setItem('scamguard_guest_profile', JSON.stringify(userProfile));
-    }
-  }, [userProfile, currentUser]);
+    const unsubUsers = subscribeToAllRealUsers((users) => {
+      setRealUsers(users);
+    });
+    const unsubPosts = subscribeToRealSocialPosts((livePosts) => {
+      setPosts(livePosts);
+    });
+    return () => {
+      unsubUsers();
+      unsubPosts();
+    };
+  }, []);
+
+  // Derive real friends list from real registered accounts in Firestore
+  useEffect(() => {
+    const mappedFriends: FriendUser[] = realUsers
+      .filter((u) => !currentUser || u.id !== currentUser.id)
+      .map((u) => ({
+        id: u.id || 'user',
+        friendCode: `SG-${(u.username || u.name || 'USER').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5)}-${(u.id || '000').slice(-3).toUpperCase()}`,
+        name: u.name || u.username || 'Tài khoản Vệ Binh',
+        username: u.username || (u.email ? u.email.split('@')[0] : 'vebinh'),
+        avatarUrl:
+          u.avatarUrl ||
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
+        overallScore: u.overallScore ?? 0,
+        xp: u.xp ?? 0,
+        streakDays: u.streakDays ?? 0,
+        isOnline: true,
+        level: Math.max(1, Math.floor((u.xp ?? 0) / 500) + 1),
+        mode: u.mode || 'adult',
+        lastActive: u.updatedAt ? new Date(u.updatedAt).toLocaleDateString('vi-VN') : 'Trực tuyến',
+        giftReceivedToday: false,
+        giftSentToday: false,
+        isFavorite: false,
+        shieldsCount: 1,
+      }));
+    setFriends(mappedFriends);
+  }, [realUsers, currentUser]);
+
+  // Subscribe to real Firebase Auth state
+  useEffect(() => {
+    let unsubDoc: (() => void) | null = null;
+    const unsubAuth = subscribeToFirebaseAuth(
+      (account) => {
+        if (unsubDoc) {
+          unsubDoc();
+          unsubDoc = null;
+        }
+        setCurrentUser(account);
+        setUserProfile(account.profile);
+        setIsAuthLoading(false);
+        unsubDoc = subscribeToUserFirestoreDoc(account.id, (liveProfile) => {
+          setUserProfile(liveProfile);
+          setCurrentUser((prev) => (prev ? { ...prev, profile: liveProfile } : prev));
+        });
+      },
+      () => {
+        if (unsubDoc) {
+          unsubDoc();
+          unsubDoc = null;
+        }
+        setCurrentUser(null);
+        setUserProfile(createEmptyUnauthenticatedProfile());
+        setIsAuthLoading(false);
+      }
+    );
+    return () => {
+      unsubAuth();
+      if (unsubDoc) unsubDoc();
+    };
+  }, []);
 
   // Synchronize live community surveys across all devices (PC, Phone, Tablet)
   useEffect(() => {
@@ -315,70 +397,76 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Restore user session on startup if token exists
+  // Sync survey completion & roadmap progress directly to userProfile & Cloud Firestore `users/{uid}`
   useEffect(() => {
-    let isMounted = true;
-
-    const checkUserSession = async () => {
-      const token = localStorage.getItem('scamguard_token');
-      if (!token) return;
-
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 404) {
-            localStorage.removeItem('scamguard_token');
-          }
-          return;
+    const handleSurveyCompletedSync = (e?: any) => {
+      let parsedSurvey = e?.detail || null;
+      if (!parsedSurvey) {
+        try {
+          const raw =
+            localStorage.getItem('scamguard_survey_submission') ||
+            localStorage.getItem('visef_my_latest_survey');
+          if (raw) parsedSurvey = JSON.parse(raw);
+        } catch {
+          // ignore
         }
-
-        const data = await res.json();
-        if (isMounted && data.success && data.user) {
-          setCurrentUser(data.user);
-          setUserProfile(data.user.profile);
-        }
-      } catch (err) {
-        // Quiet fallback when offline or during server cold-boot
-        console.warn('Session restore info: Using offline/cached profile state.');
       }
+
+      setUserProfile((prev) => {
+        const next: UserProfile = {
+          ...prev,
+          hasCompletedSurvey: true,
+          surveyData: parsedSurvey || prev.surveyData || null,
+        };
+        if (currentUser && currentUser.id && currentUser.id !== 'unauthenticated') {
+          syncUserProfileToFirestore(currentUser.id, {
+            hasCompletedSurvey: true,
+            surveyData: next.surveyData,
+          });
+        }
+        return next;
+      });
     };
 
-    checkUserSession();
+    const handleRoadmapNodesSync = (e?: any) => {
+      const nodes: string[] = Array.isArray(e?.detail) ? e.detail : [];
+      setUserProfile((prev) => {
+        const next: UserProfile = {
+          ...prev,
+          completedRoadmapNodes: nodes,
+        };
+        if (currentUser && currentUser.id && currentUser.id !== 'unauthenticated') {
+          syncUserProfileToFirestore(currentUser.id, {
+            completedRoadmapNodes: nodes,
+          });
+        }
+        return next;
+      });
+    };
 
+    window.addEventListener('visef_survey_updated', handleSurveyCompletedSync);
+    window.addEventListener('scamguard_survey_completed', handleSurveyCompletedSync);
+    window.addEventListener('scamguard_roadmap_progress_updated', handleRoadmapNodesSync);
     return () => {
-      isMounted = false;
+      window.removeEventListener('visef_survey_updated', handleSurveyCompletedSync);
+      window.removeEventListener('scamguard_survey_completed', handleSurveyCompletedSync);
+      window.removeEventListener('scamguard_roadmap_progress_updated', handleRoadmapNodesSync);
     };
-  }, []);
+  }, [currentUser]);
 
   const handleLoginSuccess = async (account: UserAccount) => {
-    // Merge guest progress with logged-in profile progress seamlessly!
-    const mergedProfile: UserProfile = {
+    const cleanProfile: UserProfile = {
       ...account.profile,
-      xp: Math.max(userProfile.xp || 100, account.profile.xp || 100),
-      streakDays: Math.max(userProfile.streakDays || 1, account.profile.streakDays || 1),
-      overallScore: Math.max(userProfile.overallScore || 70, account.profile.overallScore || 70),
-      completedScenarios: Array.from(new Set([
-        ...(userProfile.completedScenarios || []),
-        ...(account.profile.completedScenarios || [])
-      ])),
-      mode: userProfile.mode || account.profile.mode || 'adult',
+      xp: account.profile.xp ?? 0,
+      streakDays: account.profile.streakDays ?? 0,
+      overallScore: account.profile.overallScore ?? 0,
+      completedScenarios: account.profile.completedScenarios || [],
+      completedRoadmapNodes: account.profile.completedRoadmapNodes || [],
+      masteredFlashcards: account.profile.masteredFlashcards || [],
+      hasCompletedSurvey: Boolean(account.profile.hasCompletedSurvey),
+      surveyData: account.profile.surveyData || null,
+      mode: account.profile.mode || 'adult',
     };
-
-    // Merge trusted contacts
-    const guestContacts = userProfile.trustedContacts || [];
-    const accountContacts = account.profile.trustedContacts || [];
-    const mergedContacts = [...accountContacts];
-    guestContacts.forEach(gc => {
-      if (!mergedContacts.some(ac => ac.name === gc.name || ac.id === gc.id)) {
-        mergedContacts.push(gc);
-      }
-    });
-    mergedProfile.trustedContacts = mergedContacts;
 
     if (account.token) {
       localStorage.setItem('scamguard_token', account.token);
@@ -386,33 +474,30 @@ export default function App() {
 
     const updatedAccount = {
       ...account,
-      profile: mergedProfile,
+      profile: cleanProfile,
     };
 
     setCurrentUser(updatedAccount);
-    setUserProfile(mergedProfile);
+    setUserProfile(cleanProfile);
+    setIsAuthLoading(false);
 
-    // Sync merged profile to server
-    if (account.token) {
-      try {
-        await fetch('/api/auth/profile', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${account.token}`,
-          },
-          body: JSON.stringify(mergedProfile),
-        });
-      } catch (e) {
-        console.error('Failed to sync merged profile to server', e);
-      }
+    await syncUserProfileToFirestore(account.id, cleanProfile);
+
+    // If new user or survey not completed yet, automatically open survey diagnosis to unlock roadmap
+    if (!cleanProfile.hasCompletedSurvey) {
+      setActiveTab('home');
+      setTimeout(() => {
+        setIsScienceFairDemoOpen(true);
+      }, 500);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutFromFirebase();
     localStorage.removeItem('scamguard_token');
+    localStorage.removeItem('scamguard_guest_profile');
     setCurrentUser(null);
-    setUserProfile(getOrCreateGuestProfile());
+    setUserProfile(createEmptyUnauthenticatedProfile());
   };
 
   const handleModeChange = (mode: ExperienceMode) => {
@@ -505,11 +590,12 @@ export default function App() {
     setUserProfile((prev) => {
       const updated = {
         ...prev,
-        xp: (prev.xp || 0) + amount,
-        overallScore: Math.min(100, (prev.overallScore || 80) + 1),
+        xp: (prev.xp ?? 0) + amount,
+        overallScore: Math.min(100, (prev.overallScore ?? 0) + 1),
       };
       if (currentUser) {
         updateServerProfile({ xp: updated.xp, overallScore: updated.overallScore });
+        syncUserProfileToFirestore(currentUser.id, updated);
       }
       return updated;
     });
@@ -557,34 +643,23 @@ export default function App() {
 
   const handleAddFriend = (codeOrUser: string) => {
     const query = codeOrUser.trim().toLowerCase();
-    const found = friends.find(
-      (f) =>
-        f.friendCode.toLowerCase() === query ||
-        f.username.toLowerCase() === query
+    const matchedRealUser = realUsers.find(
+      (u) =>
+        (u.username && u.username.toLowerCase() === query) ||
+        (u.email && u.email.toLowerCase() === query) ||
+        (u.name && u.name.toLowerCase() === query) ||
+        (u.id && u.id.toLowerCase().includes(query))
     );
-    if (found) {
-      return { success: false, message: 'Người bạn này đã có trong danh sách Biệt Đội của bạn!' };
+    if (!matchedRealUser) {
+      return {
+        success: false,
+        message: 'Không tìm thấy tài khoản thật nào khớp với mã/tên này trên Cloud Firestore.',
+      };
     }
-    const newFriend: FriendUser = {
-      id: `friend_${Date.now()}`,
-      friendCode: codeOrUser.trim().toUpperCase(),
-      name: codeOrUser.trim().startsWith('SG-') ? `Vệ Binh ${codeOrUser.trim().slice(3, 9)}` : codeOrUser.trim(),
-      username: codeOrUser.trim().toLowerCase().replace(/[^a-z0-9]/g, '_'),
-      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face`,
-      overallScore: 85,
-      xp: 1200,
-      streakDays: 2,
-      isOnline: true,
-      level: 3,
-      mode: 'adult',
-      lastActive: 'Vừa xong',
-      giftReceivedToday: false,
-      giftSentToday: false,
-      isFavorite: false,
-      shieldsCount: 1,
+    return {
+      success: true,
+      message: `Đã kết nối với tài khoản thật: ${matchedRealUser.name}!`,
     };
-    setFriends((prev) => [newFriend, ...prev]);
-    return { success: true, message: `Đã kết nối thành công với ${newFriend.name}!` };
   };
 
   const handleLikeActivity = (activityId: string) => {
@@ -683,20 +758,45 @@ export default function App() {
   const onlineFriendsCount = friends.filter((f) => f.isOnline).length;
   const completedQuestsCount = dailyQuests.filter((q) => q.completed).length;
 
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#EAF0F8] flex flex-col items-center justify-center gap-3 text-slate-700 font-sans">
+        <div className="w-10 h-10 rounded-xl border-2 border-sky-600 border-t-transparent animate-spin" />
+        <span className="text-xs font-semibold tracking-wide text-slate-500">
+          Đang kiểm tra phiên xác thực ScamGuard VN...
+        </span>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AuthGate onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
     <LanguageProvider
       language={userProfile.language || 'vi'}
       onLanguageChange={handleLanguageChange}
     >
-      <div className="min-h-screen bg-[#0B0F17] text-[#F8FAFC] flex font-sans selection:bg-blue-600 selection:text-white pb-24 lg:pb-0">
+      <div className="min-h-screen bg-[#EAF0F8] text-slate-900 flex font-sans selection:bg-sky-600 selection:text-white pb-20 lg:pb-0">
         {/* Left Sidebar (Desktop) */}
         <DuolingoSidebar
           activeTab={activeTab}
           onSelectTab={(tab, sub) => handleNavigate(tab, sub)}
+          onOpenEmergency={() => setIsEmergencyOpen(true)}
         />
 
         {/* Center Main Column */}
-        <div className="flex-1 flex flex-col min-w-0 relative bg-[#0B0F17]">
+        <div className="flex-1 flex flex-col min-w-0 relative bg-[#EAF0F8]">
+          {/* Subtle Anti-Glare Security Daylight Ambient Pattern */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-55"
+            style={{
+              backgroundImage:
+                'radial-gradient(#94a3b8 1px, transparent 1px), radial-gradient(circle at 88% 8%, rgba(2, 132, 199, 0.08), transparent 45%), radial-gradient(circle at 12% 85%, rgba(37, 99, 235, 0.05), transparent 50%)',
+              backgroundSize: '28px 28px, 100% 100%, 100% 100%',
+            }}
+          />
 
           {/* Top Main Navigation Header */}
           <Navbar
@@ -705,8 +805,7 @@ export default function App() {
             currentUser={currentUser}
             onSelectTab={(tab, sub) => handleNavigate(tab, sub)}
             onOpenEmergency={() => setIsEmergencyOpen(true)}
-            onOpenAuth={() => setIsAuthOpen(true)}
-            onOpenTheme={() => setIsThemeModalOpen(true)}
+            onLogout={handleLogout}
             onOpenStreak={() => setIsStreakModalOpen(true)}
             onOpenScienceFairDemo={() => setIsScienceFairDemoOpen(true)}
             onOpenNotifications={() => setIsNotificationsOpen(true)}
@@ -720,16 +819,17 @@ export default function App() {
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 12, scale: 0.99 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12, scale: 0.99 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full"
               >
                 {activeTab === 'home' && (
                   <HomeView
                     userProfile={userProfile}
                     currentUser={currentUser}
+                    realUsers={realUsers}
                     overallScore={userProfile.overallScore}
                     friendsList={friends}
                     dailyQuests={dailyQuests}
@@ -737,7 +837,6 @@ export default function App() {
                     onOpenEmergency={() => setIsEmergencyOpen(true)}
                     onOpenFamilySchool={() => setIsFamilySchoolOpen(true)}
                     onOpenTrustedContacts={() => setIsTrustedContactsOpen(true)}
-                    onOpenAuth={() => setIsAuthOpen(true)}
                     onOpenFriends={() => setIsFriendsHubOpen(true)}
                     onOpenQuests={() => setIsDailyQuestsOpen(true)}
                     onOpenCallSim={() => setIsCallSimulatorOpen(true)}
@@ -782,7 +881,7 @@ export default function App() {
                     onCompleteScenario={(score) => {
                       setUserProfile((prev) => ({
                         ...prev,
-                        overallScore: Math.round(((prev.overallScore || 80) + score) / 2),
+                        overallScore: Math.round(((prev.overallScore ?? 0) + score) / 2),
                       }));
                     }}
                     onAddXp={handleEarnXp}
@@ -792,6 +891,8 @@ export default function App() {
                 {activeTab === 'leaderboard' && (
                   <LeaderboardView
                     currentUserProfile={userProfile}
+                    currentUser={currentUser}
+                    realUsers={realUsers}
                     posts={posts}
                     onAddPost={handleAddPost}
                     onReactPost={handleReactPost}
@@ -832,7 +933,8 @@ export default function App() {
                     userProfile={userProfile}
                     currentUser={currentUser}
                     currentThemeConfig={themeConfig}
-                    onOpenAuth={() => setIsAuthOpen(true)}
+                    onOpenAuth={() => {}}
+                    onLoginSuccess={handleLoginSuccess}
                     onLogout={handleLogout}
                     onOpenTheme={() => setIsThemeModalOpen(true)}
                     onUpdateThemeConfig={setThemeConfig}
@@ -887,17 +989,20 @@ export default function App() {
                 )}
 
                 {activeTab === 'roadmap' && (
-                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-                    <div className="text-center space-y-3 max-w-3xl mx-auto">
-                      <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-cyan-950/80 border border-cyan-700/80 text-cyan-300 text-xs font-black uppercase shadow-sm">
-                        <Compass className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>HUẤN LUYỆN & NHIỆM VỤ</span>
+                  <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+                    <div className="border-b border-sky-200/80 pb-5 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
+                        <span className="text-sky-700 font-bold bg-sky-50 px-2 py-0.5 rounded border border-sky-200/80">
+                          Chương Trình Đào Tạo Nhận Thức An Ninh
+                        </span>
+                        <span aria-hidden="true" className="text-slate-300">·</span>
+                        <span className="text-slate-600 font-medium">12 Phân khu phòng tuyến số</span>
                       </div>
-                      <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+                      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
                         Lộ Trình Huấn Luyện Phòng Tuyến Số
                       </h1>
-                      <p className="text-sm text-slate-300 leading-relaxed">
-                        Chinh phục 8 khu vực mô phỏng phòng thủ không gian mạng, vượt qua các thử thách trạm và đánh bại trùm lừa đảo để rèn luyện phản xạ an ninh mạng tối ưu.
+                      <p className="text-xs sm:text-sm text-slate-600 max-w-3xl leading-relaxed">
+                        Hoàn thành 12 phân khu mô phỏng phòng thủ không gian mạng theo cấu trúc lộ trình zích-zắc (Snake Path) và bài thi sát hạch định lượng ViSEF.
                       </p>
                     </div>
 
@@ -934,8 +1039,8 @@ export default function App() {
           currentUser={currentUser}
           onSelectTab={(tab, sub) => handleNavigate(tab, sub)}
           onOpenEmergency={() => setIsEmergencyOpen(true)}
+          onOpenStreak={() => setIsStreakModalOpen(true)}
           onOpenTheme={() => setIsThemeModalOpen(true)}
-          onOpenAuth={() => setIsAuthOpen(true)}
           onOpenScienceFairDemo={() => setIsScienceFairDemoOpen(true)}
         />
 
@@ -944,14 +1049,6 @@ export default function App() {
           isOpen={isNotificationsOpen}
           onClose={() => setIsNotificationsOpen(false)}
           onNavigate={handleNavigate}
-        />
-
-        <AuthModal
-          isOpen={isAuthOpen}
-          onClose={() => setIsAuthOpen(false)}
-          currentUser={currentUser}
-          onLoginSuccess={handleLoginSuccess}
-          onLogout={handleLogout}
         />
 
         <FriendsHubModal
@@ -1058,6 +1155,7 @@ export default function App() {
           onBuyFreeze={handleBuyStreakFreeze}
           onNavigate={handleNavigate}
           onOpenFriends={() => setIsFriendsHubOpen(true)}
+          onCheckInStreak={handleExtendStreak}
         />
 
         <StreakCelebrationModal
@@ -1082,17 +1180,6 @@ export default function App() {
           gems={gems}
           onRefillLives={handleRefillLives}
           onNavigate={handleNavigate}
-        />
-
-        {/* Full Theme Studio Customizer Modal */}
-        <ThemeCustomizerModal
-          isOpen={isThemeModalOpen}
-          onClose={() => setIsThemeModalOpen(false)}
-          currentConfig={themeConfig}
-          onConfigChange={(newConfig) => {
-            setThemeConfig(newConfig);
-            saveThemeConfig(newConfig);
-          }}
         />
 
         {/* National Science Fair ViSEF 5-Minute Evaluation Demo Modal */}

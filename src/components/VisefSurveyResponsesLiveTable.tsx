@@ -30,9 +30,22 @@ import {
   Radio,
   Play,
   Pause,
+  Brain,
+  Cpu,
+  Database,
+  Activity,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import { CommunitySurveySubmission, SurveyDemographicGroup } from '../types';
-import { getAllCommunitySurveys } from '../services/researchDataService';
+import {
+  getAllCommunitySurveys,
+  getClientLiveAiTrainingState,
+  triggerLiveAiTrainingClient,
+  clearClientSurveysToZero,
+  restoreStandardViSEFDatasetClient,
+  ClientLiveAiTrainingState,
+} from '../services/researchDataService';
 
 interface VisefSurveyResponsesLiveTableProps {
   surveys?: CommunitySurveySubmission[];
@@ -166,30 +179,73 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
     }
   }, []);
 
+  // Live AI Auto-Training Studio State
+  const [aiTrainingState, setAiTrainingState] = useState<ClientLiveAiTrainingState>(() =>
+    getClientLiveAiTrainingState()
+  );
+  const [isTrainingAi, setIsTrainingAi] = useState<boolean>(false);
+  const [autoTrainEnabled, setAutoTrainEnabled] = useState<boolean>(true);
+  const [showVectorTable, setShowVectorTable] = useState<boolean>(false);
+  const [trainingProgressEpoch, setTrainingProgressEpoch] = useState<number>(12);
+
+  const runLiveAiTraining = useCallback(async (isSilentAuto = false) => {
+    try {
+      if (!isSilentAuto) {
+        setIsTrainingAi(true);
+        setTrainingProgressEpoch(1);
+        for (let ep = 2; ep <= 11; ep += 3) {
+          setTimeout(() => setTrainingProgressEpoch(ep), ep * 45);
+        }
+      }
+      const res = await triggerLiveAiTrainingClient();
+      setAiTrainingState(res.trainingState);
+      setTrainingProgressEpoch(12);
+    } catch {
+      setAiTrainingState(getClientLiveAiTrainingState());
+    } finally {
+      if (!isSilentAuto) {
+        setTimeout(() => setIsTrainingAi(false), 450);
+      }
+    }
+  }, []);
+
   const fetchSurveysRef = useRef(fetchSurveys);
   useEffect(() => {
     fetchSurveysRef.current = fetchSurveys;
   }, [fetchSurveys]);
 
   useEffect(() => {
-    if (propSurveys && propSurveys.length >= 100) {
+    if (propSurveys !== undefined) {
       setInternalSurveys(propSurveys);
+      setAiTrainingState(getClientLiveAiTrainingState());
     }
   }, [propSurveys]);
 
   useEffect(() => {
     fetchSurveys(false);
+    // Also fetch server training state if available
+    fetch('/api/research/training-state')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.trainingState) setAiTrainingState(d.trainingState);
+      })
+      .catch(() => {});
 
     const handleSurveyUpdated = () => {
       fetchSurveysRef.current(true);
       onRefreshRef.current?.();
+      if (autoTrainEnabled) {
+        runLiveAiTraining(true);
+      } else {
+        setAiTrainingState(getClientLiveAiTrainingState());
+      }
     };
 
     window.addEventListener('visef_survey_updated', handleSurveyUpdated);
     return () => {
       window.removeEventListener('visef_survey_updated', handleSurveyUpdated);
     };
-  }, [fetchSurveys]);
+  }, [fetchSurveys, autoTrainEnabled, runLiveAiTraining]);
 
   // Live Polling Countdown Timer (Pure timer: no state updates on other components during updater)
   useEffect(() => {
@@ -219,13 +275,8 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
   }, [secondsUntilNextPoll, isLiveActive]);
 
   const allSurveys = useMemo(() => {
-    if (propSurveys && internalSurveys.length > 0) {
-      return internalSurveys.length >= propSurveys.length ? internalSurveys : propSurveys;
-    }
-    if (internalSurveys && internalSurveys.length > 0) return internalSurveys;
-    if (propSurveys && propSurveys.length > 0) return propSurveys;
-    return [];
-  }, [propSurveys, internalSurveys]);
+    return internalSurveys;
+  }, [internalSurveys]);
 
   // Extract unique school list for dropdown filter
   const schoolOptions = useMemo(() => {
@@ -495,30 +546,27 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
   return (
     <div className="space-y-6" id="visef-survey-live-table-suite">
       {/* 1. Header Card with Live Polling & CSV Actions */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 p-5 sm:p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
+      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-sm relative overflow-hidden">
         <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold tracking-wide uppercase">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-bold tracking-wide uppercase">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                Live Survey Stream (Real-Time Dataset)
+                Live Survey Dataset
               </span>
 
-              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-mono">
-                Chuẩn RFC 4180 Dấu Phẩy (,)
+              <span className="px-2.5 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 text-xs font-mono">
+                RFC 4180 CSV (,)
               </span>
             </div>
 
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-              <FileSpreadsheet className="w-6 h-6 text-cyan-400" />
-              Bảng Dữ Liệu Khảo Nghiệm ViSEF 5 Phút & Bộ Dữ Liệu Train AI Thời Gian Thực
+              <FileSpreadsheet className="w-6 h-6 text-sky-400" />
+              Bảng Dữ Liệu Khảo Sát Thực Nghiệm &amp; Tập Huấn Luyện AI Thời Gian Thực
             </h2>
 
-            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
-              Bảng dữ liệu thực nghiệm thu thập từ bài <strong>Khảo Nghiệm ViSEF 5 Phút</strong> phân tách rõ <strong>Chế độ Ẩn danh (Mã #VN-XXXX)</strong> vs <strong>Đích danh (Họ Tên Thật)</strong>, 
-              kèm Trường/Lớp, kết quả né tránh 12 bẫy và công cụ xuất file CSV phân tách bằng dấu phẩy tiêu chuẩn phục vụ huấn luyện mô hình máy học (ML/AI).
+            <p className="text-xs sm:text-sm text-slate-400 max-w-3xl leading-relaxed">
+              Dữ liệu thực tế thu thập trực tiếp từ các phiếu khảo sát của người dùng (phân tách chế độ <strong>Ẩn danh #VN-XXXX</strong> và <strong>Đích danh</strong>), kèm kết quả 12 kịch bản kiểm định và công cụ xuất file CSV tiêu chuẩn phục vụ huấn luyện mô hình học máy.
             </p>
           </div>
 
@@ -527,9 +575,9 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             {/* Live Polling Toggle */}
             <button
               onClick={() => setIsLiveActive(!isLiveActive)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                 isLiveActive
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
                   : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
               }`}
               title={isLiveActive ? 'Đang cập nhật trực tiếp mỗi 8 giây' : 'Đã tạm dừng cập nhật trực tiếp'}
@@ -554,26 +602,26 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                 if (onRefresh) onRefresh();
               }}
               disabled={loading || propLoading}
-              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-all cursor-pointer disabled:opacity-50"
               title="Làm mới dữ liệu khảo nghiệm ngay lập tức"
             >
-              <RefreshCw className={`w-4 h-4 ${loading || propLoading ? 'animate-spin text-cyan-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading || propLoading ? 'animate-spin text-sky-400' : ''}`} />
             </button>
 
             {/* Preview CSV Button */}
             <button
               onClick={() => setShowCSVPreview(!showCSVPreview)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition-all cursor-pointer"
               title="Xem trước định dạng text CSV"
             >
-              <Code2 className="w-3.5 h-3.5 text-indigo-400" />
+              <Code2 className="w-3.5 h-3.5 text-sky-400" />
               <span>{showCSVPreview ? 'Ẩn Code CSV' : 'Xem Raw CSV'}</span>
             </button>
 
             {/* Copy CSV */}
             <button
               onClick={handleCopyCSV}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 transition-all cursor-pointer"
               title="Sao chép toàn bộ CSV có dấu phẩy vào Clipboard để paste vào Google Colab / Python"
             >
               {copiedCSV ? (
@@ -583,7 +631,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                  <Copy className="w-3.5 h-3.5 text-sky-400" />
                   <span>Chép CSV</span>
                 </>
               )}
@@ -593,7 +641,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             <button
               id="btn-download-training-csv"
               onClick={handleDownloadCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Tải CSV Train AI (N={stats.total})</span>
@@ -602,64 +650,374 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
         </div>
 
         {/* 2. Key Dataset Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-800/80">
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-6 pt-5 border-t border-slate-800">
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <div className="text-[11px] text-slate-400 flex items-center gap-1">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-sky-400" />
               Tổng Mẫu Khảo Nghiệm
             </div>
-            <div className="text-xl font-extrabold text-white">N = {stats.total}</div>
+            <div className="text-xl font-bold font-mono text-white tabular-nums">N = {stats.total}</div>
             <div className="text-[10px] text-slate-400">
               Đồng bộ lúc: {lastSyncTime.toLocaleTimeString('vi-VN')}
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <div className="text-[11px] text-slate-400 flex items-center gap-1">
-              <Lock className="w-3.5 h-3.5 text-purple-400" />
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
               Tỷ Lệ Ẩn Danh vs Đích Danh
             </div>
-            <div className="text-xl font-extrabold text-purple-300">
-              {stats.anonPct}% <span className="text-xs font-normal text-slate-400">({stats.anonCount} Ẩn / {stats.realCount} Tên)</span>
+            <div className="text-xl font-bold font-mono text-slate-200 tabular-nums">
+              {stats.anonPct}% <span className="text-xs font-sans font-normal text-slate-400">({stats.anonCount} Ẩn / {stats.realCount} Tên)</span>
             </div>
-            <div className="text-[10px] text-slate-400">Mã hóa PII chuẩn ViSEF</div>
+            <div className="text-[10px] text-slate-400">Mã hóa PII chuẩn IRB</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <div className="text-[11px] text-slate-400 flex items-center gap-1">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
               Điểm Phòng Thủ Pre / Post
             </div>
-            <div className="text-xl font-extrabold text-white flex items-baseline gap-1.5">
+            <div className="text-xl font-bold font-mono text-white flex items-baseline gap-1.5 tabular-nums">
               <span className="text-rose-400">{stats.avgPre}</span>
-              <span className="text-slate-400 text-xs">→</span>
+              <span className="text-slate-500 text-xs">→</span>
               <span className="text-emerald-400">{stats.avgPost}</span>
             </div>
-            <div className="text-[10px] text-emerald-300 font-bold">
+            <div className="text-[10px] text-emerald-400 font-semibold font-mono">
               +{stats.avgGain}đ tăng trưởng trung bình
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <div className="text-[11px] text-slate-400 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
               Né Tránh Bẫy Trung Bình
             </div>
-            <div className="text-xl font-extrabold text-cyan-300">
-              {stats.avgSafeTraps} / 12 <span className="text-xs font-normal text-slate-400">Bẫy</span>
+            <div className="text-xl font-bold font-mono text-sky-400 tabular-nums">
+              {stats.avgSafeTraps} / 12 <span className="text-xs font-sans font-normal text-slate-400">Bẫy</span>
             </div>
             <div className="text-[10px] text-slate-400">Chuẩn 12 kịch bản thực tế</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1 col-span-2 sm:col-span-1">
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1 col-span-2 sm:col-span-1">
             <div className="text-[11px] text-slate-400 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
               Cam Kết Đạo Đức IRB
             </div>
-            <div className="text-xl font-extrabold text-emerald-300">100%</div>
+            <div className="text-xl font-bold font-mono text-emerald-400 tabular-nums">{stats.total > 0 ? '100%' : '0%'}</div>
             <div className="text-[10px] text-slate-400">Đã đồng ý điều khoản khảo nghiệm</div>
           </div>
         </div>
+
+        {/* Dataset Integrity Controls: Clear to N=0 or Restore 40 Google Forms Field Surveys */}
+        <div className="mt-4 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-slate-400 flex items-center gap-2">
+            <Database className="w-4 h-4 text-sky-400 shrink-0" />
+            <span>
+              Chế độ Dữ liệu Thực tế: Mọi phiếu khảo sát mới sẽ <strong>tự động cập nhật toàn bộ thống kê</strong> và <strong>tự động vector hóa vào tập huấn luyện AI</strong>.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {onOpenSurvey && (
+              <button
+                onClick={onOpenSurvey}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>+ Thêm Phiếu Khảo Sát Mới</span>
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                await restoreStandardViSEFDatasetClient();
+                await fetchSurveys(false);
+                await runLiveAiTraining(false);
+                onRefresh?.();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-all cursor-pointer"
+              title="Khôi phục 40 phiếu khảo sát thực địa từ Google Forms"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Nạp 40 Phiếu Google Forms Thực Địa</span>
+            </button>
+            <button
+              onClick={async () => {
+                await clearClientSurveysToZero();
+                setInternalSurveys([]);
+                setAiTrainingState(getClientLiveAiTrainingState());
+                onRefresh?.();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-medium transition-all cursor-pointer"
+              title="Xóa trắng về N = 0 để kiểm thử thu thập từ đầu"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Xóa Trắng (N = 0)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2.5 AUTO-DATASET COLLECTOR & LIVE AI SELF-TRAINING STUDIO */}
+      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-sm space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[11px] font-mono font-bold uppercase">
+                <Brain className="w-3.5 h-3.5 text-sky-400" />
+                Auto-Dataset &amp; Online ML Trainer
+              </span>
+              <span className="text-xs font-mono text-slate-400">
+                Dataset: <strong className="text-white">{aiTrainingState.datasetVersion}</strong>
+              </span>
+              <span className="text-xs font-mono text-emerald-400">
+                • {aiTrainingState.totalSamples} Vector Đặc Trưng 9 Chiều
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-sky-400" />
+              Hệ Thống Tự Thu Thập Dataset &amp; Tự Huấn Luyện AI Theo Thời Gian Thực (Real User Survey Corpus)
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
+              Mỗi phiếu khảo sát mới hoặc lượt quét lừa đảo của người dùng đều được trích xuất tự động thành vector 9 chiều{' '}
+              <code className="text-sky-300 font-mono">[T, A, G, E, Domain, OTP, Visual, Deepfake, Latency]</code> và nạp trực tiếp vào thuật toán Online Gradient Descent.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setAutoTrainEnabled(!autoTrainEnabled)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                autoTrainEnabled
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-400'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Auto-Train khi có khảo sát mới: {autoTrainEnabled ? 'BẬT' : 'TẮT'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowVectorTable(!showVectorTable)}
+              className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
+            >
+              {showVectorTable ? 'Ẩn Bảng Vector 9 Chiều' : `Xem Vector Dataset (${aiTrainingState.totalSamples})`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => runLiveAiTraining(false)}
+              disabled={isTrainingAi}
+              className="px-4 py-2 rounded-lg text-xs sm:text-sm font-bold bg-sky-600 hover:bg-sky-500 text-white transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${isTrainingAi ? 'animate-spin' : ''}`} />
+              <span>
+                {isTrainingAi
+                  ? `Đang Train Epoch ${trainingProgressEpoch}/12...`
+                  : 'Train AI Ngay Trên Dataset Thực Tế'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live AI Metrics Grid: Corpus Breakdown, Learned Weights, Confusion Matrix, Epoch Convergence */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Column 1: Corpus & Confusion Matrix */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                1. Nguồn Thu Thập &amp; Ma Trận Nhầm Lẫn
+              </span>
+              <span className="text-[11px] font-mono text-sky-400">
+                N_vec = {aiTrainingState.totalSamples}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-[10px] text-slate-400">Từ Khảo Sát</div>
+                <div className="text-sm font-bold font-mono text-white tabular-nums">
+                  {aiTrainingState.surveySamplesCount}
+                </div>
+                <div className="text-[9px] text-emerald-400">Cặp Pre/Post</div>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-[10px] text-slate-400">Từ Máy Quét</div>
+                <div className="text-sm font-bold font-mono text-sky-300 tabular-nums">
+                  {aiTrainingState.liveScannerSamplesCount}
+                </div>
+                <div className="text-[9px] text-slate-400">Live Scans</div>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                <div className="text-[10px] text-slate-400">Phiếu Gốc</div>
+                <div className="text-sm font-bold font-mono text-slate-200 tabular-nums">
+                  {stats.total}
+                </div>
+                <div className="text-[9px] text-slate-400">N_surveys</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
+                <span className="text-[11px] text-emerald-300 font-medium">True Positive (TP)</span>
+                <span className="text-sm font-mono font-bold text-emerald-400 tabular-nums">
+                  {aiTrainingState.confusionMatrix.tp}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-sky-950/30 border border-sky-500/30 flex items-center justify-between">
+                <span className="text-[11px] text-sky-300 font-medium">True Negative (TN)</span>
+                <span className="text-sm font-mono font-bold text-sky-400 tabular-nums">
+                  {aiTrainingState.confusionMatrix.tn}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-amber-950/30 border border-amber-500/30 flex items-center justify-between">
+                <span className="text-[11px] text-amber-300 font-medium">False Positive (FP)</span>
+                <span className="text-sm font-mono font-bold text-amber-400 tabular-nums">
+                  {aiTrainingState.confusionMatrix.fp}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-500/30 flex items-center justify-between">
+                <span className="text-[11px] text-rose-300 font-medium">False Negative (FN)</span>
+                <span className="text-sm font-mono font-bold text-rose-400 tabular-nums">
+                  {aiTrainingState.confusionMatrix.fn}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 2: Learned Feature Weights */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                2. Trọng Số Đặc Trưng Hội Tụ (Learned Weights)
+              </span>
+              <span className="text-[10px] font-mono text-sky-400">
+                lr = {aiTrainingState.learningRate}
+              </span>
+            </div>
+
+            {[
+              { label: 'w_Authority (Nỗi sợ uy quyền)', val: aiTrainingState.learnedWeights.wAuthorityFear, color: 'bg-rose-500' },
+              { label: 'w_TimePressure (Áp lực thời gian)', val: aiTrainingState.learnedWeights.wTimePressure, color: 'bg-amber-500' },
+              { label: 'w_DomainAnomaly (Bất thường URL/QR)', val: aiTrainingState.learnedWeights.wDomainAnomaly, color: 'bg-sky-500' },
+              { label: 'w_Emotional (Thao túng cảm xúc)', val: aiTrainingState.learnedWeights.wEmotionalManip, color: 'bg-slate-400' },
+              { label: 'w_FinancialGreed (Bẫy lợi nhuận)', val: aiTrainingState.learnedWeights.wFinancialGreed, color: 'bg-sky-400' },
+              { label: 'w_LatencyFriction (Khoảng dừng suy xét)', val: aiTrainingState.learnedWeights.wLatencyFriction, color: 'bg-emerald-500' },
+            ].map((w) => {
+              const pct = Math.min(100, Math.round((Math.abs(w.val) / 1.8) * 100));
+              return (
+                <div key={w.label} className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-300">{w.label}</span>
+                    <span className={`font-mono font-bold tabular-nums ${w.val < 0 ? 'text-emerald-400' : 'text-white'}`}>
+                      {w.val > 0 ? `+${w.val}` : w.val}
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${w.color}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Column 3: 12-Epoch Convergence & Gemini Scientific Summary */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  3. Hội Tụ Huấn Luyện (12 Epochs)
+                </span>
+                <span className="text-[11px] font-mono text-emerald-400 font-bold">
+                  F1 = {aiTrainingState.epochHistory[aiTrainingState.epochHistory.length - 1]?.f1Score ?? 0}%
+                </span>
+              </div>
+
+              <div className="grid grid-cols-6 gap-1.5 pt-1 items-end h-24 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                {aiTrainingState.epochHistory.filter((_, i) => i % 2 === 1).map((ep) => (
+                  <div key={ep.epoch} className="flex flex-col items-center gap-1 h-full justify-end">
+                    <div
+                      className="w-full bg-sky-500 rounded-t transition-all"
+                      style={{ height: `${Math.max(10, Math.min(100, ep.valAccuracy))}%` }}
+                      title={`Epoch ${ep.epoch}: Val Acc ${ep.valAccuracy}% | Loss ${ep.trainLoss}`}
+                    />
+                    <span className="text-[9px] font-mono text-slate-400">E{ep.epoch}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 leading-relaxed">
+              <div className="font-bold text-sky-400 mb-1 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                Đánh Giá Tự Huấn Luyện AI (Live Evaluation):
+              </div>
+              {aiTrainingState.aiResearchSummary}
+            </div>
+          </div>
+        </div>
+
+        {/* Expandable 9-Feature Vector Dataset Table */}
+        <AnimatePresence>
+          {showVectorTable && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950"
+            >
+              <table className="w-full text-left text-[11px] text-slate-300 font-mono">
+                <thead className="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
+                  <tr>
+                    <th className="py-2 px-3">Vector ID</th>
+                    <th className="py-2 px-3">Nguồn</th>
+                    <th className="py-2 px-3">Tóm Tắt Mẫu</th>
+                    <th className="py-2 px-2 text-center">T</th>
+                    <th className="py-2 px-2 text-center">A</th>
+                    <th className="py-2 px-2 text-center">G</th>
+                    <th className="py-2 px-2 text-center">E</th>
+                    <th className="py-2 px-2 text-center">URL</th>
+                    <th className="py-2 px-2 text-center">Lat</th>
+                    <th className="py-2 px-3 text-center">Nhãn Thực</th>
+                    <th className="py-2 px-3 text-right">P(Scam)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {aiTrainingState.recentSamples.slice(0, 15).map((vec) => (
+                    <tr key={vec.id} className="hover:bg-slate-900/60">
+                      <td className="py-2 px-3 text-indigo-300 font-bold">{vec.id}</td>
+                      <td className="py-2 px-3">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 text-[10px]">
+                          {vec.source}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 font-sans text-slate-300 max-w-xs truncate">
+                        {vec.textSummary}
+                      </td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.timePressure}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.authorityFear}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.financialGreed}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.emotionalManip}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.domainAnomaly}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.decisionLatencyNorm}</td>
+                      <td className="py-2 px-3 text-center">
+                        {vec.groundTruthLabel === 1 ? (
+                          <span className="text-rose-400 font-bold">1 (Rủi ro)</span>
+                        ) : (
+                          <span className="text-emerald-400 font-bold">0 (An toàn)</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right font-bold text-white tabular-nums">
+                        {(vec.predictedProbability * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* CSV Preview Accordion */}

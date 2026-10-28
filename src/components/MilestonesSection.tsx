@@ -623,14 +623,14 @@ const MilestoneBadgeSVG: React.FC<{
         >
           <path
             d="M50 8L85 24V50C85 70 70 86 50 92C30 86 15 70 15 50V24L50 8Z"
-            fill="#1e293b"
-            stroke="#475569"
-            strokeWidth="3"
+            fill="#f1f5f9"
+            stroke="#cbd5e1"
+            strokeWidth="2.5"
             strokeDasharray="4 2"
           />
-          <circle cx="50" cy="50" r="22" fill="#0f172a" stroke="#334155" strokeWidth="2" />
+          <circle cx="50" cy="50" r="22" fill="#ffffff" stroke="#e2e8f0" strokeWidth="2" />
         </svg>
-        <div className="absolute flex flex-col items-center justify-center text-slate-500">
+        <div className="absolute flex flex-col items-center justify-center text-slate-400">
           <Lock className="w-6 h-6 mb-1" />
           <span className="text-[9px] font-black uppercase tracking-wider">Khóa</span>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Info, Users, FileText, PhoneCall, X } from 'lucide-react';
+import { Shield, Lock, Users, FileText, PhoneCall, X } from 'lucide-react';
 import { AboutProjectModal } from './AboutProjectModal';
 
 interface UtilityFooterProps {
@@ -15,91 +15,97 @@ export const UtilityFooter: React.FC<UtilityFooterProps> = ({ onNavigateToResear
   };
 
   return (
-    <footer className="w-full bg-slate-950/90 border-t border-slate-900/80 py-8 px-4 sm:px-6 lg:px-8 mt-16 text-slate-500 text-xs select-none">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center space-x-3">
-          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
+    <footer className="w-full bg-[#090D16] border-t border-[#1E293B] py-6 px-4 sm:px-6 lg:px-8 mt-12 text-slate-500 text-xs select-none">
+      <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-md bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
             <Shield className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <p className="font-semibold text-slate-400 tracking-wide">SCAMGUARD VIETNAM AI DEFENSE</p>
-            <p className="text-[11px] text-slate-600">Nền tảng trí tuệ nhân tạo phòng chống lừa đảo trực tuyến toàn dân.</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-300">ScamGuard Enterprise</span>
+            <span aria-hidden="true">·</span>
+            <span className="text-slate-500">Hệ thống Giám định Pháp y & Phòng chống Lừa đảo Số</span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-6 text-[11px] font-medium text-slate-500">
+        <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-slate-400">
           <button
+            type="button"
             onClick={() => setIsAboutProjectOpen(true)}
-            className="hover:text-cyan-300 text-slate-400 font-semibold transition-colors cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-900"
+            className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
           >
-            <Info className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Giới thiệu</span>
+            Giới thiệu dự án
           </button>
 
           <button
-            onClick={() => openFooterModal(
-              'Nhà Đầu Tư & Đối Tác Đồng Hành',
-              'Đồng hành bởi các chuyên gia an ninh mạng, các đơn vị nghiên cứu AI hàng đầu, Liên minh An toàn Thông tin Quốc gia và cộng đồng công nghệ Việt Nam. Nền tảng hoạt động phi lợi nhuận vì sự an toàn số của mọi gia đình.',
-              Users
-            )}
-            className="hover:text-slate-300 transition-colors cursor-pointer"
+            type="button"
+            onClick={() =>
+              openFooterModal(
+                'Đối Tác Chuyên Môn & Cố Vấn Khoa Học',
+                'Đồng hành bởi các chuyên gia an ninh mạng, hội đồng đạo đức nghiên cứu IRB Protocol #2026-HCMC-0092 và cộng đồng an toàn thông tin tại Việt Nam.',
+                Users
+              )
+            }
+            className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
           >
-            Nhà đầu tư & Đối tác
+            Đối tác & Cố vấn
           </button>
 
           <button
-            onClick={() => openFooterModal(
-              'Điều Khoản Bảo Mật & Privacy-by-Design',
-              'Mọi dữ liệu tài liệu, ảnh chụp, đường dẫn và tin nhắn nghi vấn do người dùng gửi giám định đều được tự động khử nhận dạng (PII Redaction), mã hóa đầu cuối (End-to-End Encryption) và tự động hủy sau khi hoàn tất phiên phân tích. Chúng tôi không bao giờ lưu trữ thông tin nhạy cảm của bạn.',
-              FileText
-            )}
-            className="hover:text-slate-300 transition-colors cursor-pointer"
+            type="button"
+            onClick={() =>
+              openFooterModal(
+                'Chính Sách Quyền Riêng Tư (Privacy-by-Design)',
+                'Mọi dữ liệu tài liệu, ảnh chụp biên lai, đường dẫn và tin nhắn gửi giám định đều được khử nhận dạng (PII Redaction) ngay trên thiết bị trước khi phân tích.',
+                FileText
+              )
+            }
+            className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
           >
-            Điều khoản bảo mật
+            Chính sách bảo mật
           </button>
 
           <button
-            onClick={() => openFooterModal(
-              'Kênh Báo Cáo Sự Cố & Khẩn Cấp',
-              'Khi phát hiện hành vi lừa đảo hoặc bị chiếm đoạt tài sản qua mạng, hãy ngay lập tức gọi Hotline Khẩn Cấp Công An Việt Nam: 113 | Tổng đài Cảnh Báo Tin Nhắn Rác (Bộ TTTT): 156 | Hoặc liên hệ trực tiếp đường dây nóng hỗ trợ ngân hàng chủ quản.',
-              PhoneCall
-            )}
-            className="hover:text-slate-300 transition-colors cursor-pointer"
+            type="button"
+            onClick={() =>
+              openFooterModal(
+                'Tổng Đài Báo Cáo Sự Cố An Ninh Mạng',
+                'Khi phát hiện hành vi lừa đảo hoặc bị chiếm đoạt tài sản qua mạng, vui lòng liên hệ ngay đường dây nóng Công an 113, Tổng đài phản ánh tin nhắn rác 156 hoặc ngân hàng chủ quản để phong tỏa giao dịch.',
+                PhoneCall
+              )
+            }
+            className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
           >
             Báo cáo sự cố
           </button>
         </div>
 
-        <div className="text-[11px] text-slate-600 text-center md:text-right">
-          <p>© 2026 ScamGuard AI. All rights reserved.</p>
-          <p className="flex items-center justify-center md:justify-end space-x-1 mt-0.5">
-            <Lock className="w-3 h-3 text-slate-600" />
-            <span>Mã hóa End-to-End an toàn</span>
-          </p>
+        <div className="flex items-center gap-2 text-xs text-slate-500 whitespace-nowrap">
+          <Lock className="w-3.5 h-3.5 text-slate-500" />
+          <span>© 2026 ScamGuard</span>
         </div>
       </div>
 
-      {/* Main About Project ViSEF Banner Modal */}
       <AboutProjectModal
         isOpen={isAboutProjectOpen}
         onClose={() => setIsAboutProjectOpen(false)}
         onExploreResearch={onNavigateToResearch}
       />
 
-      {/* General Modal Popup for other footer links */}
       {modalContent && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+        <div className="fixed inset-0 z-50 bg-[#090D16]/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-[#1E293B] rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1E293B]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                   <modalContent.icon className="w-4 h-4" />
                 </div>
                 <h3 className="text-sm font-bold text-white">{modalContent.title}</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setModalContent(null)}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-[#090D16] border border-[#1E293B] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -107,10 +113,11 @@ export const UtilityFooter: React.FC<UtilityFooterProps> = ({ onNavigateToResear
             <p className="text-xs text-slate-300 leading-relaxed">{modalContent.desc}</p>
             <div className="pt-2 flex justify-end">
               <button
+                type="button"
                 onClick={() => setModalContent(null)}
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors cursor-pointer"
               >
-                Đã Hiểu
+                Đóng
               </button>
             </div>
           </div>
@@ -119,5 +126,3 @@ export const UtilityFooter: React.FC<UtilityFooterProps> = ({ onNavigateToResear
     </footer>
   );
 };
-
-

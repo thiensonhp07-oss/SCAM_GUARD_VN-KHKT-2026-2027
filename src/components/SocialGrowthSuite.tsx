@@ -33,22 +33,10 @@ interface CircleMember {
   status: 'SAFE' | 'ALERT_TRIGGERED' | 'MONITORED';
 }
 
-const INITIAL_MEMBERS: CircleMember[] = [
-  { id: 'm-1', name: 'Bà Nội (Cúc)', role: 'Người cao tuổi', riskScore: 82, lastActive: '2 phút trước', alertsCount: 3, status: 'ALERT_TRIGGERED' },
-  { id: 'm-2', name: 'Bé Na (Con)', role: 'Trẻ nhỏ', riskScore: 15, lastActive: '1 giờ trước', alertsCount: 0, status: 'SAFE' },
-  { id: 'm-3', name: 'Bố An', role: 'Người cao tuổi', riskScore: 45, lastActive: 'Khoảng 30 phút trước', alertsCount: 1, status: 'MONITORED' }
-];
-
-const INITIAL_ACTIONS = [
-  'Bố An vừa chặn link lạ giả mạo Techcombank.',
-  'Con Nam vừa báo cáo sđt rác mạo danh Công An Đà Nẵng.',
-  'Chị Vân vừa định danh thành công SĐT shipper mạo danh.',
-  'Bà Nội Cúc vừa kích hoạt Chế Độ Bảo Vệ Người Lớn Tuổi.',
-  'Bạn Hà vừa hoàn thành Khóa Học Diệt Trừ Scam OTP.'
-];
-
 interface SocialGrowthSuiteProps {
   userProfile: any;
+  currentUser?: any;
+  onOpenAuth?: () => void;
   onEarnXp: (xp: number) => void;
   posts?: SocialPost[];
   onAddPost?: (newPost: SocialPost) => void;
@@ -60,6 +48,8 @@ interface SocialGrowthSuiteProps {
 
 export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
   userProfile,
+  currentUser = null,
+  onOpenAuth,
   onEarnXp,
   posts = [],
   onAddPost,
@@ -70,42 +60,26 @@ export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'feed' | 'family' | 'referral' | 'dna'>('feed');
 
-  // 1. Family Circle States
-  const [members, setMembers] = useState<CircleMember[]>(INITIAL_MEMBERS);
+  // 1. Family Circle States (Starts empty — no fake NPC family members)
+  const [members, setMembers] = useState<CircleMember[]>([]);
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'Trẻ nhỏ' | 'Người cao tuổi' | 'Người giám hộ'>('Người cao tuổi');
   const [successMsg, setSuccessMsg] = useState('');
   const [sharedStatus, setSharedStatus] = useState('');
 
-  // 2. Referral States
-  const [refCode] = useState('SCAMGUARD-SHIELD-7799');
+  // 2. Referral States (Starts empty — no fake referrals)
+  const [refCode] = useState(
+    currentUser?.id
+      ? `SCAMGUARD-${currentUser.id.slice(0, 6).toUpperCase()}`
+      : 'SCAMGUARD-CHUA-DANG-NHAP'
+  );
   const [copied, setCopied] = useState(false);
-  const [referrals, setReferrals] = useState([
-    { email: 'hoangnam***@gmail.com', status: 'COMPLETED', date: 'Hôm qua', reward: '+250 XP, +1 Khiên bảo vệ' },
-    { email: 'thicuc1950***@yahoo.com', status: 'PENDING', date: '3 ngày trước', reward: 'Đang đợi xác thực SĐT' }
-  ]);
+  const [referrals] = useState<{ email: string; status: string; date: string; reward: string }[]>([]);
 
-  // 3. Social Proof Stream
-  const [liveActions, setLiveActions] = useState<string[]>(INITIAL_ACTIONS);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // randomly append a new community action
-      const names = ['Chú Minh', 'Mẹ Hoa', 'Bà Ngoại Lan', 'Bạn Kiên', 'Cậu Sơn', 'Bác Phương'];
-      const actions = [
-        'vừa hoàn thành bài thi Vượt Ải Phishing.',
-        'vừa chặn cuộc gọi giả mạo dọa khóa SIM.',
-        'vừa gỡ app lạ nghi dính mã độc VNeID giả.',
-        'vừa kích hoạt lá chắn bảo mật QR ngân hàng.',
-        'vừa chia sẻ Scam DNA đạt hạng Kim Cương.'
-      ];
-      const randomName = names[Math.floor(Math.random() * names.length)];
-      const randomAction = actions[Math.floor(Math.random() * actions.length)];
-      setLiveActions(prev => [`${randomName} ${randomAction}`, ...prev.slice(0, 4)]);
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // 3. Real Social Proof Stream from real posts
+  const liveActions = posts.length > 0
+    ? posts.map((p) => `${p.userName} vừa đăng cảnh báo: "${p.content.slice(0, 60)}..."`)
+    : ['Hiện chưa có hoạt động mới — hãy đăng nhập tài khoản thật để khởi tạo cộng đồng!'];
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(refCode);
@@ -203,6 +177,8 @@ export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
           >
             <SocialFeedView
               currentUserProfile={userProfile}
+              currentUser={currentUser}
+              onOpenAuth={onOpenAuth}
               posts={posts}
               onAddPost={onAddPost}
               onReactPost={onReactPost}
@@ -232,6 +208,16 @@ export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
                   Người bảo hộ (Guardian Mode): Giám sát từ xa rủi ro an ninh mạng của người lớn tuổi (ông bà, bố mẹ) hoặc con trẻ. Nhận cảnh báo SOS lập tức khi họ tiếp xúc với SĐT lừa đảo hoặc truy cập link chứa mã độc độc hại.
                 </p>
               </div>
+
+              {members.length === 0 && (
+                <div className="cartoon-card p-8 bg-slate-950/60 border-slate-800 text-center space-y-2">
+                  <Users className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-xs font-bold text-white">Chưa có thành viên nào trong Vòng Tròn Gia Đình (0 thành viên)</p>
+                  <p className="text-[11px] text-slate-400">
+                    Hãy mời người thân thật của bạn ở khung bên phải để bắt đầu giám sát an toàn.
+                  </p>
+                </div>
+              )}
 
               {members.map(member => (
                 <div key={member.id} className="cartoon-card p-5 bg-slate-950/60 border-slate-800 space-y-3 relative overflow-hidden">
@@ -391,29 +377,30 @@ export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
                 </div>
               </div>
 
-              {/* Right referrals table */}
               <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                <p className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider">Lịch sử bạn bè tham gia:</p>
-                <div className="space-y-2 text-xs">
-                  {referrals.map((ref, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-slate-900 border border-slate-850">
-                      <div>
-                        <p className="font-mono text-[11px] text-white font-bold">{ref.email}</p>
-                        <p className="text-[9px] text-slate-500 font-mono">Đăng ký: {ref.date}</p>
+                <p className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider">Lịch sử bạn bè tham gia ({referrals.length}):</p>
+                {referrals.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4 text-center">
+                    Chưa có lượt giới thiệu nào được ghi nhận (0 bạn bè).
+                  </p>
+                ) : (
+                  <div className="space-y-2 text-xs">
+                    {referrals.map((ref, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-slate-900 border border-slate-850">
+                        <div>
+                          <p className="font-mono text-[11px] text-white font-bold">{ref.email}</p>
+                          <p className="text-[9px] text-slate-500 font-mono">Đăng ký: {ref.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                            {ref.status}
+                          </span>
+                          <p className="text-[9px] text-cyan-400 font-mono mt-1">{ref.reward}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
-                          ref.status === 'COMPLETED'
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        }`}>
-                          {ref.status}
-                        </span>
-                        <p className="text-[9px] text-cyan-400 font-mono mt-1">{ref.reward}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
@@ -455,17 +442,17 @@ export const SocialGrowthSuite: React.FC<SocialGrowthSuiteProps> = ({
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Học viên an ninh:</span>
-                    <span className="font-bold text-white uppercase font-mono">{userProfile.name || 'ANONYMOUS DEFENDER'}</span>
+                    <span className="font-bold text-white uppercase font-mono">{currentUser?.name || userProfile.name || 'CHƯA ĐĂNG NHẬP'}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Xếp hạng phòng vệ:</span>
                     <span className="px-2.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 font-black font-mono text-[9px]">
-                      KIM CƯƠNG (DIAMOND)
+                      {(userProfile.overallScore ?? 0) >= 80 ? 'KIM CƯƠNG (DIAMOND)' : 'TÂN BINH'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Điểm phản xạ (Reflex Score):</span>
-                    <span className="font-mono text-sm font-black text-cyan-300">{userProfile.overallScore || 85}/100</span>
+                    <span className="font-mono text-sm font-black text-cyan-300">{userProfile.overallScore ?? 0}/100</span>
                   </div>
 
                   <div className="p-3 bg-slate-900 rounded-xl border border-slate-850 space-y-2">

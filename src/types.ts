@@ -100,6 +100,8 @@ export interface ScamScenario {
   learningObjectives: string[];
 }
 
+export type ArenaVerdict = 'IN_PROGRESS' | 'SCAMMED' | 'PASSED';
+
 export interface ArenaMessage {
   id: string;
   sender: 'scammer' | 'user' | 'system';
@@ -110,6 +112,8 @@ export interface ArenaMessage {
   psychPressureDelta?: number;
   userVerificationDetected?: boolean;
   complianceDetected?: boolean;
+  refereeNote?: string;
+  turnImpact?: 'positive' | 'negative' | 'critical_fail' | 'winning_blow' | 'neutral';
 }
 
 export interface ArenaTimelineEvent {
@@ -127,10 +131,17 @@ export interface ArenaSession {
   messages: ArenaMessage[];
   currentPressure: number; // 0 - 100
   trustLevel: number; // 0 - 100
+  shieldIntegrity?: number; // 0 - 100 (User defense shield HP)
+  scammerExposure?: number; // 0 - 100 (How close scammer is to being defeated/exposed)
+  verdict?: ArenaVerdict;
+  verdictTitle?: string;
+  verdictReason?: string;
+  fatalMistakeOrWinningMove?: string;
+  estimatedFinancialLoss?: string;
   defenseScore?: DefenseScoreBreakdown;
   detectedTactics: ScamTactic[];
   timeline: ArenaTimelineEvent[];
-  status: 'active' | 'completed' | 'abandoned';
+  status: 'active' | 'completed' | 'scammed' | 'passed' | 'abandoned';
   startTime: number;
   endTime?: number;
   feedbackSummary?: string;
@@ -422,6 +433,7 @@ export interface TrustedContact {
 
 export interface UserProfile {
   id?: string;
+  uid?: string;
   name: string;
   mode: ExperienceMode;
   language?: Language;
@@ -430,19 +442,29 @@ export interface UserProfile {
   overallScore?: number;
   streakDays?: number;
   completedScenarios?: string[];
+  completedRoadmapNodes?: string[];
+  masteredFlashcards?: string[];
+  hasCompletedSurvey?: boolean;
+  surveyData?: any;
+  cyberGuardianCert?: any;
   voiceNarrationEnabled?: boolean;
   highContrastEnabled?: boolean;
   largeTextEnabled?: boolean;
   trustedContacts?: TrustedContact[];
   xp?: number;
+  gems?: number;
   level?: number;
   dailyChallengeCompleted?: boolean;
   lastDailyChallengeDate?: string;
   email?: string;
+  emailVerified?: boolean;
   username?: string;
   avatarUrl?: string;
   provider?: 'local' | 'google' | 'facebook' | 'github' | 'demo' | 'firebase';
+  providersLinked?: string[];
+  lastLoginAt?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserAccount {

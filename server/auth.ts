@@ -1,11 +1,14 @@
 import { UserAccount, UserProfile, ExperienceMode, TrustedContact } from '../src/types';
 import crypto from 'crypto';
 
-// In-memory user database
-const usersStore = new Map<string, {
-  account: UserAccount;
-  passwordHash?: string;
-}>();
+// In-memory user database (for real synced Firebase sessions only — 0 NPCs)
+const usersStore = new Map<
+  string,
+  {
+    account: UserAccount;
+    passwordHash?: string;
+  }
+>();
 
 // Sessions map: token -> userId
 const sessionsStore = new Map<string, string>();
@@ -20,7 +23,7 @@ function generateToken(userId: string): string {
   return token;
 }
 
-// Pre-seeded demo user profiles for instant 1-click test drive across different demographics
+// Empty preset list — all accounts are real authenticated users
 export const DEMO_PRESET_USERS: Array<{
   id: string;
   username: string;
@@ -34,150 +37,7 @@ export const DEMO_PRESET_USERS: Array<{
   streak: number;
   completedScenarios: string[];
   trustedContacts: TrustedContact[];
-}> = [
-  {
-    id: 'user_senior_thanh',
-    username: 'bacthanh68',
-    email: 'bacthanh.hanoi@gmail.com',
-    name: 'Bác Nguyễn Văn Thành (68 tuổi)',
-    mode: 'senior',
-    roleDescription: 'Cao niên cảnh giác - Ưu tiên chữ lớn & xác minh cuộc gọi gia đình',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop&crop=face',
-    score: 86,
-    xp: 2150,
-    streak: 7,
-    completedScenarios: ['bank-lockout-alert', 'police-investigation-secrecy', 'package-delivery-failed'],
-    trustedContacts: [
-      {
-        id: 'tc_s1',
-        name: 'Con Trai Dũng (Kỹ sư)',
-        relationship: 'Con Trai',
-        phoneOrHandle: '0912 345 678',
-        isFavorite: true,
-      },
-      {
-        id: 'tc_s2',
-        name: 'Cảnh Sát Khu Vực (Trung Tá Hùng)',
-        relationship: 'Cơ Quan Chức Năng',
-        phoneOrHandle: '024 3825 2525',
-        isFavorite: true,
-      },
-    ],
-  },
-  {
-    id: 'user_adult_van',
-    username: 'thanhvan_fin',
-    email: 'thanhvan.pham@company.vn',
-    name: 'Phạm Thanh Vân (32 tuổi)',
-    mode: 'adult',
-    roleDescription: 'Nhân viên văn phòng - Chuyên sâu phòng ngừa lừa đảo ngân hàng & sàn thương mại',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=face',
-    score: 92,
-    xp: 3400,
-    streak: 12,
-    completedScenarios: ['bank-lockout-alert', 'fake-ecommerce-refund', 'police-investigation-secrecy', 'crypto-pig-butchering'],
-    trustedContacts: [
-      {
-        id: 'tc_a1',
-        name: 'Chồng Hoàng Minh',
-        relationship: 'Vợ/Chồng',
-        phoneOrHandle: '0988 777 666',
-        isFavorite: true,
-      },
-      {
-        id: 'tc_a2',
-        name: 'Tổng Đài Vietcombank',
-        relationship: 'Hotline Ngân Hàng',
-        phoneOrHandle: '1900 54 54 13',
-        isFavorite: true,
-      },
-    ],
-  },
-  {
-    id: 'user_student_minhanh',
-    username: 'minhanh_genz',
-    email: 'minhanh.stu@university.edu.vn',
-    name: 'Lê Minh Anh (19 tuổi)',
-    mode: 'teen',
-    roleDescription: 'Sinh viên thế hệ số - Phòng chống bẫy việc làm online & Deepfake bạn bè',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&crop=face',
-    score: 78,
-    xp: 1280,
-    streak: 4,
-    completedScenarios: ['telegram-job-task', 'deepfake-video-borrow'],
-    trustedContacts: [
-      {
-        id: 'tc_t1',
-        name: 'Mẹ Hiền',
-        relationship: 'Phụ Huynh',
-        phoneOrHandle: '0903 112 233',
-        isFavorite: true,
-      },
-    ],
-  },
-  {
-    id: 'user_expert_bao',
-    username: 'quocbao_sec',
-    email: 'bao.sec@cyberguard.tech',
-    name: 'Trần Quốc Bảo (Chuyên Gia An Ninh)',
-    mode: 'adult',
-    roleDescription: 'Chuyên gia phân tích mã độc & điều tra pháp y lừa đảo mạng',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&crop=face',
-    score: 98,
-    xp: 5600,
-    streak: 21,
-    completedScenarios: ['bank-lockout-alert', 'police-investigation-secrecy', 'package-delivery-failed', 'telegram-job-task', 'crypto-pig-butchering', 'deepfake-video-borrow'],
-    trustedContacts: [
-      {
-        id: 'tc_e1',
-        name: 'Trung Tâm Giám Sát An Toàn Không Gian Mạng Quốc Gia (NCSC)',
-        relationship: 'Cơ Quan An Ninh',
-        phoneOrHandle: '024 3209 6789',
-        isFavorite: true,
-      },
-    ],
-  },
-];
-
-// Seed preset accounts into store
-DEMO_PRESET_USERS.forEach((preset) => {
-  const token = `sg_tok_${preset.id}_demo_preset`;
-  sessionsStore.set(token, preset.id);
-
-  const profile: UserProfile = {
-    id: preset.id,
-    name: preset.name,
-    username: preset.username,
-    email: preset.email,
-    mode: preset.mode,
-    language: 'vi',
-    overallScore: preset.score,
-    xp: preset.xp,
-    streakDays: preset.streak,
-    completedScenarios: preset.completedScenarios,
-    trustedContacts: preset.trustedContacts,
-    avatarUrl: preset.avatarUrl,
-    provider: 'demo',
-    createdAt: new Date().toISOString(),
-  };
-
-  const account: UserAccount = {
-    id: preset.id,
-    username: preset.username,
-    email: preset.email,
-    name: preset.name,
-    avatarUrl: preset.avatarUrl,
-    provider: 'demo',
-    profile,
-    token,
-    createdAt: new Date().toISOString(),
-  };
-
-  usersStore.set(preset.id, {
-    account,
-    passwordHash: hashPassword('123456'), // Default password for demo if manually tested
-  });
-});
+}> = [];
 
 /**
  * Register a new user with username and password
@@ -189,12 +49,12 @@ export function registerUser(params: {
   password?: string;
   mode?: ExperienceMode;
 }): { success: boolean; user?: UserAccount; error?: string } {
-  const cleanUsername = (params.username || '').trim().toLowerCase();
+  const baseUsername = (params.username || '').trim().toLowerCase() || 'user';
   const cleanName = (params.name || '').trim();
-  const cleanEmail = (params.email || `${cleanUsername}@scamguard.local`).trim().toLowerCase();
+  const cleanEmail = (params.email || `${baseUsername}@scamguard.local`).trim().toLowerCase();
 
-  if (!cleanUsername || cleanUsername.length < 3) {
-    return { success: false, error: 'Tên đăng nhập phải có ít nhất 3 ký tự.' };
+  if (baseUsername.length < 2) {
+    return { success: false, error: 'Tên đăng nhập phải có ít nhất 2 ký tự.' };
   }
   if (!cleanName) {
     return { success: false, error: 'Vui lòng nhập Họ và Tên của bạn.' };
@@ -203,17 +63,24 @@ export function registerUser(params: {
     return { success: false, error: 'Mật khẩu phải có ít nhất 4 ký tự.' };
   }
 
-  // Check if username or email already exists
+  let cleanUsername = baseUsername;
   for (const [, entry] of usersStore.entries()) {
-    if (entry.account.username === cleanUsername) {
-      return { success: false, error: 'Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên khác.' };
+    if (params.email && entry.account.email.toLowerCase() === cleanEmail) {
+      // If the same email re-registers with the same password, return the existing account smoothly
+      if (!entry.passwordHash || !params.password || entry.passwordHash === hashPassword(params.password)) {
+        const token = generateToken(entry.account.id);
+        entry.account.token = token;
+        return { success: true, user: entry.account };
+      }
+      return { success: false, error: 'Email này đã được đăng ký. Vui lòng chuyển sang chế độ Đăng Nhập (Log in).' };
     }
-    if (params.email && entry.account.email === cleanEmail) {
-      return { success: false, error: 'Email này đã được đăng ký tài khoản.' };
+    if (entry.account.username === cleanUsername) {
+      cleanUsername = `${baseUsername}_${crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 4)}`;
     }
   }
 
-  const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const emailHash = crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 16);
+  const userId = `user_${emailHash}`;
   const token = generateToken(userId);
 
   const profile: UserProfile = {
@@ -223,9 +90,9 @@ export function registerUser(params: {
     email: cleanEmail,
     mode: params.mode || 'adult',
     language: 'vi',
-    overallScore: 70,
-    xp: 100,
-    streakDays: 1,
+    overallScore: 0,
+    xp: 0,
+    streakDays: 0,
     completedScenarios: [],
     trustedContacts: [],
     avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=0f172a,1e293b,334155`,
@@ -283,7 +150,6 @@ export function loginUser(params: {
     return { success: false, error: 'Không tìm thấy tài khoản với thông tin này.' };
   }
 
-  // If password was set, verify hash
   if (matchedEntry.passwordHash && params.password) {
     const inputHash = hashPassword(params.password);
     if (matchedEntry.passwordHash !== inputHash) {
@@ -291,7 +157,6 @@ export function loginUser(params: {
     }
   }
 
-  // Generate fresh token
   const token = generateToken(matchedUserId);
   matchedEntry.account.token = token;
 
@@ -299,7 +164,7 @@ export function loginUser(params: {
 }
 
 /**
- * Handle OAuth / Social Login (Google, Facebook, GitHub)
+ * Handle OAuth / Social Login
  */
 export function socialLogin(params: {
   provider: 'google' | 'facebook' | 'github';
@@ -309,17 +174,10 @@ export function socialLogin(params: {
   mode?: ExperienceMode;
 }): { success: boolean; user?: UserAccount } {
   const provider = params.provider;
-  const providerNames: Record<string, string> = {
-    google: 'Tài khoản Google',
-    facebook: 'Tài khoản Facebook',
-    github: 'Tài khoản GitHub',
-  };
-
-  const defaultName = params.name || `${providerNames[provider] || 'Người dùng'} (${provider.toUpperCase()})`;
+  const defaultName = params.name || `Người dùng ${provider.toUpperCase()}`;
   const email = params.email || `${provider}_${Date.now()}@auth.${provider}.com`;
   const username = `${provider}_${Math.random().toString(36).substring(2, 8)}`;
 
-  // Check if existing social account matches email
   for (const [uid, entry] of usersStore.entries()) {
     if (entry.account.email === email && entry.account.provider === provider) {
       const token = generateToken(uid);
@@ -328,17 +186,11 @@ export function socialLogin(params: {
     }
   }
 
-  // Otherwise create new user for this social identity
   const userId = `user_${provider}_${Date.now()}`;
   const token = generateToken(userId);
-
-  const defaultAvatars: Record<string, string> = {
-    google: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-    facebook: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120&h=120&fit=crop&crop=face',
-    github: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=120&h=120&fit=crop&crop=face',
-  };
-
-  const avatarUrl = params.avatarUrl || defaultAvatars[provider];
+  const avatarUrl =
+    params.avatarUrl ||
+    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(defaultName)}&backgroundColor=0f172a,1e293b`;
 
   const profile: UserProfile = {
     id: userId,
@@ -347,10 +199,10 @@ export function socialLogin(params: {
     email,
     mode: params.mode || 'adult',
     language: 'vi',
-    overallScore: 80,
-    xp: 250,
-    streakDays: 1,
-    completedScenarios: ['bank-lockout-alert'],
+    overallScore: 0,
+    xp: 0,
+    streakDays: 0,
+    completedScenarios: [],
     trustedContacts: [],
     avatarUrl,
     provider,
@@ -389,7 +241,6 @@ export function syncFirebaseUser(params: {
   const token = `fb_${params.uid}`;
   const userId = params.uid;
 
-  // Map session token to userId
   sessionsStore.set(token, userId);
 
   let entry = usersStore.get(userId);
@@ -404,20 +255,24 @@ export function syncFirebaseUser(params: {
     return entry.account;
   }
 
-  const cleanUsername = params.username || (params.email ? params.email.split('@')[0] : `user_${userId.substring(0, 6)}`);
+  const cleanUsername =
+    params.username ||
+    (params.email ? params.email.split('@')[0] : `user_${userId.substring(0, 6)}`);
   const profile: UserProfile = {
     id: userId,
-    name: params.name || 'Vệ Binh SCAMGUARD',
+    name: params.name || 'Người dùng',
     username: cleanUsername,
     email: params.email || '',
     mode: params.mode || 'adult',
     language: 'vi',
-    overallScore: params.profile?.overallScore ?? 80,
-    xp: params.profile?.xp ?? 200,
-    streakDays: params.profile?.streakDays ?? 1,
-    completedScenarios: params.profile?.completedScenarios || ['bank-lockout-alert'],
+    overallScore: params.profile?.overallScore ?? 0,
+    xp: params.profile?.xp ?? 0,
+    streakDays: params.profile?.streakDays ?? 0,
+    completedScenarios: params.profile?.completedScenarios || [],
     trustedContacts: params.profile?.trustedContacts || [],
-    avatarUrl: params.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(params.name || 'SG')}&backgroundColor=0f172a,1e293b`,
+    avatarUrl:
+      params.avatarUrl ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(params.name || 'U')}&backgroundColor=0f172a,1e293b`,
     provider: (params.provider as any) || 'firebase',
     createdAt: new Date().toISOString(),
     ...params.profile,
@@ -426,13 +281,13 @@ export function syncFirebaseUser(params: {
   const account: UserAccount = {
     id: userId,
     username: cleanUsername,
-    email: profile.email,
+    email: profile.email || '',
     name: profile.name,
     avatarUrl: profile.avatarUrl,
     provider: (profile.provider as any) || 'firebase',
     profile,
     token,
-    createdAt: profile.createdAt,
+    createdAt: profile.createdAt || new Date().toISOString(),
   };
 
   usersStore.set(userId, { account });
@@ -445,18 +300,15 @@ export function syncFirebaseUser(params: {
 export function getUserByTokenOrId(identifier: string): UserAccount | null {
   if (!identifier) return null;
 
-  // Check if identifier is a session token
   const userIdFromSession = sessionsStore.get(identifier);
   if (userIdFromSession && usersStore.has(userIdFromSession)) {
     return usersStore.get(userIdFromSession)!.account;
   }
 
-  // Check if identifier is directly a userId
   if (usersStore.has(identifier)) {
     return usersStore.get(identifier)!.account;
   }
 
-  // Check if identifier is a Firebase token ('fb_UID')
   if (identifier.startsWith('fb_')) {
     const rawUid = identifier.replace('fb_', '');
     if (usersStore.has(rawUid)) {
@@ -473,7 +325,10 @@ export function getUserByTokenOrId(identifier: string): UserAccount | null {
 /**
  * Update user profile
  */
-export function updateUserProfile(userId: string, updates: Partial<UserProfile>): UserAccount | null {
+export function updateUserProfile(
+  userId: string,
+  updates: Partial<UserProfile>
+): UserAccount | null {
   const entry = usersStore.get(userId);
   if (!entry) return null;
 
@@ -502,44 +357,21 @@ export function resetUserAccountData(userId?: string) {
       ...entry.account.profile,
       completedScenarios: [],
       xp: 0,
-      overallScore: 50,
+      overallScore: 0,
       streakDays: 0,
       trustedContacts: [],
     };
     return { success: true, message: `Đã reset toàn bộ dữ liệu tài khoản ${userId}` };
   }
 
-  // Reset all users in store to baseline 0
-  for (const [, entry] of usersStore.entries()) {
-    entry.account.profile = {
-      ...entry.account.profile,
-      completedScenarios: [],
-      xp: 0,
-      overallScore: 50,
-      streakDays: 0,
-      trustedContacts: [],
-    };
-  }
-  return { success: true, message: 'Đã reset toàn bộ dữ liệu người dùng trên hệ thống.' };
+  usersStore.clear();
+  sessionsStore.clear();
+  return { success: true, message: 'Đã xóa sạch dữ liệu phiên người dùng.' };
 }
 
 /**
- * List all preset demo users
+ * List all preset demo users (Empty — only real accounts are used)
  */
 export function getPresetDemoUsers() {
-  return DEMO_PRESET_USERS.map((preset) => {
-    const entry = usersStore.get(preset.id);
-    return {
-      id: preset.id,
-      name: preset.name,
-      username: preset.username,
-      email: preset.email,
-      mode: preset.mode,
-      roleDescription: preset.roleDescription,
-      avatarUrl: preset.avatarUrl,
-      score: entry ? entry.account.profile.overallScore || preset.score : preset.score,
-      xp: entry ? entry.account.profile.xp || preset.xp : preset.xp,
-      streak: entry ? entry.account.profile.streakDays || preset.streak : preset.streak,
-    };
-  });
+  return [];
 }

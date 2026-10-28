@@ -23,12 +23,14 @@ import {
   Zap,
   Tag
 } from 'lucide-react';
-import { SocialPost, ReactionType, UserProfile, SocialComment } from '../types';
+import { SocialPost, ReactionType, UserProfile, UserAccount, SocialComment } from '../types';
 import { playSuccessChime, playCardFlip } from '../utils/audioEffects';
 import { handleAvatarError } from '../utils/avatarFallback';
 
 interface SocialFeedViewProps {
   currentUserProfile: UserProfile;
+  currentUser?: UserAccount | null;
+  onOpenAuth?: () => void;
   posts: SocialPost[];
   onAddPost?: (newPost: SocialPost) => void;
   onReactPost?: (postId: string, reaction: ReactionType) => void;
@@ -47,6 +49,8 @@ const REACTION_CONFIG: Record<ReactionType, { label: string; emoji: string; colo
 
 export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
   currentUserProfile,
+  currentUser = null,
+  onOpenAuth,
   posts,
   onAddPost,
   onReactPost,
@@ -74,6 +78,10 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
   // Handle create post
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
     if (!postContent.trim()) return;
 
     setIsSubmitting(true);
@@ -81,30 +89,32 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
 
     const newPost: SocialPost = {
       id: `post_${Date.now()}`,
-      userId: 'current_user',
-      userName: currentUserProfile.name || 'Vệ Binh ScamGuard',
-      userAvatar: currentUserProfile.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
-      userBadge: '🛡️ Hiệp Sĩ Tiên Phong',
+      userId: currentUser.id,
+      userName: currentUser.name || currentUserProfile.name || 'Tài khoản Vệ Binh',
+      userAvatar:
+        currentUser.avatarUrl ||
+        currentUserProfile.avatarUrl ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&h=120&fit=crop&crop=face',
+      userBadge: '🛡️ Tài Khoản Thật',
       userMode: currentUserProfile.mode || 'adult',
       isVerified: true,
-      followersCount: 185,
+      followersCount: 0,
       content: postContent.trim(),
       mediaUrl: mediaUrl.trim() || undefined,
       scamCategory: scamCategory,
-      timestamp: 'Vừa xong',
+      timestamp: new Date().toLocaleString('vi-VN'),
       reactions: {
-        like: 1,
+        like: 0,
         love: 0,
-        shield: 1,
+        shield: 0,
         warning: isSosAlert ? 1 : 0,
         haha: 0,
       },
-      myReaction: 'shield',
       sharesCount: 0,
       commentsCount: 0,
       comments: [],
       isSosAlert,
-      dnaScore: currentUserProfile.overallScore || 92,
+      dnaScore: currentUserProfile.overallScore ?? 0,
     };
 
     if (onAddPost) {
@@ -269,6 +279,17 @@ export const SocialFeedView: React.FC<SocialFeedViewProps> = ({
 
       {/* Feed Posts List */}
       <div className="space-y-6">
+        {posts.length === 0 && (
+          <div className="cyber-card p-10 rounded-3xl border border-slate-800 bg-slate-900/90 text-center space-y-3">
+            <MessageSquare className="w-10 h-10 text-slate-500 mx-auto" />
+            <h3 className="text-base font-black text-white">
+              Hiện chưa có bài viết nào từ tài khoản thật (0 bài viết)
+            </h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+              Toàn bộ bài đăng mẫu của NPC đã được xóa bỏ. Hãy đăng nhập tài khoản thật (Google, Facebook, GitHub hoặc Email) và đăng bài cảnh báo đầu tiên lên Cloud Firestore!
+            </p>
+          </div>
+        )}
         {posts.map((post) => {
           const totalReactions =
             post.reactions.like +

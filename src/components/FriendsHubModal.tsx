@@ -229,10 +229,20 @@ export const FriendsHubModal: React.FC<FriendsHubModalProps> = ({
 
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Đồng đội trực tuyến ({friendsList.filter((f) => f.isOnline).length}/{friendsList.length})
+                  Thành viên thật trên hệ thống ({friendsList.filter((f) => f.isOnline).length}/{friendsList.length})
                 </span>
-                <span className="text-xs text-amber-400 font-medium">Tặng khiên nhận ngay +50 XP</span>
+                <span className="text-xs text-amber-400 font-medium">Dữ liệu thực từ Cloud Firestore</span>
               </div>
+
+              {friendsList.length === 0 && (
+                <div className="p-10 rounded-2xl bg-slate-950/60 border border-slate-800 text-center space-y-2">
+                  <Users className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-sm font-bold text-white">Hiện chưa có tài khoản thật nào đăng nhập (0 bạn bè)</p>
+                  <p className="text-xs text-slate-400">
+                    Toàn bộ tài khoản NPC ảo đã được gỡ bỏ. Khi có người dùng thật đăng nhập vào trang web, họ sẽ xuất hiện tại đây.
+                  </p>
+                </div>
+              )}
 
               {friendsList.map((friend) => (
                 <div
@@ -315,6 +325,16 @@ export const FriendsHubModal: React.FC<FriendsHubModalProps> = ({
                 <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                 <span>Hoạt động rèn luyện và cảnh báo tương hỗ thời gian thực từ mạng lưới Vệ Binh của bạn.</span>
               </div>
+
+              {activityFeed.length === 0 && (
+                <div className="p-10 rounded-2xl bg-slate-950/60 border border-slate-800 text-center space-y-2">
+                  <Sparkles className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-sm font-bold text-white">Chưa có hoạt động nào (0 sự kiện)</p>
+                  <p className="text-xs text-slate-400">
+                    Nhật ký an toàn hoàn toàn trống cho đến khi người dùng thật phát cảnh báo hoặc tương tác.
+                  </p>
+                </div>
+              )}
 
               {activityFeed.map((event) => (
                 <div
@@ -424,42 +444,6 @@ export const FriendsHubModal: React.FC<FriendsHubModalProps> = ({
                   </p>
                 )}
               </form>
-
-              {/* Quick Recommendations */}
-              <div className="space-y-2">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Gợi ý kết nối nhanh
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <h5 className="text-xs font-bold text-white">Đường Dây Nóng An Ninh (NCSC)</h5>
-                      <span className="text-[10px] text-slate-400">Mã: SG-NCSC-VN</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onAddFriend('SG-NCSC-VN')}
-                      className="px-2.5 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg"
-                    >
-                      Kết nối
-                    </button>
-                  </div>
-
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-                    <div>
-                      <h5 className="text-xs font-bold text-white">Vệ Binh Cao Niên Mẫu</h5>
-                      <span className="text-[10px] text-slate-400">Mã: SG-THANH-68</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onAddFriend('SG-THANH-68')}
-                      className="px-2.5 py-1 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg"
-                    >
-                      Kết nối
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
