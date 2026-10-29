@@ -805,9 +805,9 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
               </div>
 
               {/* CORE VISUALIZATION CANVAS */}
-              <div className="relative min-h-[310px] flex items-center justify-center bg-slate-900/60 rounded-2xl border border-slate-800/80 p-2 overflow-hidden">
+              <div className="relative min-h-[310px] flex items-center justify-center bg-gradient-to-b from-[#F8FBFF] to-[#EEF5FC] rounded-2xl border border-sky-200/90 p-2 overflow-hidden shadow-2xs">
                 {/* Visual Ambient Field Glow */}
-                <div className="absolute inset-0 bg-radial from-purple-900/10 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-radial from-sky-200/25 via-transparent to-transparent pointer-events-none" />
 
                 {/* MODE 1: SVG SPIDER RADAR 6D */}
                 {compareVizMode === 'RADAR' && (
@@ -818,23 +818,23 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                     >
                       <defs>
                         <radialGradient id="centerGlowField" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="#a855f7" stopOpacity="0.18" />
-                          <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.08" />
-                          <stop offset="100%" stopColor="#020617" stopOpacity="0" />
+                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.16" />
+                          <stop offset="55%" stopColor="#a855f7" stopOpacity="0.06" />
+                          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                         </radialGradient>
                         <linearGradient id="personalPolyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#c084fc" stopOpacity="0.4" />
-                          <stop offset="100%" stopColor="#a855f7" stopOpacity="0.15" />
+                          <stop offset="0%" stopColor="#a855f7" stopOpacity="0.38" />
+                          <stop offset="100%" stopColor="#7e22ce" stopOpacity="0.16" />
                         </linearGradient>
                         <linearGradient id="commPolyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.3" />
-                          <stop offset="100%" stopColor="#0891b2" stopOpacity="0.1" />
+                          <stop offset="0%" stopColor="#0284c7" stopOpacity="0.28" />
+                          <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.12" />
                         </linearGradient>
                         <filter id="purpleRadarNeon" x="-30%" y="-30%" width="160%" height="160%">
-                          <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#c084fc" floodOpacity="0.85" />
+                          <feDropShadow dx="0" dy="1" stdDeviation="2.5" floodColor="#9333ea" floodOpacity="0.35" />
                         </filter>
                         <filter id="cyanRadarNeon" x="-30%" y="-30%" width="160%" height="160%">
-                          <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#22d3ee" floodOpacity="0.8" />
+                          <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#0284c7" floodOpacity="0.3" />
                         </filter>
                       </defs>
 
@@ -851,8 +851,8 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                         <g key={`web-${web.level}`}>
                           <polygon
                             points={web.points}
-                            fill={idx === 4 ? 'rgba(15, 23, 42, 0.4)' : 'none'}
-                            stroke={idx === 4 ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.12)'}
+                            fill={idx === 4 ? 'rgba(224, 242, 254, 0.45)' : 'none'}
+                            stroke={idx === 4 ? '#7dd3fc' : '#cbd5e1'}
                             strokeWidth={idx === 4 ? '1.5' : '1'}
                             strokeDasharray={idx === 4 ? 'none' : '3 3'}
                           />
@@ -860,8 +860,9 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                           <text
                             x={radarCenterX + 4}
                             y={radarCenterY - (web.level / 100) * radarRadius + 3}
-                            fill="rgba(148, 163, 184, 0.5)"
+                            fill="#475569"
                             fontSize="8"
+                            fontWeight="600"
                             fontFamily="monospace"
                             textAnchor="start"
                           >
@@ -880,7 +881,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                             y1={radarCenterY}
                             x2={x}
                             y2={y}
-                            stroke="rgba(148, 163, 184, 0.2)"
+                            stroke="#cbd5e1"
                             strokeWidth="1"
                           />
                         );
@@ -892,7 +893,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                           <polygon
                             points={communityPath}
                             fill="url(#commPolyGrad)"
-                            stroke="#06b6d4"
+                            stroke="#0284c7"
                             strokeWidth="2"
                             strokeDasharray="4 3"
                             filter="url(#cyanRadarNeon)"
@@ -906,9 +907,9 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                                 cx={safeX}
                                 cy={safeY}
                                 r={3.5}
-                                fill="#22d3ee"
-                                stroke="#0891b2"
-                                strokeWidth="1"
+                                fill="#0284c7"
+                                stroke="#ffffff"
+                                strokeWidth="1.5"
                                 className="cursor-pointer hover:scale-125 transition-all"
                                 onMouseEnter={() => setHoveredRadarDim(v.dim)}
                               />
@@ -923,7 +924,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                           <polygon
                             points={userPath}
                             fill="url(#personalPolyGrad)"
-                            stroke="#c084fc"
+                            stroke="#9333ea"
                             strokeWidth="2.5"
                             filter="url(#purpleRadarNeon)"
                           />
@@ -941,7 +942,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                                   cx={safeX}
                                   cy={safeY}
                                   r={hoveredRadarDim?.key === v.dim.key ? 6 : 4.5}
-                                  fill="#c084fc"
+                                  fill="#9333ea"
                                   stroke="#ffffff"
                                   strokeWidth="1.5"
                                   className="transition-all"
@@ -953,7 +954,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                       )}
 
                       {/* Center Pivot Point */}
-                      <circle cx={radarCenterX} cy={radarCenterY} r={2.5} fill="#94a3b8" />
+                      <circle cx={radarCenterX} cy={radarCenterY} r={2.5} fill="#0284c7" />
 
                       {/* Axis Labels around Perimeter */}
                       {DIMENSION_CONFIG.map((dim, idx) => {
@@ -975,7 +976,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                               textAnchor="middle"
                               fontSize="10"
                               fontWeight="bold"
-                              fill={isHovered ? '#ffffff' : '#cbd5e1'}
+                              fill={isHovered ? '#0284c7' : '#0f172a'}
                               className="transition-colors"
                             >
                               {dim.shortName}
@@ -985,8 +986,9 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                               y={y + 6}
                               textAnchor="middle"
                               fontSize="9"
+                              fontWeight="600"
                               fontFamily="monospace"
-                              fill={isHovered ? '#c084fc' : '#94a3b8'}
+                              fill={isHovered ? '#7e22ce' : '#475569'}
                             >
                               {userScore}đ vs {commScore}đ
                             </text>
@@ -996,18 +998,18 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                     </svg>
 
                     {/* Interactive Dimension Drill-Down Bar on Hover */}
-                    <div className="w-full mt-2 px-3 py-1.5 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] flex items-center justify-between min-h-[32px]">
+                    <div className="w-full mt-2 px-3 py-1.5 bg-white rounded-xl border border-sky-200/90 text-[11px] flex items-center justify-between min-h-[32px] shadow-2xs">
                       {hoveredRadarDim ? (
                         <>
-                          <span className="text-purple-300 font-bold truncate">
+                          <span className="text-purple-700 font-bold truncate">
                             Trục {hoveredRadarDim.key}: {hoveredRadarDim.name}
                           </span>
-                          <span className="font-mono text-cyan-300 font-bold shrink-0">
+                          <span className="font-mono text-sky-700 font-bold shrink-0">
                             Cá nhân: {getDefenseScore(personalCalculated.dna[hoveredRadarDim.key as keyof ScamDnaVector] ?? 0.5)}đ / Mẫu ViSEF: {getDefenseScore(communityCalculated.dna[hoveredRadarDim.key as keyof ScamDnaVector] ?? 0.5)}đ
                           </span>
                         </>
                       ) : (
-                        <span className="text-slate-500 italic text-center w-full text-[10px]">
+                        <span className="text-slate-600 italic text-center w-full text-[10px]">
                           💡 Rê chuột vào các đỉnh biểu đồ để soi chi tiết từng trục Scam DNA
                         </span>
                       )}
@@ -1029,7 +1031,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                               cy="50"
                               r="40"
                               fill="none"
-                              stroke="rgba(30, 41, 59, 0.8)"
+                              stroke="#e2e8f0"
                               strokeWidth="8"
                             />
                             <circle
@@ -1037,7 +1039,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                               cy="50"
                               r="40"
                               fill="none"
-                              stroke="#c084fc"
+                              stroke="#9333ea"
                               strokeWidth="8"
                               strokeLinecap="round"
                               strokeDasharray={251.3}
@@ -1046,18 +1048,18 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                             />
                           </svg>
                           <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-2xl font-black font-mono text-purple-300">
+                            <span className="text-2xl font-black font-mono text-purple-700">
                               {userAvgDefense}đ
                             </span>
-                            <span className="text-[9px] text-purple-400 font-bold uppercase tracking-wider">
+                            <span className="text-[9px] text-purple-600 font-bold uppercase tracking-wider">
                               Cá Nhân
                             </span>
                           </div>
                         </div>
-                        <span className="text-[11px] text-slate-300 font-bold max-w-[130px] truncate block">
+                        <span className="text-[11px] text-slate-800 font-bold max-w-[130px] truncate block">
                           {personalCalculated.name}
                         </span>
-                        <span className="text-[10px] text-slate-400">Điểm cá nhân đạt được</span>
+                        <span className="text-[10px] text-slate-500">Điểm cá nhân đạt được</span>
                       </div>
 
                       {/* Community Radial Gauge */}
@@ -1069,7 +1071,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
                               cy="50"
                               r="40"
                               fill="none"
-                              stroke="rgba(30, 41, 59, 0.8)"
+                              stroke="#e2e8f0"
                               strokeWidth="8"
                             />
                             <circle

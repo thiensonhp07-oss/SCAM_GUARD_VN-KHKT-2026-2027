@@ -60,6 +60,7 @@ import {
 import { LanguageProvider } from './i18n/LanguageContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { INITIAL_FRIENDS, INITIAL_QUESTS, INITIAL_ACTIVITY_FEED, INITIAL_SOCIAL_POSTS } from './data/friendsData';
+import { SCAM_SCENARIOS } from './data/scenarios';
 import { playSuccessChime, playRewardTrophy } from './utils/audioEffects';
 import { syncLiveSurveysWithServer } from './services/researchDataService';
 import {
@@ -977,7 +978,9 @@ export default function App() {
                     userProfile={userProfile}
                     onNavigateToArena={(scenarioId) => {
                       if (scenarioId) {
-                        const matchedScenario = userProfile.completedScenarios?.find((s) => s.id === scenarioId);
+                        const matchedScenario =
+                          SCAM_SCENARIOS.find((s) => s.id === scenarioId) ||
+                          userProfile.completedScenarios?.find((s) => s.id === scenarioId);
                         if (matchedScenario) {
                           setSelectedScenario(matchedScenario as any);
                         }

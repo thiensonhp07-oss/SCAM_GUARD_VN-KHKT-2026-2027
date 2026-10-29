@@ -18,8 +18,13 @@ import {
   ArrowRight,
   Layers,
   ShieldCheck,
+  ShieldAlert,
+  PhoneCall,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
-import { UserProfile, UserAccount } from '../types';
+import { UserProfile, UserAccount, AnalysisResult } from '../types';
+import { runClientSideTextAnalysis } from '../utils/clientForensicsEngine';
 import {
   getAllCommunitySurveys,
   getCommunitySurveyAnalytics,
@@ -48,12 +53,14 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
   userProfile,
   overallScore = 0,
   onNavigate,
+  onOpenEmergency,
   onOpenScienceFairDemo,
 }) => {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('30d');
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState<'scamdna' | 'livefeed'>('scamdna');
   const [quickScanInput, setQuickScanInput] = useState('');
+  const [inlineTriageResult, setInlineTriageResult] = useState<AnalysisResult | null>(null);
   const [refreshTick, setRefreshTick] = useState<number>(0);
 
   const [liveCommunity, setLiveCommunity] = useState<{
@@ -342,18 +349,39 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
     };
   }, [realTotalParticipants, refreshTick]);
 
+  const runInlineQuickTriage = (rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) return;
+    const isUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://') || /\.[a-z]{2,6}(\/|$)/i.test(trimmed);
+    const analysis = runClientSideTextAnalysis(
+      trimmed,
+      isUrl ? trimmed : '',
+      '',
+      isUrl ? 'web' : 'sms'
+    );
+    setInlineTriageResult(analysis);
+  };
+
   const handleQuickScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (quickScanInput.trim()) {
-      sessionStorage.setItem('scamguard_quick_scan_query', quickScanInput.trim());
+    if (!quickScanInput.trim()) {
+      onNavigate('check', 'smart_link');
+      return;
+    }
+    runInlineQuickTriage(quickScanInput);
+  };
+
+  const handleOpenDeepForensics = (queryText?: string) => {
+    const q = (queryText ?? quickScanInput).trim();
+    if (q) {
+      sessionStorage.setItem('scamguard_quick_scan_query', q);
     }
     onNavigate('check', 'smart_link');
   };
 
   const handleApplyPresetSample = (sampleText: string) => {
     setQuickScanInput(sampleText);
-    sessionStorage.setItem('scamguard_quick_scan_query', sampleText);
-    onNavigate('check', 'smart_link');
+    runInlineQuickTriage(sampleText);
   };
 
   const points = currentPreset.points;
@@ -411,7 +439,7 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
 
               {/* Clean Interactive Sample Triggers */}
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-                <span className="text-slate-500">Mẫu kiểm thử:</span>
+                <span className="text-slate-500">Mẫu kiểm thử tức thì:</span>
                 <button
                   type="button"
                   onClick={() => handleApplyPresetSample('Link tải app VNeID cấp mã định danh thuế http://dichvucong-gov.vn.apk')}
@@ -421,43 +449,145 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplyPresetSample('Tuyển CTV Shopee giật đơn online hoa hồng 30%')}
+                  onClick={() => handleApplyPresetSample('Tuyển CTV Shopee giật đơn online hoa hồng 30% chuyển khoản cọc trước')}
                   className="px-2.5 py-1 rounded bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white text-xs transition cursor-pointer whitespace-nowrap"
                 >
                   Tuyển CTV việc nhẹ lương cao
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplyPresetSample('Lệnh bắt khẩn cấp từ cơ quan CSĐT Bộ Công An')}
+                  onClick={() => handleApplyPresetSample('Lệnh bắt khẩn cấp từ cơ quan CSĐT Bộ Công An yêu cầu chuyển tiền vào tài khoản tạm giữ 1028392109')}
                   className="px-2.5 py-1 rounded bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white text-xs transition cursor-pointer whitespace-nowrap"
                 >
                   Mạo danh Cơ quan Công an
                 </button>
               </div>
             </form>
+
+            {/* Instant Inline Forensic Triage Result Card */}
+            {inlineTriageResult && (
+              <div className="p-4 rounded-xl bg-[#090D16] border border-[#1E293B] space-y-3 animate-fadeIn">
+                <div className="flex items-start justify-between gap-3 border-b border-[#1E293B] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    {inlineTriageResult.riskScore >= 65 ? (
+                      <ShieldAlert className="w-4 h-4 text-rose-500 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    )}
+                    <div>
+                      <span className="text-xs font-bold text-white block">
+                        Kết Quả Sơ Khám Pháp Y Tức Thì: {inlineTriageResult.threatClassification?.primaryThreat || 'Phân tích mối đe dọa'}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Mức độ rủi ro:{' '}
+                        <strong className={inlineTriageResult.riskScore >= 65 ? 'text-rose-500 font-mono' : 'text-amber-500 font-mono'}>
+                          {inlineTriageResult.riskScore}/100 ({inlineTriageResult.riskLevel})
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInlineTriageResult(null)}
+                    className="text-slate-400 hover:text-white p-1 rounded cursor-pointer"
+                    title="Đóng kết quả nhanh"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {inlineTriageResult.summary}
+                </p>
+
+                {Array.isArray(inlineTriageResult.redFlags) && inlineTriageResult.redFlags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {inlineTriageResult.redFlags.slice(0, 3).map((flag, idx) => (
+                      <span
+                        key={idx}
+                        className="text-[11px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium"
+                      >
+                        ⚠️ {flag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#1E293B]">
+                  <span className="text-[11px] text-emerald-400 font-medium">
+                    🛡️ Khuyến nghị: {inlineTriageResult.recommendedSteps?.[0] || 'Tuyệt đối không bấm link lạ hoặc chuyển tiền.'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDeepForensics()}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shrink-0"
+                  >
+                    <span>Mở Phòng Pháp Y Chuyên Sâu (AI + ELA + DNS)</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Secondary Action Strip */}
-          <div className="pt-4 border-t border-[#1E293B] flex flex-wrap items-center gap-3">
-            {onOpenScienceFairDemo && (
+          {/* Secondary Action Strip & Quick Emergency Bank Hotline Lookup */}
+          <div className="space-y-3 pt-4 border-t border-[#1E293B]">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {onOpenScienceFairDemo && (
+                <button
+                  type="button"
+                  onClick={onOpenScienceFairDemo}
+                  className="px-3.5 py-2 rounded-lg bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span>Khảo Nghiệm ViSEF (N={realTotalParticipants})</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={onOpenScienceFairDemo}
-                className="px-4 py-2 rounded-lg bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
+                onClick={() => onNavigate('train', 'arena')}
+                className="px-3.5 py-2 rounded-lg bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Users className="w-4 h-4 text-blue-400" />
-                <span>Chạy Khảo Nghiệm Thực Tế ViSEF (N={realTotalParticipants})</span>
+                <Swords className="w-4 h-4 text-blue-400" />
+                <span>Thao Trường 12 Phân Hệ</span>
               </button>
-            )}
 
-            <button
-              type="button"
-              onClick={() => onNavigate('train', 'arena')}
-              className="px-4 py-2 rounded-lg bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Swords className="w-4 h-4 text-slate-400" />
-              <span>Thao Trường 12 Phân Hệ</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('check', 'blacklist')}
+                className="px-3.5 py-2 rounded-lg bg-[#090D16] hover:bg-[#1E293B] border border-[#1E293B] text-slate-300 hover:text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                <span>Tra Cứu SĐT/STK & Lập Đơn PA05</span>
+              </button>
+
+              {onOpenEmergency && (
+                <button
+                  type="button"
+                  onClick={onOpenEmergency}
+                  className="px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 ml-auto"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>SOS Phong Tỏa Khẩn Cấp 24/7</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 font-mono">
+              <span className="font-sans font-semibold text-rose-400">⚡ Hotline Khóa Thẻ Giờ Vàng:</span>
+              <span>VCB: 1900 545413</span>
+              <span>·</span>
+              <span>TCB: 1800 588822</span>
+              <span>·</span>
+              <span>BIDV: 1900 9247</span>
+              <span>·</span>
+              <span>CTG: 1900 558868</span>
+              <span>·</span>
+              <span>MB: 1900 545426</span>
+              <span>·</span>
+              <span>Cảnh sát: 113 / Đầu số 156</span>
+            </div>
           </div>
         </div>
 
@@ -1030,8 +1160,8 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
             },
             {
               id: 'roadmap',
-              title: 'Lộ Trình 8 Khu Vực',
-              desc: 'Hành trình huấn luyện có cấu trúc qua 8 trạm phòng thủ không gian mạng.',
+              title: 'Lộ Trình 12 Phân Khu',
+              desc: 'Hành trình huấn luyện có cấu trúc qua 12 phân khu phòng thủ không gian mạng.',
               icon: Compass,
               cta: 'Bắt đầu lộ trình',
               action: () => onNavigate('roadmap'),

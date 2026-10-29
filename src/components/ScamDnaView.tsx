@@ -728,9 +728,9 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                     >
                       <defs>
                         <radialGradient id="radarCenterSubtle" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.15" />
-                          <stop offset="70%" stopColor="#0ea5e9" stopOpacity="0.04" />
-                          <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+                          <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.16" />
+                          <stop offset="70%" stopColor="#38bdf8" stopOpacity="0.06" />
+                          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                         </radialGradient>
                       </defs>
 
@@ -742,9 +742,9 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                         <polygon
                           key={`web-${idx}`}
                           points={pts}
-                          fill="none"
-                          stroke={idx === 3 ? 'rgba(148, 163, 184, 0.35)' : 'rgba(148, 163, 184, 0.12)'}
-                          strokeWidth="1"
+                          fill={idx === 3 ? 'rgba(224, 242, 254, 0.35)' : 'none'}
+                          stroke={idx === 3 ? '#7dd3fc' : '#cbd5e1'}
+                          strokeWidth={idx === 3 ? '1.5' : '1'}
                           strokeDasharray={idx === 3 ? 'none' : '2 3'}
                         />
                       ))}
@@ -757,7 +757,7 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                           y1={radarData.center}
                           x2={ax.xEnd}
                           y2={ax.yEnd}
-                          stroke="rgba(148, 163, 184, 0.18)"
+                          stroke="#cbd5e1"
                           strokeWidth="1"
                         />
                       ))}
@@ -765,8 +765,8 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                       {/* Community Polygon */}
                       <polygon
                         points={radarData.commPolygon}
-                        fill="rgba(168, 85, 247, 0.12)"
-                        stroke="#a855f7"
+                        fill="rgba(147, 51, 234, 0.14)"
+                        stroke="#9333ea"
                         strokeWidth="1.5"
                         strokeDasharray="4 3"
                       />
@@ -776,15 +776,15 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                           cx={v.x}
                           cy={v.y}
                           r={2.5}
-                          fill="#a855f7"
+                          fill="#9333ea"
                         />
                       ))}
 
                       {/* User Polygon */}
                       <polygon
                         points={radarData.userPolygon}
-                        fill="rgba(6, 182, 212, 0.22)"
-                        stroke="#06b6d4"
+                        fill="rgba(2, 132, 199, 0.22)"
+                        stroke="#0284c7"
                         strokeWidth="2"
                         strokeLinejoin="round"
                       />
@@ -798,7 +798,7 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                                 cy={v.y}
                                 r={8}
                                 fill="none"
-                                stroke="#10b981"
+                                stroke="#059669"
                                 strokeWidth="1.5"
                                 className="opacity-80"
                               />
@@ -807,8 +807,8 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                               cx={v.x}
                               cy={v.y}
                               r={isSelected ? 5.5 : 3.5}
-                              fill={isSelected ? '#10b981' : '#06b6d4'}
-                              stroke="#0f172a"
+                              fill={isSelected ? '#059669' : '#0284c7'}
+                              stroke="#ffffff"
                               strokeWidth="2"
                               className="cursor-pointer transition-transform hover:scale-125"
                               onClick={() => setActiveDimensionKey(v.key as ScamDnaDimensionKey)}
@@ -831,11 +831,9 @@ Khảo sát và rèn luyện phản xạ phòng thủ tại ScamGuard!`;
                               y={ax.yLabel}
                               textAnchor="middle"
                               dominantBaseline="central"
-                              className={`text-[9px] font-mono transition-colors ${
-                                isSelected
-                                  ? 'fill-cyan-300 font-bold'
-                                  : 'fill-slate-400 hover:fill-slate-200'
-                              }`}
+                              fill={isSelected ? '#0284c7' : '#0f172a'}
+                              fontWeight={isSelected ? 'bold' : '600'}
+                              className="text-[9px] font-mono transition-colors"
                             >
                               {ax.name}
                             </text>

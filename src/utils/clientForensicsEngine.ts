@@ -1,4 +1,10 @@
 import { AnalysisResult, CommunicationChannel, RiskSignal } from '../types';
+import {
+  extract9DFeatureVectorFromText,
+  runMlInferenceWithShap,
+  ingestLiveSampleForSelfTraining,
+  getStoredScannerTrainingSamples,
+} from './mlSelfTrainingEngine';
 
 export function runClientSideTextAnalysis(
   text: string,
@@ -36,7 +42,7 @@ export function runClientSideTextAnalysis(
     }
 
     const dLower = domain.toLowerCase();
-    const suspiciousTlds = ['.top', '.xyz', '.vip', '.cc', '.work', '.club', '.online', '.site', '.ru', '.click', '.tk', '.ml'];
+    const suspiciousTlds = ['.top', '.xyz', '.vip', '.cc', '.work', '.club', '.online', '.site', '.ru', '.click', '.tk', '.ml', '.apk'];
     suspiciousTld = suspiciousTlds.some((tld) => dLower.endsWith(tld));
 
     const brands = [
@@ -92,7 +98,7 @@ export function runClientSideTextAnalysis(
   }
 
   // 2. PSYCHOLOGICAL & CONTENT TACTICS ANALYSIS
-  const urgencyWords = ['khẩn cấp', 'ngay lập tức', 'trong vòng', '24 giờ', '5 phút', 'khóa tài khoản', 'hủy lệnh', 'hạn chót', 'bị tạm ngừng'];
+  const urgencyWords = ['khẩn cấp', 'ngay lập tức', 'trong vòng', '24 giờ', '5 phút', '10 phút', 'khóa tài khoản', 'hủy lệnh', 'hạn chót', 'bị tạm ngừng'];
   const hasUrgency = urgencyWords.some((w) => lowerText.includes(w) || lowerUrl.includes(w));
   if (hasUrgency) {
     heuristicScore += 30;
@@ -137,8 +143,39 @@ export function runClientSideTextAnalysis(
     redFlags.push('Yêu cầu truy cập đường dẫn để xác thực hoặc nhập mã OTP.');
   }
 
-  // Cap score
-  const finalScore = Math.min(98, Math.max(12, heuristicScore));
+  // 3. LIVE MACHINE LEARNING MODEL INFERENCE (9D FEATURE VECTOR + LEARNED WEIGHTS)
+  const featureVec = extract9DFeatureVectorFromText(text, urlStr, sender, 3.0);
+  const mlPred = runMlInferenceWithShap(featureVec);
+  const mlScore = Math.round(mlPred.probability * 100);
+  const topShap = mlPred.shapContributions[0];
+
+  signals.push({
+    name: `Mô Hình Học Máy Thích Ứng (${mlPred.architecture} • P=${mlScore}%)`,
+    scoreContribution: Math.min(35, Math.max(10, Math.round(mlScore * 0.35))),
+    description: `Dự báo từ trọng số học máy hội tụ: Logit z=${mlPred.logit}, P(Scam)=${(mlPred.probability * 100).toFixed(1)}%. Đặc trưng đóng góp mạnh nhất (SHAP): ${topShap?.label || 'w_Authority'} (${topShap && topShap.contribution > 0 ? '+' : ''}${topShap?.contribution ?? 0}).`,
+    category: 'Emotional Manipulation',
+  });
+
+  // Auto-ingest into online self-training corpus if not duplicate of most recent scan
+  try {
+    const summaryKey = (text || urlStr || '').trim().slice(0, 95);
+    const existing = getStoredScannerTrainingSamples();
+    if (summaryKey.length > 10 && (!existing[0] || existing[0].textSummary !== summaryKey)) {
+      ingestLiveSampleForSelfTraining({
+        text: text || urlStr || '',
+        url: urlStr,
+        sender,
+        source: 'LIVE_SCANNER',
+        category: brandImpersonationFound ? 'BRAND_PHISHING' : 'LIVE_THREAT_SCAN',
+      });
+    }
+  } catch {
+    // non-blocking
+  }
+
+  // Blend heuristic forensics (65%) + learned ML probability (35%)
+  const blendedScore = Math.round(heuristicScore * 0.65 + mlScore * 0.35);
+  const finalScore = Math.min(98, Math.max(12, Math.max(heuristicScore, blendedScore)));
   let riskLevel: 'HIGH' | 'MEDIUM' | 'LOW' | 'SAFE' = 'LOW';
   if (finalScore >= 70) riskLevel = 'HIGH';
   else if (finalScore >= 40) riskLevel = 'MEDIUM';
@@ -154,7 +191,7 @@ export function runClientSideTextAnalysis(
   return {
     riskScore: finalScore,
     riskLevel,
-    summary: `Giám định pháp y độc lập (On-Device Forensics Engine): Chỉ số nguy cơ ${finalScore}/100 [Mức ${riskLevel}]. Phát hiện ${signals.length} dấu hiệu kỹ nghệ xã hội (Social Engineering) nguy hiểm. Đối tượng sử dụng thủ đoạn tạo áp lực thời gian kết hợp mạo danh cơ quan/tổ chức nhằm dẫn dụ nạn nhân vào trang web thu thập thông tin đăng nhập hoặc tài sản.`,
+    summary: `Giám định Pháp y Lai (Rule Engine + Online ML ${mlPred.architecture}): Chỉ số nguy cơ ${finalScore}/100 [Mức ${riskLevel}], xác suất ML P(Scam) = ${(mlPred.probability * 100).toFixed(1)}%. Phát hiện ${signals.length} dấu hiệu kỹ nghệ xã hội và bất thường kỹ thuật.`,
     signals,
     redFlags,
     recommendedSteps: [
@@ -184,7 +221,7 @@ export function runClientSideTextAnalysis(
       attackVector: urlStr ? 'Malicious Phishing URL' : 'Manipulative SMS / Social Chat',
       target: 'Thông tin tài khoản ngân hàng & Tài sản số',
       potentialImpact: ['Chiếm đoạt tiền trong tài khoản', 'Lộ thông tin danh tính cá nhân'],
-      confidence: 94.5,
+      confidence: mlPred.confidencePct,
     },
     attackChain: [
       'Kẻ gian phát tán tin nhắn mạo danh Brandname qua trạm BTS giả hoặc SMS',
@@ -199,7 +236,8 @@ export function runClientSideTextAnalysis(
       teen: 'Cảnh báo thủ đoạn Phishing: Link web có đuôi lạ và tên miền giả mạo ngân hàng. Không bấm link để tránh bị hack tài khoản mạng xã hội hay game!',
       adult: 'Dấu hiệu rõ ràng của chiến dịch tấn công Phishing tinh vi. Tuyệt đối không đăng nhập thông tin ngân hàng vào trang web này và kiểm tra biến động số dư qua ứng dụng chính thức.',
       senior: 'Kính gửi Bác: Đây là tin nhắn giả mạo để lừa gạt tiền bạc. Bác đừng sợ hãi và hãy nhờ con cháu kiểm tra trực tiếp qua ngân hàng, không bấm vào link xanh.',
-      expert: 'Vector tấn công: Social Engineering via Brand Spoofing. Tên miền sử dụng kỹ thuật Typosquatting/Combosquatting trên TLD phi chính thống kết hợp đòn tâm lý Urgency.',
+      expert: `Vector tấn công 9D: P(Scam)=${(mlPred.probability * 100).toFixed(1)}% (Logit=${mlPred.logit}, Brier=${mlPred.brierCalibration}). Tên miền sử dụng kỹ thuật Typosquatting/Combosquatting kết hợp đòn tâm lý Urgency.`,
     },
   };
 }
+

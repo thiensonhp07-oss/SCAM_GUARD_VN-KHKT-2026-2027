@@ -1201,7 +1201,7 @@ export const DetectionAnalysisSuite: React.FC<DetectionAnalysisSuiteProps> = ({
                     <div className="w-32 h-32 relative mt-4">
                       {/* Dynamic SVG Dial */}
                       <svg className="w-full h-full transform -rotate-90">
-                        <circle cx="64" cy="64" r="50" stroke="#1e293b" strokeWidth="8" fill="transparent" />
+                        <circle cx="64" cy="64" r="50" stroke="#e2e8f0" strokeWidth="8" fill="transparent" />
                         <circle cx="64" cy="64" r="50" stroke={calculatedScore.score >= 70 ? '#f43f5e' : (calculatedScore.score >= 40 ? '#fbbf24' : '#10b981')} strokeWidth="8" fill="transparent" strokeDasharray={`${calculatedScore.score * 3.14}, 314`} />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center font-black font-mono text-xl text-white">

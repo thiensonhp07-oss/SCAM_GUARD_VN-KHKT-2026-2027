@@ -277,7 +277,7 @@ export const SurveyConfidenceHero: React.FC<SurveyConfidenceHeroProps> = ({
               <path
                 d="M 10,48 A 38,38 0 0,1 90,48"
                 fill="none"
-                stroke="#1e293b"
+                stroke="#e2e8f0"
                 strokeWidth="10"
                 strokeLinecap="round"
               />
@@ -303,13 +303,12 @@ export const SurveyConfidenceHero: React.FC<SurveyConfidenceHeroProps> = ({
             </svg>
             {/* Needle pointer */}
             <div
-              className="absolute bottom-1 w-1.5 h-12 sm:h-14 bg-white rounded-full origin-bottom shadow-lg transition-transform duration-300"
+              className="absolute bottom-1 w-1.5 h-12 sm:h-14 bg-slate-800 rounded-full origin-bottom shadow-md transition-transform duration-300"
               style={{
                 transform: `rotate(${insight.needleAngle}deg)`,
-                boxShadow: '0 0 8px rgba(255,255,255,0.8)',
               }}
             />
-            <div className="absolute bottom-0 w-3.5 sm:w-4 h-3.5 sm:h-4 bg-purple-500 rounded-full border-2 border-white" />
+            <div className="absolute bottom-0 w-3.5 sm:w-4 h-3.5 sm:h-4 bg-sky-600 rounded-full border-2 border-white shadow-xs" />
           </div>
           <span className="text-[10px] font-mono text-slate-400 mt-1 font-bold">
             Kim đo mức tự tin: {score}%

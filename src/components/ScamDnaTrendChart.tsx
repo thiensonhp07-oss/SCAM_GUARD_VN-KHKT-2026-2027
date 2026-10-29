@@ -459,65 +459,54 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
             <defs>
               {/* SDI Area Gradient */}
               <linearGradient id="neonSdiArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.45" />
-                <stop offset="40%" stopColor="#10b981" stopOpacity="0.20" />
-                <stop offset="85%" stopColor="#06b6d4" stopOpacity="0.04" />
-                <stop offset="100%" stopColor="#020617" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.32" />
+                <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.14" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               {/* Risk Area Gradient */}
               <linearGradient id="neonRiskArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.45" />
-                <stop offset="50%" stopColor="#fb7185" stopOpacity="0.15" />
-                <stop offset="100%" stopColor="#020617" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.32" />
+                <stop offset="50%" stopColor="#fb7185" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               {/* Psychology Area Gradient */}
               <linearGradient id="neonPsyArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#c084fc" stopOpacity="0.4" />
-                <stop offset="60%" stopColor="#a855f7" stopOpacity="0.1" />
-                <stop offset="100%" stopColor="#020617" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#a855f7" stopOpacity="0.3" />
+                <stop offset="60%" stopColor="#c084fc" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               {/* Technical Area Gradient */}
               <linearGradient id="neonTechArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
-                <stop offset="60%" stopColor="#0ea5e9" stopOpacity="0.1" />
-                <stop offset="100%" stopColor="#020617" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.3" />
+                <stop offset="60%" stopColor="#38bdf8" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               {/* Financial Area Gradient */}
               <linearGradient id="neonFinArea" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
-                <stop offset="60%" stopColor="#10b981" stopOpacity="0.1" />
-                <stop offset="100%" stopColor="#020617" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                <stop offset="60%" stopColor="#34d399" stopOpacity="0.1" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               {/* Glowing Stroke Filters */}
               <filter id="neonGlowCyan" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feDropShadow dx="0" dy="2" stdDeviation="5" floodColor="#22d3ee" floodOpacity="0.8" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
+                <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0284c7" floodOpacity="0.3" />
               </filter>
               <filter id="neonGlowRose" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feDropShadow dx="0" dy="2" stdDeviation="5" floodColor="#f43f5e" floodOpacity="0.8" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
+                <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#e11d48" floodOpacity="0.3" />
               </filter>
               <filter id="neonGlowPurple" x="-30%" y="-30%" width="160%" height="160%">
-                <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#c084fc" floodOpacity="0.75" />
+                <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#9333ea" floodOpacity="0.3" />
               </filter>
               <filter id="neonGlowSky" x="-30%" y="-30%" width="160%" height="160%">
-                <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#38bdf8" floodOpacity="0.75" />
+                <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#0284c7" floodOpacity="0.3" />
               </filter>
               <filter id="neonGlowEmerald" x="-30%" y="-30%" width="160%" height="160%">
-                <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#34d399" floodOpacity="0.75" />
+                <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#059669" floodOpacity="0.3" />
               </filter>
             </defs>
 
@@ -531,7 +520,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                     y1={y}
                     x2={chartConfig.width - chartConfig.padding.right}
                     y2={y}
-                    stroke="rgba(148, 163, 184, 0.10)"
+                    stroke="#cbd5e1"
                     strokeWidth="1"
                     strokeDasharray={val === 0 || val === 100 ? 'none' : '4 4'}
                   />
@@ -540,7 +529,8 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                     y={y}
                     textAnchor="end"
                     dominantBaseline="central"
-                    className="text-[10px] font-mono fill-slate-500 font-bold"
+                    fill="#475569"
+                    className="text-[10px] font-mono font-bold"
                   >
                     {val}
                   </text>
@@ -554,16 +544,17 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                 <path
                   d={chartConfig.commPath}
                   fill="none"
-                  stroke="#c084fc"
+                  stroke="#9333ea"
                   strokeWidth="2"
                   strokeDasharray="4 4"
-                  className="opacity-75"
+                  className="opacity-80"
                 />
                 <text
                   x={chartConfig.width - chartConfig.padding.right}
                   y={chartConfig.getY(63.5) - 6}
                   textAnchor="end"
-                  className="text-[9px] font-mono fill-purple-400 font-black"
+                  fill="#7e22ce"
+                  className="text-[9px] font-mono font-black"
                 >
                   Chuẩn QG (63.5)
                 </text>
@@ -581,9 +572,9 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
             {/* Compare All Lines */}
             {selectedMetric === 'compare_all' && (
               <>
-                <path d={chartConfig.psyPath} fill="none" stroke="#c084fc" strokeWidth="2.5" filter="url(#neonGlowPurple)" />
-                <path d={chartConfig.techPath} fill="none" stroke="#38bdf8" strokeWidth="2.5" filter="url(#neonGlowSky)" />
-                <path d={chartConfig.finPath} fill="none" stroke="#34d399" strokeWidth="2.5" filter="url(#neonGlowEmerald)" />
+                <path d={chartConfig.psyPath} fill="none" stroke="#9333ea" strokeWidth="2.5" filter="url(#neonGlowPurple)" />
+                <path d={chartConfig.techPath} fill="none" stroke="#0284c7" strokeWidth="2.5" filter="url(#neonGlowSky)" />
+                <path d={chartConfig.finPath} fill="none" stroke="#059669" strokeWidth="2.5" filter="url(#neonGlowEmerald)" />
               </>
             )}
 
@@ -592,7 +583,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
               <path
                 d={chartConfig.sdiPath}
                 fill="none"
-                stroke="#22d3ee"
+                stroke="#0284c7"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -604,7 +595,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
               <path
                 d={chartConfig.riskPath}
                 fill="none"
-                stroke="#f43f5e"
+                stroke="#e11d48"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -616,7 +607,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
               <path
                 d={chartConfig.psyPath}
                 fill="none"
-                stroke="#c084fc"
+                stroke="#9333ea"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -628,7 +619,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
               <path
                 d={chartConfig.techPath}
                 fill="none"
-                stroke="#38bdf8"
+                stroke="#0284c7"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -640,7 +631,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
               <path
                 d={chartConfig.finPath}
                 fill="none"
-                stroke="#34d399"
+                stroke="#059669"
                 strokeWidth="3.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -656,7 +647,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                   y1={chartConfig.padding.top}
                   x2={chartConfig.getX(hoveredPointIndex)}
                   y2={chartConfig.height - chartConfig.padding.bottom}
-                  stroke="#38bdf8"
+                  stroke="#0284c7"
                   strokeWidth="1.5"
                   strokeDasharray="2 2"
                 />
@@ -718,14 +709,14 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                       hasMilestone
                         ? '#f59e0b'
                         : selectedMetric === 'risk_index'
-                        ? '#f43f5e'
+                        ? '#e11d48'
                         : selectedMetric === 'psychology'
-                        ? '#c084fc'
+                        ? '#9333ea'
                         : selectedMetric === 'technical'
-                        ? '#38bdf8'
-                        : '#22d3ee'
+                        ? '#0284c7'
+                        : '#0284c7'
                     }
-                    stroke="#020617"
+                    stroke="#ffffff"
                     strokeWidth="2"
                     className="transition-all duration-150"
                   />
@@ -751,9 +742,9 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                   x={x}
                   y={y}
                   textAnchor="middle"
-                  className={`text-[9px] font-mono transition-colors ${
-                    hoveredPointIndex === idx ? 'fill-cyan-300 font-black' : 'fill-slate-500'
-                  }`}
+                  fill={hoveredPointIndex === idx ? '#0284c7' : '#475569'}
+                  fontWeight={hoveredPointIndex === idx ? 'bold' : '600'}
+                  className="text-[9px] font-mono transition-colors"
                 >
                   {point.date}
                 </text>

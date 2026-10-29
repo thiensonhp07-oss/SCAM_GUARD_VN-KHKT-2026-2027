@@ -10,6 +10,8 @@ export type CommunicationChannel =
   | 'sms'
   | 'email'
   | 'messenger'
+  | 'zalo'
+  | 'web'
   | 'phone'
   | 'marketplace'
   | 'deepfake_voice'

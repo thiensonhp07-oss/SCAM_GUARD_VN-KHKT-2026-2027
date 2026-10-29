@@ -79,7 +79,7 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({
   const [copied, setCopied] = useState(false);
   const [showTrace, setShowTrace] = useState(false);
 
-  // Check sessionStorage for quick scan queries from GlobalSearchBar
+  // Check sessionStorage for quick scan queries from GlobalSearchBar or ExecutiveDashboardView
   useEffect(() => {
     try {
       const pending = sessionStorage.getItem('scamguard_quick_scan_query');
@@ -89,13 +89,17 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({
         if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
           setUrlInput(trimmed);
           setTargetObject('url');
+          setResult(runClientSideTextAnalysis(trimmed, trimmed, '', 'web'));
         } else if (/^[0-9+\s().-]{8,15}$/.test(trimmed)) {
           setSenderInput(trimmed);
-          setTextInput(`Tra cứu độ tin cậy và lịch sử phản ánh của số điện thoại lạ: ${trimmed}`);
+          const phoneDesc = `Tra cứu độ tin cậy và lịch sử phản ánh của số điện thoại lạ: ${trimmed}`;
+          setTextInput(phoneDesc);
           setTargetObject('phone');
+          setResult(runClientSideTextAnalysis(phoneDesc, '', trimmed, 'phone'));
         } else {
           setTextInput(trimmed);
           setTargetObject('message');
+          setResult(runClientSideTextAnalysis(trimmed, '', '', 'sms'));
         }
       }
     } catch (e) {
@@ -184,35 +188,45 @@ export const CheckScamView: React.FC<CheckScamViewProps> = ({
 
   const handleLoadSample = () => {
     setError(null);
-    setResult(null);
     if (targetObject === 'message') {
-      setTextInput(
-        '[CẢNH BÁO KHẨN CẤP VCB]: Tài khoản Vietcombank của quý khách vừa phát sinh yêu cầu liên kết thiết bị lạ tại IP 14.225.2.98. Vui lòng truy cập ngay https://vietcombank-xacminh.online trong 10 phút để hủy giao dịch và tránh bị phong tỏa tài khoản.'
-      );
-      setUrlInput('https://vietcombank-xacminh.online');
-      setSenderInput('VCB_DIGIBANK');
+      const sampleText =
+        '[CẢNH BÁO KHẨN CẤP VCB]: Tài khoản Vietcombank của quý khách vừa phát sinh yêu cầu liên kết thiết bị lạ tại IP 14.225.2.98. Vui lòng truy cập ngay https://vietcombank-xacminh.online trong 10 phút để hủy giao dịch và tránh bị phong tỏa tài khoản.';
+      const sampleUrl = 'https://vietcombank-xacminh.online';
+      const sampleSender = 'VCB_DIGIBANK';
+      setTextInput(sampleText);
+      setUrlInput(sampleUrl);
+      setSenderInput(sampleSender);
       setChannel('sms');
+      setResult(runClientSideTextAnalysis(sampleText, sampleUrl, sampleSender, 'sms'));
     } else if (targetObject === 'url') {
-      setTextInput(
-        'Cán bộ tự xưng Công an phường gọi điện yêu cầu truy cập cổng dịch vụ công để đồng bộ CCCD cấp độ 2 bằng cách tải file cài đặt .APK.'
-      );
-      setUrlInput('https://dichvucong-vneid-gov.top/capnhat.apk');
-      setSenderInput('Zalo Cán Bộ Hộ Tịch');
+      const sampleText =
+        'Cán bộ tự xưng Công an phường gọi điện yêu cầu truy cập cổng dịch vụ công để đồng bộ CCCD cấp độ 2 bằng cách tải file cài đặt .APK.';
+      const sampleUrl = 'https://dichvucong-vneid-gov.top/capnhat.apk';
+      const sampleSender = 'Zalo Cán Bộ Hộ Tịch';
+      setTextInput(sampleText);
+      setUrlInput(sampleUrl);
+      setSenderInput(sampleSender);
       setChannel('zalo');
+      setResult(runClientSideTextAnalysis(sampleText, sampleUrl, sampleSender, 'zalo'));
     } else if (targetObject === 'email') {
-      setTextInput(
-        'Thông báo từ Tổng cục Thuế: Hồ sơ quyết toán thuế TNCN của quý khách có khoản hoàn thuế 8.450.000đ. Vui lòng xác nhận tài khoản nhận tiền hoàn thuế tại cổng thông tin đính kèm.'
-      );
-      setUrlInput('https://thuedientu-gdt-gov.xyz/hoan-thue');
-      setSenderInput('hoanthue@gdt-alert.com');
+      const sampleText =
+        'Thông báo từ Tổng cục Thuế: Hồ sơ quyết toán thuế TNCN của quý khách có khoản hoàn thuế 8.450.000đ. Vui lòng xác nhận tài khoản nhận tiền hoàn thuế tại cổng thông tin đính kèm.';
+      const sampleUrl = 'https://thuedientu-gdt-gov.xyz/hoan-thue';
+      const sampleSender = 'hoanthue@gdt-alert.com';
+      setTextInput(sampleText);
+      setUrlInput(sampleUrl);
+      setSenderInput(sampleSender);
       setChannel('email');
+      setResult(runClientSideTextAnalysis(sampleText, sampleUrl, sampleSender, 'email'));
     } else {
-      setTextInput(
-        'Đối phương tự xưng là Kiểm sát viên Viện Kiểm Sát Nhân Dân Tối Cao gọi điện đe dọa tài khoản có liên quan đến đường dây rửa tiền, yêu cầu chuyển 50 triệu đồng vào tài khoản tạm giữ để phục vụ rà soát.'
-      );
+      const sampleText =
+        'Đối phương tự xưng là Kiểm sát viên Viện Kiểm Sát Nhân Dân Tối Cao gọi điện đe dọa tài khoản có liên quan đến đường dây rửa tiền, yêu cầu chuyển 50 triệu đồng vào tài khoản tạm giữ để phục vụ rà soát.';
+      const sampleSender = '024.7302.2626 / STK: 1028392109';
+      setTextInput(sampleText);
       setUrlInput('');
-      setSenderInput('024.7302.2626 / STK: 1028392109');
+      setSenderInput(sampleSender);
       setChannel('phone');
+      setResult(runClientSideTextAnalysis(sampleText, '', sampleSender, 'phone'));
     }
   };
 

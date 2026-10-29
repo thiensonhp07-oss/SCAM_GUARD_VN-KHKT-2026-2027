@@ -10,6 +10,13 @@ import { REAL_EXTERNAL_SURVEYS } from '../data/realSurveyData';
 import { CAMGUARD_DATASET } from '../data/researchDataset';
 import { collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import {
+  MlHyperparameters,
+  getStoredScannerTrainingSamples,
+  clearStoredScannerTrainingSamples,
+  getStoredMlHyperparams,
+  trainOnlineGradientDescentOnCorpus,
+} from '../utils/mlSelfTrainingEngine';
 
 const LOCAL_STORAGE_KEY = 'visef_community_surveys_v2';
 const CLEAN_ZERO_MODE_KEY = 'visef_clean_zero_mode';
@@ -187,6 +194,7 @@ export async function clearClientSurveysToZero(): Promise<void> {
     localStorage.setItem(CLEAN_ZERO_MODE_KEY, 'true');
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
     localStorage.setItem('visef_post_app_certifications', JSON.stringify([]));
+    clearStoredScannerTrainingSamples();
     try {
       await fetch('/api/research/clear-to-zero', { method: 'POST' });
     } catch {
@@ -867,7 +875,7 @@ export function getFallbackResearchStatistics() {
 export interface ClientLiveTrainingSample {
   id: string;
   timestamp: string;
-  source: 'SURVEY_SUBMISSION' | 'LIVE_SCANNER' | 'BENCHMARK_CORPUS';
+  source: 'SURVEY_SUBMISSION' | 'LIVE_SCANNER' | 'BENCHMARK_CORPUS' | 'ACTIVE_LEARNING_HUMAN' | 'ADVERSARIAL_SELF_PLAY';
   category: string;
   textSummary: string;
   features: {
@@ -894,19 +902,32 @@ export interface ClientLiveAiTrainingState {
   benchmarkScenarioCount: number;
   trainingEpochsCompleted: number;
   learningRate: number;
+  l2Lambda?: number;
+  decisionThreshold?: number;
+  architecture?: 'LOGISTIC_SGD' | 'NEURAL_MLP_16' | 'HYBRID_ENSEMBLE';
+  f1Score?: number;
+  rocAuc?: number;
+  brierScore?: number;
+  mcc?: number;
   metrics?: {
     accuracy: number;
     precision: number;
     recall: number;
     f1Score: number;
     rocAuc: number;
+    brierScore?: number;
+    mcc?: number;
   };
   learnedWeights: {
+    bias?: number;
     wTimePressure: number;
     wAuthorityFear: number;
     wFinancialGreed: number;
     wEmotionalManip: number;
     wDomainAnomaly: number;
+    wOtpDemand?: number;
+    wVisualForgery?: number;
+    wDeepfakeMarker?: number;
     wLatencyFriction: number;
   };
   confusionMatrix: {
@@ -927,8 +948,24 @@ export interface ClientLiveAiTrainingState {
 
 export function buildClientTrainingCorpus(): ClientLiveTrainingSample[] {
   const surveys = getAllCommunitySurveys();
+  const scannerVectors = getStoredScannerTrainingSamples();
   const samples: ClientLiveTrainingSample[] = [];
 
+  // 1. Prepend Live Scanner / Active Learning / Adversarial Self-Play vectors so newest taught vectors appear at the top
+  scannerVectors.forEach((sv) => {
+    samples.push({
+      id: sv.id,
+      timestamp: sv.timestamp,
+      source: sv.source,
+      category: sv.category,
+      textSummary: sv.textSummary,
+      features: sv.features,
+      groundTruthLabel: sv.groundTruthLabel,
+      predictedProbability: sv.predictedProbability,
+    });
+  });
+
+  // 2. Append all Pre-Test and Post-Test survey feature vectors
   surveys.forEach((s) => {
     const preDna = s.testOutcome?.scamDnaShift?.before || { T: 0.72, A: 0.68, G: 0.58, E: 0.62, C: 0.64, R: 0.55 };
     const tactic = s.surveyResponses?.biggestFearTactic || 'AUTHORITY_POLICE';
@@ -1008,10 +1045,16 @@ export function buildClientTrainingCorpus(): ClientLiveTrainingSample[] {
   return samples;
 }
 
-export function getClientLiveAiTrainingState(customSummary?: string): ClientLiveAiTrainingState {
+export function getClientLiveAiTrainingState(
+  customSummaryOrParams?: string | Partial<MlHyperparameters>
+): ClientLiveAiTrainingState {
   const surveys = getAllCommunitySurveys();
+  const scannerVectors = getStoredScannerTrainingSamples();
+  const customSummary = typeof customSummaryOrParams === 'string' ? customSummaryOrParams : undefined;
+  const customParams =
+    typeof customSummaryOrParams === 'object' && customSummaryOrParams !== null ? customSummaryOrParams : undefined;
+  const hyperparams = { ...getStoredMlHyperparams(), ...customParams };
   const corpus = buildClientTrainingCorpus();
-  const total = Math.max(1, corpus.length);
 
   let runsCount = 1;
   if (typeof window !== 'undefined') {
@@ -1019,102 +1062,54 @@ export function getClientLiveAiTrainingState(customSummary?: string): ClientLive
     runsCount = rawRuns ? Math.max(1, parseInt(rawRuns, 10) || 1) : 1;
   }
 
-  let tp = 0;
-  let fp = 0;
-  let tn = 0;
-  let fn = 0;
+  // Execute real Online Gradient Descent with Momentum + L2 Regularization over the 9D feature matrix
+  const mlTrained = trainOnlineGradientDescentOnCorpus(corpus, hyperparams);
 
-  let sumT = 0;
-  let sumA = 0;
-  let sumG = 0;
-  let sumE = 0;
-  let sumD = 0;
-  let sumLat = 0;
+  // Update each sample's predictedProbability using the newly converged weights
+  const updatedSamples = corpus.map((s, idx) => ({
+    ...s,
+    predictedProbability: mlTrained.samplePredictions[idx] ?? s.predictedProbability,
+  }));
 
-  corpus.forEach((sample) => {
-    const pred = sample.predictedProbability >= 0.5 ? 1 : 0;
-    if (sample.groundTruthLabel === 1 && pred === 1) tp++;
-    else if (sample.groundTruthLabel === 0 && pred === 1) fp++;
-    else if (sample.groundTruthLabel === 0 && pred === 0) tn++;
-    else fn++;
-
-    if (sample.groundTruthLabel === 1) {
-      sumT += sample.features.timePressure;
-      sumA += sample.features.authorityFear;
-      sumG += sample.features.financialGreed;
-      sumE += sample.features.emotionalManip;
-      sumD += sample.features.domainAnomaly;
-    } else {
-      sumLat += sample.features.decisionLatencyNorm;
-    }
-  });
-
-  const posCount = Math.max(1, tp + fn);
-  const negCount = Math.max(1, tn + fp);
-
-  const wTimePressure = +(0.85 + (sumT / posCount) * 0.65).toFixed(3);
-  const wAuthorityFear = +(0.92 + (sumA / posCount) * 0.68).toFixed(3);
-  const wFinancialGreed = +(0.74 + (sumG / posCount) * 0.55).toFixed(3);
-  const wEmotionalManip = +(0.78 + (sumE / posCount) * 0.58).toFixed(3);
-  const wDomainAnomaly = +(0.88 + (sumD / posCount) * 0.64).toFixed(3);
-  const wLatencyFriction = +(-0.65 - (sumLat / negCount) * 0.48).toFixed(3);
-
-  const baseAcc = ((tp + tn) / total) * 100;
-  const precision = tp + fp > 0 ? (tp / (tp + fp)) * 100 : 94.0;
-  const recall = tp + fn > 0 ? (tp / (tp + fn)) * 100 : 93.5;
-  const finalF1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 93.7;
-
-  const epochs = 12;
-  const epochHistory = [];
-  for (let ep = 1; ep <= epochs; ep++) {
-    const progress = ep / epochs;
-    const loss = +(0.64 * Math.exp(-2.15 * progress) + 0.042).toFixed(4);
-    const acc = +(68.5 + (Math.max(88, baseAcc) - 68.5) * (1 - Math.exp(-2.6 * progress))).toFixed(1);
-    const f1 = +(66.0 + (Math.max(87.5, finalF1) - 66.0) * (1 - Math.exp(-2.5 * progress))).toFixed(1);
-    epochHistory.push({
-      epoch: ep,
-      trainLoss: loss,
-      valAccuracy: acc,
-      f1Score: f1,
-    });
-  }
+  const archName =
+    hyperparams.architecture === 'HYBRID_ENSEMBLE'
+      ? 'Hybrid GBDT + Neural Attention'
+      : hyperparams.architecture === 'NEURAL_MLP_16'
+      ? 'MLP Neural Net (9→16→1)'
+      : 'L2 Logistic SGD';
 
   return {
-    datasetVersion: `v2026.${surveys.length}.${runsCount}-SurveyDataset`,
+    datasetVersion: `v2026.${surveys.length + scannerVectors.length}.${runsCount}-ML`,
     lastTrainedAt: new Date().toISOString(),
-    totalSamples: corpus.length,
+    totalSamples: updatedSamples.length,
     surveySamplesCount: surveys.length * 2,
-    liveScannerSamplesCount: 0,
+    liveScannerSamplesCount: scannerVectors.length,
     benchmarkScenarioCount: surveys.length,
-    trainingEpochsCompleted: epochs,
-    learningRate: 0.015,
-    metrics: {
-      accuracy: corpus.length > 0 ? +baseAcc.toFixed(1) : 0,
-      precision: corpus.length > 0 ? +precision.toFixed(1) : 0,
-      recall: corpus.length > 0 ? +recall.toFixed(1) : 0,
-      f1Score: corpus.length > 0 ? +finalF1.toFixed(1) : 0,
-      rocAuc: corpus.length > 0 ? 0.982 : 0,
-    },
-    learnedWeights: {
-      wTimePressure,
-      wAuthorityFear,
-      wFinancialGreed,
-      wEmotionalManip,
-      wDomainAnomaly,
-      wLatencyFriction,
-    },
-    confusionMatrix: { tp, fp, tn, fn },
-    epochHistory,
-    recentSamples: corpus.slice(0, 25),
+    trainingEpochsCompleted: hyperparams.epochs,
+    learningRate: hyperparams.learningRate,
+    l2Lambda: hyperparams.l2Lambda,
+    decisionThreshold: hyperparams.decisionThreshold,
+    architecture: hyperparams.architecture,
+    f1Score: mlTrained.metrics.f1Score,
+    rocAuc: +(mlTrained.metrics.rocAuc * 100).toFixed(1),
+    brierScore: mlTrained.metrics.brierScore,
+    mcc: mlTrained.metrics.mcc,
+    metrics: mlTrained.metrics,
+    learnedWeights: mlTrained.learnedWeights,
+    confusionMatrix: mlTrained.confusionMatrix,
+    epochHistory: mlTrained.epochHistory,
+    recentSamples: updatedSamples.slice(0, 30),
     aiResearchSummary:
       customSummary ||
-      (surveys.length > 0
-        ? `Pipeline Học Máy Thích Ứng đã trích xuất đặc trưng 9 chiều trực tiếp từ N = ${surveys.length} phiếu khảo sát người dùng thực tế (${corpus.length} vector cặp Pre/Post). Trọng số hội tụ tại Nỗi sợ uy quyền (w_A = ${wAuthorityFear}) và Áp lực thời gian (w_T = ${wTimePressure}), trong khi Khoảng dừng nhận thức (w_Lat = ${wLatencyFriction}) giảm xác suất sập bẫy.`
-        : 'Chưa có mẫu khảo sát người dùng (N = 0). Hãy thực hiện khảo sát để hệ thống trích xuất vector đặc trưng và huấn luyện mô hình.'),
+      (updatedSamples.length > 0
+        ? `Kiến trúc [${archName}] đã hội tụ sau ${hyperparams.epochs} epochs (lr=${hyperparams.learningRate}, L2 λ=${hyperparams.l2Lambda}) trên N_vec = ${updatedSamples.length} vector đặc trưng 9 chiều (${surveys.length * 2} từ khảo sát + ${scannerVectors.length} từ máy quét & tự huấn luyện đối kháng). Đạt F1-Score = ${mlTrained.metrics.f1Score}%, ROC-AUC = ${mlTrained.metrics.rocAuc}, Brier Loss = ${mlTrained.metrics.brierScore}, MCC = ${mlTrained.metrics.mcc}. Trọng số dẫn đầu: w_Domain = +${mlTrained.learnedWeights.wDomainAnomaly}, w_Authority = +${mlTrained.learnedWeights.wAuthorityFear}, w_TimePressure = +${mlTrained.learnedWeights.wTimePressure}, và biến bảo vệ Khoảng dừng phản biện w_Latency = ${mlTrained.learnedWeights.wLatencyFriction}.`
+        : 'Chưa có mẫu khảo sát người dùng (N = 0). Hãy thực hiện khảo sát hoặc kích hoạt Tự Huấn Luyện Đối Kháng để hệ thống trích xuất vector đặc trưng 9 chiều và huấn luyện mô hình.'),
   };
 }
 
-export async function triggerLiveAiTrainingClient(): Promise<{
+export async function triggerLiveAiTrainingClient(
+  customParams?: Partial<MlHyperparameters>
+): Promise<{
   trainingState: ClientLiveAiTrainingState;
   benchmarks: { models: MachineLearningBenchmarkModel[]; tradeoffMatrix: any };
 }> {
@@ -1129,7 +1124,7 @@ export async function triggerLiveAiTrainingClient(): Promise<{
     });
     if (res.ok) {
       const data = await res.json();
-      if (data?.trainingState && data?.benchmarks) {
+      if (data?.trainingState && data?.benchmarks && !customParams) {
         return {
           trainingState: data.trainingState,
           benchmarks: data.benchmarks,
@@ -1140,7 +1135,7 @@ export async function triggerLiveAiTrainingClient(): Promise<{
     // Fallback to client mathematical trainer
   }
   return {
-    trainingState: getClientLiveAiTrainingState(),
+    trainingState: getClientLiveAiTrainingState(customParams),
     benchmarks: getFallbackMlBenchmarks(),
   };
 }

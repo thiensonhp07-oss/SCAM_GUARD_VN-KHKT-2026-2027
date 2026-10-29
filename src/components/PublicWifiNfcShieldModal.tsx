@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
+  Scan,
 } from 'lucide-react';
+import { QrLaserScannerOverlay } from './QrLaserScannerOverlay';
 
 interface PublicWifiNfcShieldModalProps {
   isOpen: boolean;
@@ -27,6 +29,8 @@ export const PublicWifiNfcShieldModal: React.FC<PublicWifiNfcShieldModalProps> =
   const [isWifiScanActive, setIsWifiScanActive] = useState(false);
   const [wifiScanResult, setWifiScanResult] = useState<string | null>(null);
   const [isNfcProtectionEnabled, setIsNfcProtectionEnabled] = useState(true);
+  const [isQrLaserScanning, setIsQrLaserScanning] = useState(false);
+  const [qrLaserResult, setQrLaserResult] = useState<'neutral' | 'danger'>('neutral');
 
   if (!isOpen) return null;
 
@@ -193,6 +197,46 @@ export const PublicWifiNfcShieldModal: React.FC<PublicWifiNfcShieldModalProps> =
               <p className="text-xs text-slate-400">
                 Thủ đoạn dán đè mã QR của kẻ gian lên biển thanh toán VietQR tại quán ăn khiến tiền chuyển thẳng vào tài khoản lừa đảo.
               </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-900 rounded-2xl border border-slate-800">
+              <div className="relative w-36 h-36 rounded-xl bg-white p-3 border-2 border-cyan-500/40 flex items-center justify-center shrink-0 overflow-hidden">
+                <QrCode className="w-24 h-24 text-slate-900" />
+                <QrLaserScannerOverlay
+                  isScanning={isQrLaserScanning}
+                  laserActive={true}
+                  verdictStatus={qrLaserResult}
+                  compact
+                />
+              </div>
+
+              <div className="flex-1 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sky-400">Quét Quang Học Phát Hiện Tem Đè</span>
+                  <span className="text-[10px] font-mono text-slate-400">EMVCo CRC-16</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  {qrLaserResult === 'danger'
+                    ? '🚨 PHÁT HIỆN GIẢ MẠO: Tên thụ hưởng ẩn trong mã QR là tài khoản cá nhân "NGUYEN VAN X", không khớp với biển hiệu nhà hàng!'
+                    : 'Sử dụng tia quét Laser Pháp Y để giải mã trước tên chủ tài khoản ngân hàng thụ hưởng ẩn bên trong mã QR.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQrLaserScanning(true);
+                    setQrLaserResult('neutral');
+                    window.setTimeout(() => {
+                      setIsQrLaserScanning(false);
+                      setQrLaserResult('danger');
+                    }, 1100);
+                  }}
+                  disabled={isQrLaserScanning}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                >
+                  <Scan className="w-3.5 h-3.5" />
+                  <span>{isQrLaserScanning ? 'Đang quét tia Laser...' : 'Kích Hoạt Quét Laser Kiểm Tra QR'}</span>
+                </button>
+              </div>
             </div>
 
             <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 space-y-2 text-xs">

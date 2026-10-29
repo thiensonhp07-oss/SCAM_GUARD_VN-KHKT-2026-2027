@@ -225,13 +225,13 @@ export const VisefStatisticalCalculator: React.FC = () => {
         <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
           <svg className="w-full h-44 overflow-visible" viewBox="0 0 800 200">
             {/* Axis */}
-            <line x1="50" y1="180" x2="750" y2="180" stroke="#334155" strokeWidth="2" />
+            <line x1="50" y1="180" x2="750" y2="180" stroke="#94a3b8" strokeWidth="2" />
 
             {/* H0 Curve (Control Group - Centered at x=280) */}
             <path
               d="M 100 180 Q 280 20 460 180"
               fill="rgba(244, 63, 94, 0.15)"
-              stroke="#f43f5e"
+              stroke="#e11d48"
               strokeWidth="3"
             />
 
@@ -239,34 +239,34 @@ export const VisefStatisticalCalculator: React.FC = () => {
             <path
               d="M 370 180 Q 550 20 730 180"
               fill="rgba(16, 185, 129, 0.2)"
-              stroke="#10b981"
+              stroke="#059669"
               strokeWidth="3"
             />
 
             {/* Critical Value Threshold Line */}
-            <line x1="420" y1="20" x2="420" y2="180" stroke="#a855f7" strokeWidth="2" strokeDasharray="4 4" />
-            <text x="425" y="45" fill="#c084fc" fontSize="11" fontWeight="bold" fontFamily="monospace">
+            <line x1="420" y1="20" x2="420" y2="180" stroke="#7e22ce" strokeWidth="2" strokeDasharray="4 4" />
+            <text x="425" y="45" fill="#7e22ce" fontSize="11" fontWeight="bold" fontFamily="monospace">
               Ngưỡng tới hạn (Z_crit = {zAlpha})
             </text>
 
             {/* Peak Labels */}
-            <text x="240" y="70" fill="#fda4af" fontSize="12" fontWeight="bold">
+            <text x="240" y="70" fill="#be123c" fontSize="12" fontWeight="bold">
               Nhóm A (Control)
             </text>
-            <text x="250" y="85" fill="#94a3b8" fontSize="10" fontFamily="monospace">
+            <text x="250" y="85" fill="#475569" fontSize="10" fontWeight="600" fontFamily="monospace">
               Mean = {meanAVal > 0 ? `${meanAVal}đ (Live)` : '58.4đ (Mô hình H₀)'}
             </text>
 
-            <text x="520" y="70" fill="#6ee7b7" fontSize="12" fontWeight="bold">
+            <text x="520" y="70" fill="#047857" fontSize="12" fontWeight="bold">
               Nhóm C (Adaptive)
             </text>
-            <text x="530" y="85" fill="#94a3b8" fontSize="10" fontFamily="monospace">
+            <text x="530" y="85" fill="#475569" fontSize="10" fontWeight="600" fontFamily="monospace">
               Mean = {meanCVal > 0 ? `${meanCVal}đ (Live)` : '85.3đ (Mô hình H₁)'}
             </text>
 
             {/* Effect Size Indicator Arrow */}
-            <line x1="280" y1="110" x2="550" y2="110" stroke="#38bdf8" strokeWidth="2" markerEnd="url(#arrow)" />
-            <text x="375" y="105" fill="#38bdf8" fontSize="11" fontWeight="bold" textAnchor="middle">
+            <line x1="280" y1="110" x2="550" y2="110" stroke="#0284c7" strokeWidth="2" markerEnd="url(#arrow)" />
+            <text x="375" y="105" fill="#0369a1" fontSize="11" fontWeight="bold" textAnchor="middle">
               Δ = {liveDelta > 0 ? `+${liveDelta}đ` : `+${(85.3 - 58.4).toFixed(1)}đ`} (d = {liveCohensD !== null ? liveCohensD.toFixed(2) : effectSize.toFixed(2)})
             </text>
           </svg>

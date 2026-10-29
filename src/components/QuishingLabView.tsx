@@ -34,6 +34,7 @@ import {
   FileWarning,
   Terminal,
   UserCheck,
+  Scan,
 } from 'lucide-react';
 import { QUISHING_CASES } from '../data/quishingData';
 import { QuishingCase } from '../types';
@@ -45,6 +46,7 @@ import {
   speakVietnameseRealistic,
   stopSpeaking,
 } from '../utils/audioEffects';
+import { QrLaserScannerOverlay } from './QrLaserScannerOverlay';
 
 interface QuishingLabViewProps {
   onAddXp: (amount: number) => void;
@@ -91,6 +93,8 @@ export const QuishingLabView: React.FC<QuishingLabViewProps> = ({ onAddXp, initi
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [stickerPeeled, setStickerPeeled] = useState<boolean>(false);
   const [showRawPayload, setShowRawPayload] = useState<boolean>(false);
+  const [laserOverlayActive, setLaserOverlayActive] = useState<boolean>(true);
+  const [isLaserScanning, setIsLaserScanning] = useState<boolean>(false);
   const [activeRightTab, setActiveRightTab] = useState<'sandbox' | 'roleplay' | 'dissection'>('sandbox');
 
   // Live Field AI Dialogue State
@@ -119,6 +123,8 @@ export const QuishingLabView: React.FC<QuishingLabViewProps> = ({ onAddXp, initi
 
     setStickerPeeled(false);
     setShowRawPayload(false);
+    setIsLaserScanning(true);
+    const sweepTimer = window.setTimeout(() => setIsLaserScanning(false), 1100);
     stopSpeaking();
     setIsPlayingVoice(false);
 
@@ -138,6 +144,7 @@ export const QuishingLabView: React.FC<QuishingLabViewProps> = ({ onAddXp, initi
 
     return () => {
       mounted = false;
+      window.clearTimeout(sweepTimer);
       stopSpeaking();
     };
   }, [selectedCase]);
@@ -356,6 +363,24 @@ export const QuishingLabView: React.FC<QuishingLabViewProps> = ({ onAddXp, initi
               type="button"
               onClick={() => {
                 playButtonClick();
+                setLaserOverlayActive(true);
+                setIsLaserScanning(true);
+                setShowRawPayload(true);
+                window.setTimeout(() => setIsLaserScanning(false), 1100);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center space-x-1 cursor-pointer ${
+                isLaserScanning
+                  ? 'bg-sky-500 text-white'
+                  : 'bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/40'
+              }`}
+            >
+              <Scan className="w-3 h-3" />
+              <span>{isLaserScanning ? 'Đang Quét Laser...' : 'Quét Laser Pháp Y'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playButtonClick();
                 setShowRawPayload(!showRawPayload);
               }}
               className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center space-x-1 cursor-pointer ${
@@ -414,9 +439,23 @@ export const QuishingLabView: React.FC<QuishingLabViewProps> = ({ onAddXp, initi
             {isStickerAttack && !stickerPeeled && (
               <div
                 title="Mép decal dán chồng hơi kênh lên 0.5mm"
-                className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-bl from-slate-300 via-white to-transparent border-b border-l border-slate-400 rounded-bl shadow-md"
+                className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-bl from-slate-300 via-white to-transparent border-b border-l border-slate-400 rounded-bl shadow-md z-10"
               />
             )}
+
+            {/* Real-Time Optical Laser Scanner Overlay */}
+            <QrLaserScannerOverlay
+              isScanning={isLaserScanning}
+              laserActive={laserOverlayActive && !stickerPeeled}
+              verdictStatus={
+                inspected
+                  ? selectedCase.isScam
+                    ? 'danger'
+                    : 'safe'
+                  : 'neutral'
+              }
+              compact
+            />
           </div>
 
           {/* Footer on physical standee */}

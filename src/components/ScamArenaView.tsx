@@ -1921,7 +1921,7 @@ export const ScamArenaView: React.FC<ScamArenaViewProps> = ({
                   <path
                     d="M 10 50 A 40 40 0 0 1 90 50"
                     fill="none"
-                    stroke="#181e29"
+                    stroke="#e2e8f0"
                     strokeWidth="8"
                     strokeLinecap="round"
                   />

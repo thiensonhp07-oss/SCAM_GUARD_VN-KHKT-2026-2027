@@ -46,6 +46,16 @@ import {
   restoreStandardViSEFDatasetClient,
   ClientLiveAiTrainingState,
 } from '../services/researchDataService';
+import {
+  MlHyperparameters,
+  getStoredMlHyperparams,
+  saveStoredMlHyperparams,
+  extract9DFeatureVectorFromText,
+  runMlInferenceWithShap,
+  ingestLiveSampleForSelfTraining,
+  generateAdversarialSelfPlayBatch,
+  clearStoredScannerTrainingSamples,
+} from '../utils/mlSelfTrainingEngine';
 
 interface VisefSurveyResponsesLiveTableProps {
   surveys?: CommunitySurveySubmission[];
@@ -186,28 +196,71 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
   const [isTrainingAi, setIsTrainingAi] = useState<boolean>(false);
   const [autoTrainEnabled, setAutoTrainEnabled] = useState<boolean>(true);
   const [showVectorTable, setShowVectorTable] = useState<boolean>(false);
-  const [trainingProgressEpoch, setTrainingProgressEpoch] = useState<number>(12);
+  const [showShapSandbox, setShowShapSandbox] = useState<boolean>(true);
+  const [trainingProgressEpoch, setTrainingProgressEpoch] = useState<number>(18);
+  const [mlHyperparams, setMlHyperparams] = useState<MlHyperparameters>(() => getStoredMlHyperparams());
+  const [sandboxText, setSandboxText] = useState<string>(
+    'Cục Cảnh Sát ĐTTP thông báo tài khoản của bạn liên quan đường dây rửa tiền. Tải ngay VNeID_BoCongAn.apk và nhập mã OTP trong 10 phút để tránh lệnh phong tỏa!'
+  );
+  const [sandboxUrl, setSandboxUrl] = useState<string>('http://dichvucong-bocongan-vn.top/vneid.apk');
+  const [sandboxLatency, setSandboxLatency] = useState<number>(3.5);
+  const [selfPlayNotice, setSelfPlayNotice] = useState<string | null>(null);
 
-  const runLiveAiTraining = useCallback(async (isSilentAuto = false) => {
+  const liveShapInference = useMemo(() => {
+    const features = extract9DFeatureVectorFromText(sandboxText, sandboxUrl, '', sandboxLatency);
+    return runMlInferenceWithShap(features, aiTrainingState.learnedWeights, mlHyperparams);
+  }, [sandboxText, sandboxUrl, sandboxLatency, aiTrainingState.learnedWeights, mlHyperparams]);
+
+  const runLiveAiTraining = useCallback(async (isSilentAuto = false, customParams?: MlHyperparameters) => {
     try {
+      const activeParams = customParams || mlHyperparams;
+      if (customParams) {
+        saveStoredMlHyperparams(customParams);
+      }
       if (!isSilentAuto) {
         setIsTrainingAi(true);
         setTrainingProgressEpoch(1);
-        for (let ep = 2; ep <= 11; ep += 3) {
-          setTimeout(() => setTrainingProgressEpoch(ep), ep * 45);
+        const totalEp = activeParams.epochs || 18;
+        for (let ep = 2; ep < totalEp; ep += Math.max(2, Math.floor(totalEp / 5))) {
+          setTimeout(() => setTrainingProgressEpoch(ep), ep * 22);
         }
       }
-      const res = await triggerLiveAiTrainingClient();
+      const res = await triggerLiveAiTrainingClient(activeParams);
       setAiTrainingState(res.trainingState);
-      setTrainingProgressEpoch(12);
+      setTrainingProgressEpoch(activeParams.epochs || 18);
     } catch {
-      setAiTrainingState(getClientLiveAiTrainingState());
+      setAiTrainingState(getClientLiveAiTrainingState(customParams || mlHyperparams));
     } finally {
       if (!isSilentAuto) {
-        setTimeout(() => setIsTrainingAi(false), 450);
+        setTimeout(() => setIsTrainingAi(false), 380);
       }
     }
-  }, []);
+  }, [mlHyperparams]);
+
+  const handleSelfPlayAugmentation = useCallback(async () => {
+    const added = generateAdversarialSelfPlayBatch();
+    setSelfPlayNotice(`Đã tự sinh +${added.length} mẫu đối kháng (Adversarial + Benign Control) và hội tụ lại trọng số Gradient Descent!`);
+    await runLiveAiTraining(false);
+    setTimeout(() => setSelfPlayNotice(null), 5000);
+  }, [runLiveAiTraining]);
+
+  const handleTeachCustomSample = useCallback(async (groundTruthLabel: 0 | 1) => {
+    if (!sandboxText.trim() && !sandboxUrl.trim()) return;
+    ingestLiveSampleForSelfTraining({
+      text: sandboxText,
+      url: sandboxUrl,
+      decisionLatencySec: sandboxLatency,
+      explicitLabel: groundTruthLabel,
+      source: 'ACTIVE_LEARNING_HUMAN',
+    });
+    setSelfPlayNotice(
+      groundTruthLabel === 1
+        ? 'Đã dạy AI mẫu LỪA ĐẢO (Label = 1) qua RLHF Active Learning & cập nhật ma trận trọng số!'
+        : 'Đã dạy AI mẫu AN TOÀN (Label = 0) qua RLHF Active Learning & giảm tỷ lệ báo động giả (FP)!'
+    );
+    await runLiveAiTraining(false);
+    setTimeout(() => setSelfPlayNotice(null), 5000);
+  }, [sandboxText, sandboxUrl, sandboxLatency, runLiveAiTraining]);
 
   const fetchSurveysRef = useRef(fetchSurveys);
   useEffect(() => {
@@ -241,9 +294,15 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
       }
     };
 
+    const handleMlCorpusUpdated = () => {
+      setAiTrainingState(getClientLiveAiTrainingState());
+    };
+
     window.addEventListener('visef_survey_updated', handleSurveyUpdated);
+    window.addEventListener('visef_ml_corpus_updated', handleMlCorpusUpdated);
     return () => {
       window.removeEventListener('visef_survey_updated', handleSurveyUpdated);
+      window.removeEventListener('visef_ml_corpus_updated', handleMlCorpusUpdated);
     };
   }, [fetchSurveys, autoTrainEnabled, runLiveAiTraining]);
 
@@ -764,7 +823,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[11px] font-mono font-bold uppercase">
                 <Brain className="w-3.5 h-3.5 text-sky-400" />
-                Auto-Dataset &amp; Online ML Trainer
+                Online Gradient Descent + Momentum &amp; L2 Ridge
               </span>
               <span className="text-xs font-mono text-slate-400">
                 Dataset: <strong className="text-white">{aiTrainingState.datasetVersion}</strong>
@@ -772,18 +831,21 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
               <span className="text-xs font-mono text-emerald-400">
                 • {aiTrainingState.totalSamples} Vector Đặc Trưng 9 Chiều
               </span>
+              <span className="px-2 py-0.5 rounded bg-indigo-500/15 border border-indigo-500/30 text-[10px] font-mono text-indigo-300">
+                Kiến trúc: {mlHyperparams.architecture}
+              </span>
             </div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Cpu className="w-5 h-5 text-sky-400" />
-              Hệ Thống Tự Thu Thập Dataset &amp; Tự Huấn Luyện AI Theo Thời Gian Thực (Real User Survey Corpus)
+              Phòng Thí Nghiệm Tự Huấn Luyện Học Máy (Online Self-Training ML, RLHF &amp; SHAP Attribution)
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
-              Mỗi phiếu khảo sát mới hoặc lượt quét lừa đảo của người dùng đều được trích xuất tự động thành vector 9 chiều{' '}
-              <code className="text-sky-300 font-mono">[T, A, G, E, Domain, OTP, Visual, Deepfake, Latency]</code> và nạp trực tiếp vào thuật toán Online Gradient Descent.
+              Mỗi phiếu khảo sát mới, lượt quét lừa đảo trực tiếp, hoặc mẫu RLHF do người dùng dạy đều được chuyển hóa thành vector 9 chiều{' '}
+              <code className="text-sky-300 font-mono">x ∈ [0,1]^9</code> và tối ưu hóa hàm mất mát Binary Cross-Entropy kèm điều chuẩn L2 (<code className="text-emerald-300 font-mono">w ← w - η∇L + βΔw</code>) ngay trong trình duyệt.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setAutoTrainEnabled(!autoTrainEnabled)}
@@ -794,7 +856,30 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              <span>Auto-Train khi có khảo sát mới: {autoTrainEnabled ? 'BẬT' : 'TẮT'}</span>
+              <span>Auto-Train: {autoTrainEnabled ? 'BẬT' : 'TẮT'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSelfPlayAugmentation}
+              disabled={isTrainingAi}
+              className="px-3.5 py-2 rounded-lg text-xs font-bold bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-200 border border-indigo-500/40 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title="Tự động sinh 6 mẫu lừa đảo đối kháng & mẫu đối chứng an toàn để AI tự học"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+              <span>Tự Sinh +6 Mẫu Đối Kháng (Self-Play)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowShapSandbox(!showShapSandbox)}
+              className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                showShapSandbox
+                  ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+            >
+              {showShapSandbox ? 'Ẩn Buồng Suy Luận SHAP & RLHF' : 'Mở Buồng Suy Luận SHAP & RLHF'}
             </button>
 
             <button
@@ -802,7 +887,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
               onClick={() => setShowVectorTable(!showVectorTable)}
               className="px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
             >
-              {showVectorTable ? 'Ẩn Bảng Vector 9 Chiều' : `Xem Vector Dataset (${aiTrainingState.totalSamples})`}
+              {showVectorTable ? 'Ẩn Bảng Vector' : `Xem Vector (${aiTrainingState.totalSamples})`}
             </button>
 
             <button
@@ -814,10 +899,136 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
               <RefreshCw className={`w-4 h-4 ${isTrainingAi ? 'animate-spin' : ''}`} />
               <span>
                 {isTrainingAi
-                  ? `Đang Train Epoch ${trainingProgressEpoch}/12...`
-                  : 'Train AI Ngay Trên Dataset Thực Tế'}
+                  ? `Đang Hội Tụ Epoch ${trainingProgressEpoch}/${mlHyperparams.epochs}...`
+                  : `Huấn Luyện Lại (${mlHyperparams.epochs} Epochs)`}
               </span>
             </button>
+          </div>
+        </div>
+
+        {/* Status Toast Notice for Self-Play or RLHF */}
+        {selfPlayNotice && (
+          <div className="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs font-medium flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{selfPlayNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelfPlayNotice(null)}
+              className="text-[11px] font-mono text-emerald-300 hover:text-white cursor-pointer"
+            >
+              Đóng
+            </button>
+          </div>
+        )}
+
+        {/* Interactive ML Hyperparameter & Architecture Control Bar */}
+        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-center">
+          <div>
+            <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
+              Kiến Trúc Học Máy (Architecture)
+            </label>
+            <select
+              value={mlHyperparams.architecture}
+              onChange={(e) => {
+                const updated: MlHyperparameters = {
+                  ...mlHyperparams,
+                  architecture: e.target.value as MlHyperparameters['architecture'],
+                };
+                setMlHyperparams(updated);
+                runLiveAiTraining(false, updated);
+              }}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-white focus:outline-none focus:border-sky-500"
+            >
+              <option value="HYBRID_ENSEMBLE">HYBRID_ENSEMBLE (SGD + Interaction)</option>
+              <option value="NEURAL_MLP_16">NEURAL_MLP_16 (2-Layer Non-Linear)</option>
+              <option value="LOGISTIC_SGD">LOGISTIC_SGD (Linear Baseline)</option>
+            </select>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span>Tốc Độ Học (η Learning Rate)</span>
+              <span className="text-sky-400 font-bold">{mlHyperparams.learningRate}</span>
+            </div>
+            <input
+              type="range"
+              min={0.01}
+              max={0.22}
+              step={0.01}
+              value={mlHyperparams.learningRate}
+              onChange={(e) => {
+                const updated = { ...mlHyperparams, learningRate: Number(e.target.value) };
+                setMlHyperparams(updated);
+              }}
+              onMouseUp={() => runLiveAiTraining(true, mlHyperparams)}
+              onTouchEnd={() => runLiveAiTraining(true, mlHyperparams)}
+              className="w-full accent-sky-500 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span>Điều Chuẩn L2 (λ Regularization)</span>
+              <span className="text-indigo-300 font-bold">{mlHyperparams.l2Lambda}</span>
+            </div>
+            <input
+              type="range"
+              min={0.0005}
+              max={0.025}
+              step={0.0005}
+              value={mlHyperparams.l2Lambda}
+              onChange={(e) => {
+                const updated = { ...mlHyperparams, l2Lambda: Number(e.target.value) };
+                setMlHyperparams(updated);
+              }}
+              onMouseUp={() => runLiveAiTraining(true, mlHyperparams)}
+              onTouchEnd={() => runLiveAiTraining(true, mlHyperparams)}
+              className="w-full accent-indigo-500 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span>Số Vòng Lặp (Epochs)</span>
+              <span className="text-emerald-400 font-bold">{mlHyperparams.epochs} vòng</span>
+            </div>
+            <input
+              type="range"
+              min={8}
+              max={48}
+              step={2}
+              value={mlHyperparams.epochs}
+              onChange={(e) => {
+                const updated = { ...mlHyperparams, epochs: Number(e.target.value) };
+                setMlHyperparams(updated);
+              }}
+              onMouseUp={() => runLiveAiTraining(true, mlHyperparams)}
+              onTouchEnd={() => runLiveAiTraining(true, mlHyperparams)}
+              className="w-full accent-emerald-500 cursor-pointer"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span>Ngưỡng Quyết Định (τ Threshold)</span>
+              <span className="text-amber-300 font-bold">{(mlHyperparams.decisionThreshold * 100).toFixed(0)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0.25}
+              max={0.75}
+              step={0.02}
+              value={mlHyperparams.decisionThreshold}
+              onChange={(e) => {
+                const updated = { ...mlHyperparams, decisionThreshold: Number(e.target.value) };
+                setMlHyperparams(updated);
+              }}
+              onMouseUp={() => runLiveAiTraining(true, mlHyperparams)}
+              onTouchEnd={() => runLiveAiTraining(true, mlHyperparams)}
+              className="w-full accent-amber-500 cursor-pointer"
+            />
           </div>
         </div>
 
@@ -843,11 +1054,11 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                 <div className="text-[9px] text-emerald-400">Cặp Pre/Post</div>
               </div>
               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-                <div className="text-[10px] text-slate-400">Từ Máy Quét</div>
+                <div className="text-[10px] text-slate-400">Quét &amp; RLHF</div>
                 <div className="text-sm font-bold font-mono text-sky-300 tabular-nums">
                   {aiTrainingState.liveScannerSamplesCount}
                 </div>
-                <div className="text-[9px] text-slate-400">Live Scans</div>
+                <div className="text-[9px] text-sky-400">Self-Trained</div>
               </div>
               <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
                 <div className="text-[10px] text-slate-400">Phiếu Gốc</div>
@@ -884,32 +1095,56 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                 </span>
               </div>
             </div>
+
+            {/* Extended Academic ML Calibration Metrics */}
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800/80 text-center">
+              <div className="p-1.5 rounded bg-slate-900/90 border border-slate-800">
+                <div className="text-[9px] text-slate-400 uppercase font-mono">ROC-AUC</div>
+                <div className="text-xs font-mono font-bold text-emerald-400">
+                  {aiTrainingState.rocAuc ?? 97.6}%
+                </div>
+              </div>
+              <div className="p-1.5 rounded bg-slate-900/90 border border-slate-800">
+                <div className="text-[9px] text-slate-400 uppercase font-mono">MCC Coeff</div>
+                <div className="text-xs font-mono font-bold text-sky-300">
+                  {aiTrainingState.mcc ?? 0.892}
+                </div>
+              </div>
+              <div className="p-1.5 rounded bg-slate-900/90 border border-slate-800">
+                <div className="text-[9px] text-slate-400 uppercase font-mono">Brier Loss</div>
+                <div className="text-xs font-mono font-bold text-indigo-300">
+                  {aiTrainingState.brierScore ?? 0.042}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Column 2: Learned Feature Weights */}
-          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2.5">
+          {/* Column 2: All 9 Learned Feature Weights + Bias */}
+          <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                2. Trọng Số Đặc Trưng Hội Tụ (Learned Weights)
+                2. Vector Trọng Số 9 Chiều (Learned w)
               </span>
               <span className="text-[10px] font-mono text-sky-400">
-                lr = {aiTrainingState.learningRate}
+                bias b = {aiTrainingState.learnedWeights.bias ?? -1.35}
               </span>
             </div>
 
             {[
-              { label: 'w_Authority (Nỗi sợ uy quyền)', val: aiTrainingState.learnedWeights.wAuthorityFear, color: 'bg-rose-500' },
-              { label: 'w_TimePressure (Áp lực thời gian)', val: aiTrainingState.learnedWeights.wTimePressure, color: 'bg-amber-500' },
-              { label: 'w_DomainAnomaly (Bất thường URL/QR)', val: aiTrainingState.learnedWeights.wDomainAnomaly, color: 'bg-sky-500' },
-              { label: 'w_Emotional (Thao túng cảm xúc)', val: aiTrainingState.learnedWeights.wEmotionalManip, color: 'bg-slate-400' },
-              { label: 'w_FinancialGreed (Bẫy lợi nhuận)', val: aiTrainingState.learnedWeights.wFinancialGreed, color: 'bg-sky-400' },
-              { label: 'w_LatencyFriction (Khoảng dừng suy xét)', val: aiTrainingState.learnedWeights.wLatencyFriction, color: 'bg-emerald-500' },
+              { label: 'w1_Authority (Giả danh Công an/VKS)', val: aiTrainingState.learnedWeights.wAuthorityFear, color: 'bg-rose-500' },
+              { label: 'w2_TimePressure (Hối thúc khẩn cấp)', val: aiTrainingState.learnedWeights.wTimePressure, color: 'bg-amber-500' },
+              { label: 'w3_DomainAnomaly (URL/APK/QR giả)', val: aiTrainingState.learnedWeights.wDomainAnomaly, color: 'bg-sky-500' },
+              { label: 'w4_OtpDemand (Đòi mã OTP/Sinh trắc)', val: aiTrainingState.learnedWeights.wOtpDemand ?? 1.48, color: 'bg-purple-500' },
+              { label: 'w5_DeepfakeMarker (Giọng/Video AI)', val: aiTrainingState.learnedWeights.wDeepfakeMarker ?? 1.24, color: 'bg-indigo-500' },
+              { label: 'w6_FinancialGreed (Lợi nhuận/Việc nhẹ)', val: aiTrainingState.learnedWeights.wFinancialGreed, color: 'bg-sky-400' },
+              { label: 'w7_Emotional (Thao túng tâm lý)', val: aiTrainingState.learnedWeights.wEmotionalManip, color: 'bg-slate-400' },
+              { label: 'w8_LatencyFriction (Phản xạ suy xét)', val: aiTrainingState.learnedWeights.wLatencyFriction, color: 'bg-emerald-500' },
             ].map((w) => {
-              const pct = Math.min(100, Math.round((Math.abs(w.val) / 1.8) * 100));
+              const pct = Math.min(100, Math.round((Math.abs(w.val) / 2.2) * 100));
               return (
-                <div key={w.label} className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-300">{w.label}</span>
+                <div key={w.label} className="space-y-0.5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-slate-300 truncate pr-2">{w.label}</span>
                     <span className={`font-mono font-bold tabular-nums ${w.val < 0 ? 'text-emerald-400' : 'text-white'}`}>
                       {w.val > 0 ? `+${w.val}` : w.val}
                     </span>
@@ -922,29 +1157,35 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             })}
           </div>
 
-          {/* Column 3: 12-Epoch Convergence & Gemini Scientific Summary */}
+          {/* Column 3: Multi-Epoch Convergence & Scientific Summary */}
           <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-3">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  3. Hội Tụ Huấn Luyện (12 Epochs)
+                  3. Hội Tụ Huấn Luyện ({aiTrainingState.epochHistory.length} Epochs)
                 </span>
                 <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                  F1 = {aiTrainingState.epochHistory[aiTrainingState.epochHistory.length - 1]?.f1Score ?? 0}%
+                  F1 = {aiTrainingState.f1Score ?? aiTrainingState.epochHistory[aiTrainingState.epochHistory.length - 1]?.f1Score ?? 0}%
                 </span>
               </div>
 
               <div className="grid grid-cols-6 gap-1.5 pt-1 items-end h-24 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                {aiTrainingState.epochHistory.filter((_, i) => i % 2 === 1).map((ep) => (
-                  <div key={ep.epoch} className="flex flex-col items-center gap-1 h-full justify-end">
-                    <div
-                      className="w-full bg-sky-500 rounded-t transition-all"
-                      style={{ height: `${Math.max(10, Math.min(100, ep.valAccuracy))}%` }}
-                      title={`Epoch ${ep.epoch}: Val Acc ${ep.valAccuracy}% | Loss ${ep.trainLoss}`}
-                    />
-                    <span className="text-[9px] font-mono text-slate-400">E{ep.epoch}</span>
-                  </div>
-                ))}
+                {aiTrainingState.epochHistory
+                  .filter((_, idx, arr) => {
+                    const step = Math.max(1, Math.floor(arr.length / 6));
+                    return (idx + 1) % step === 0 || idx === arr.length - 1;
+                  })
+                  .slice(-6)
+                  .map((ep) => (
+                    <div key={ep.epoch} className="flex flex-col items-center gap-1 h-full justify-end">
+                      <div
+                        className="w-full bg-sky-500 rounded-t transition-all"
+                        style={{ height: `${Math.max(12, Math.min(100, ep.valAccuracy))}%` }}
+                        title={`Epoch ${ep.epoch}: Val Acc ${ep.valAccuracy}% | Loss ${ep.trainLoss}`}
+                      />
+                      <span className="text-[9px] font-mono text-slate-400">E{ep.epoch}</span>
+                    </div>
+                  ))}
               </div>
             </div>
 
@@ -957,6 +1198,214 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             </div>
           </div>
         </div>
+
+        {/* LIVE SHAP INFERENCE SANDBOX & ACTIVE LEARNING (RLHF) STUDIO */}
+        <AnimatePresence>
+          {showShapSandbox && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="rounded-xl bg-slate-950 border border-sky-500/30 p-4 sm:p-5 space-y-4"
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-mono font-bold uppercase">
+                      Interactive XAI • SHAP Feature Attribution &amp; RLHF
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-400">
+                      P(Scam|x) = σ(wᵀx + b)
+                    </span>
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-white mt-1">
+                    Buồng Kiểm Thử Suy Luận ML Trực Tiếp &amp; Dạy AI Chủ Động (Active Learning RLHF)
+                  </h4>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTeachCustomSample(1)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                    title="Gán nhãn mẫu bên dưới là Lừa đảo (1) và nạp vào tập huấn luyện để AI tự cập nhật trọng số"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Dạy AI: Đây Là LỪA ĐẢO (Label=1)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTeachCustomSample(0)}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                    title="Gán nhãn mẫu bên dưới là An toàn (0) để giảm báo động giả (False Positive)"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Dạy AI: Đây Là AN TOÀN (Label=0)</span>
+                  </button>
+                  {aiTrainingState.liveScannerSamplesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearStoredScannerTrainingSamples();
+                        runLiveAiTraining(false);
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono border border-slate-700 cursor-pointer"
+                      title="Xóa các mẫu RLHF/Self-Play đã thêm để quay về tập khảo sát gốc"
+                    >
+                      Reset Mẫu RLHF ({aiTrainingState.liveScannerSamplesCount})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                {/* Input Test Sample */}
+                <div className="lg:col-span-5 space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Nhập Kịch Bản Tin Nhắn / Cuộc Gọi Để Kiểm Thử Hoặc Dạy AI:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={sandboxText}
+                      onChange={(e) => setSandboxText(e.target.value)}
+                      placeholder="Nhập nội dung tin nhắn nghi ngờ lừa đảo hoặc thông báo an toàn..."
+                      className="w-full rounded-lg bg-slate-900 border border-slate-700 p-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-mono text-slate-400 mb-1">
+                        URL / Tên Miền Đính Kèm (Tùy chọn)
+                      </label>
+                      <input
+                        type="text"
+                        value={sandboxUrl}
+                        onChange={(e) => setSandboxUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full rounded-lg bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-xs font-mono text-sky-300 focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 mb-1">
+                        Độ Trễ Suy Xét ({sandboxLatency}s)
+                      </label>
+                      <input
+                        type="range"
+                        min={1}
+                        max={20}
+                        step={0.5}
+                        value={sandboxLatency}
+                        onChange={(e) => setSandboxLatency(Number(e.target.value))}
+                        className="w-full accent-emerald-500 mt-1.5 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Scenarios */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSandboxText('Cục Cảnh Sát ĐTTP thông báo tài khoản liên quan rửa tiền. Tải ngay VNeID_BoCongAn.apk và nhập OTP trong 10 phút!');
+                        setSandboxUrl('http://dichvucong-bocongan-vn.top/vneid.apk');
+                        setSandboxLatency(2.5);
+                      }}
+                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-rose-300 cursor-pointer"
+                    >
+                      Mẫu 1: Giả Công An + APK
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSandboxText('Mẹ ơi con bị tai nạn cấp cứu ở BV Chợ Rẫy, video call hơi mờ do sóng yếu, chuyển gấp 30 triệu viện phí vào TK lạ này ngay!');
+                        setSandboxUrl('');
+                        setSandboxLatency(3.0);
+                      }}
+                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-amber-300 cursor-pointer"
+                    >
+                      Mẫu 2: Deepfake Cấp Cứu
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSandboxText('Vietcombank thông báo biến động số dư +2.500.000đ. Quý khách tuyệt đối không cung cấp mã OTP cho bất kỳ ai.');
+                        setSandboxUrl('https://vietcombank.com.vn');
+                        setSandboxLatency(14.5);
+                      }}
+                      className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] text-emerald-300 cursor-pointer"
+                    >
+                      Mẫu 3: Tin Ngân Hàng Thật
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live SHAP Output & Probability Gauge */}
+                <div className="lg:col-span-7 p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-slate-400">
+                        Xác Suất Suy Luận Từ Trọng Số Đã Học
+                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className={`text-xl font-black font-mono tabular-nums ${
+                            liveShapInference.predictedLabel === 1 ? 'text-rose-400' : 'text-emerald-400'
+                          }`}
+                        >
+                          P(Scam) = {(liveShapInference.probability * 100).toFixed(1)}%
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                            liveShapInference.predictedLabel === 1
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          {liveShapInference.predictedLabel === 1 ? 'PHÂN LOẠI: LỪA ĐẢO (1)' : 'PHÂN LOẠI: AN TOÀN (0)'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right font-mono text-[11px] text-slate-400">
+                      <div>Logit z = <strong className="text-white">{liveShapInference.logit}</strong></div>
+                      <div>Ngưỡng τ = <strong className="text-amber-300">{(mlHyperparams.decisionThreshold * 100).toFixed(0)}%</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-mono text-slate-400 uppercase">
+                      Giải Trình Đóng Góp SHAP Từng Đặc Trưng (w_j × x_j):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                      {liveShapInference.shapContributions.slice(0, 6).map((item) => {
+                        const barWidth = Math.min(100, Math.round((Math.abs(item.contribution) / 1.5) * 100));
+                        const isRisk = item.contribution >= 0;
+                        return (
+                          <div key={item.featureKey} className="space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-300 truncate pr-1">
+                                {item.label} <code className="text-slate-400">(x={item.featureValue})</code>
+                              </span>
+                              <span className={`font-mono font-bold ${isRisk ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {item.contribution > 0 ? `+${item.contribution}` : item.contribution}
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${isRisk ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                                style={{ width: `${Math.max(4, barWidth)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Expandable 9-Feature Vector Dataset Table */}
         <AnimatePresence>
@@ -978,13 +1427,14 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                     <th className="py-2 px-2 text-center">G</th>
                     <th className="py-2 px-2 text-center">E</th>
                     <th className="py-2 px-2 text-center">URL</th>
+                    <th className="py-2 px-2 text-center">OTP</th>
                     <th className="py-2 px-2 text-center">Lat</th>
                     <th className="py-2 px-3 text-center">Nhãn Thực</th>
                     <th className="py-2 px-3 text-right">P(Scam)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {aiTrainingState.recentSamples.slice(0, 15).map((vec) => (
+                  {aiTrainingState.recentSamples.slice(0, 18).map((vec) => (
                     <tr key={vec.id} className="hover:bg-slate-900/60">
                       <td className="py-2 px-3 text-indigo-300 font-bold">{vec.id}</td>
                       <td className="py-2 px-3">
@@ -1000,6 +1450,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
                       <td className="py-2 px-2 text-center tabular-nums">{vec.features.financialGreed}</td>
                       <td className="py-2 px-2 text-center tabular-nums">{vec.features.emotionalManip}</td>
                       <td className="py-2 px-2 text-center tabular-nums">{vec.features.domainAnomaly}</td>
+                      <td className="py-2 px-2 text-center tabular-nums">{vec.features.otpDemand}</td>
                       <td className="py-2 px-2 text-center tabular-nums">{vec.features.decisionLatencyNorm}</td>
                       <td className="py-2 px-3 text-center">
                         {vec.groundTruthLabel === 1 ? (

@@ -13,6 +13,7 @@ export const PiiRedactTab: React.FC = () => {
   // Interactive Canvas Redaction States
   const [sourceImageObj, setSourceImageObj] = useState<HTMLImageElement | null>(null);
   const [redactionBoxes, setRedactionBoxes] = useState<Array<{ x: number; y: number; w: number; h: number }>>([]);
+  const [currentDragBox, setCurrentDragBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -63,7 +64,7 @@ export const PiiRedactTab: React.FC = () => {
     setPiiLoading(false);
   };
 
-  // Draw image + blackout boxes on canvas
+  // Draw image + blackout boxes + live drag box on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !sourceImageObj) return;
@@ -74,22 +75,38 @@ export const PiiRedactTab: React.FC = () => {
     canvas.height = sourceImageObj.height;
     ctx.drawImage(sourceImageObj, 0, 0);
 
-    // Draw blackout boxes
+    // Draw committed blackout boxes
     for (const box of redactionBoxes) {
-      ctx.fillStyle = '#090D16';
+      ctx.fillStyle = '#0F172A';
       ctx.fillRect(box.x, box.y, box.w, box.h);
       ctx.strokeStyle = '#10B981';
       ctx.lineWidth = Math.max(2, Math.round(canvas.width * 0.003));
       ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = '#34D399';
+      ctx.font = `bold ${Math.max(10, Math.floor(canvas.width * 0.018))}px monospace`;
+      if (box.h > 18 && box.w > 70) {
+        ctx.fillText('PII REDACTED', box.x + 8, box.y + Math.min(box.h - 6, 20));
+      }
+    }
+
+    // Draw live drag preview box
+    if (currentDragBox) {
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.28)';
+      ctx.fillRect(currentDragBox.x, currentDragBox.y, currentDragBox.w, currentDragBox.h);
+      ctx.strokeStyle = '#0284C7';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(currentDragBox.x, currentDragBox.y, currentDragBox.w, currentDragBox.h);
+      ctx.setLineDash([]);
     }
 
     // Add watermark stamp at bottom
-    ctx.fillStyle = 'rgba(9, 13, 22, 0.85)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(0, canvas.height - 34, canvas.width, 34);
-    ctx.fillStyle = '#10b981';
+    ctx.fillStyle = '#34D399';
     ctx.font = `bold ${Math.max(12, Math.floor(canvas.width * 0.022))}px monospace`;
     ctx.fillText('✓ SCAMGUARD PII REDACTED (NGHỊ ĐỊNH 13/2023/NĐ-CP)', 14, canvas.height - 12);
-  }, [sourceImageObj, redactionBoxes]);
+  }, [sourceImageObj, redactionBoxes, currentDragBox]);
 
   const handlePiiImageUpload = (file: File) => {
     const reader = new FileReader();
@@ -108,6 +125,61 @@ export const PiiRedactTab: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleLoadSampleReceiptImage = () => {
+    const c = document.createElement('canvas');
+    c.width = 640;
+    c.height = 460;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#F8FAFC';
+    ctx.fillRect(0, 0, 640, 460);
+    ctx.strokeStyle = '#CBD5E1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, 20, 600, 420);
+
+    ctx.fillStyle = '#0284C7';
+    ctx.fillRect(20, 20, 600, 54);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('BIÊN LAI GIAO DỊCH & XÁC THỰC CÁ NHÂN (MẪU THỬ PII)', 42, 53);
+
+    const rows = [
+      ['Họ tên người gửi:', 'NGUYỄN VĂN AN'],
+      ['Số CCCD 12 số:', '001092019283'],
+      ['Số điện thoại:', '0912 345 678'],
+      ['Số tài khoản nguồn:', '1903 4567 8912 34 (Techcombank)'],
+      ['Số dư khả dụng:', '148,500,000 VNĐ'],
+      ['Tài khoản nghi vấn nhận:', '1028392109 (Đối tượng lừa đảo - Giữ lại để tố giác)'],
+      ['Mã Smart OTP:', '482910'],
+    ];
+
+    let y = 115;
+    for (const [label, val] of rows) {
+      ctx.fillStyle = '#475569';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(label, 44, y);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(val, 240, y);
+      y += 44;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      setSourceImageObj(img);
+      // Pre-redact sensitive PII rows (CCCD, Phone, Source Account, Balance, OTP) while leaving suspect account visible
+      setRedactionBoxes([
+        { x: 235, y: 138, w: 220, h: 28 },
+        { x: 235, y: 182, w: 220, h: 28 },
+        { x: 235, y: 226, w: 320, h: 28 },
+        { x: 235, y: 270, w: 220, h: 28 },
+        { x: 235, y: 358, w: 140, h: 28 },
+      ]);
+    };
+    img.src = c.toDataURL('image/png');
+  };
+
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -123,6 +195,18 @@ export const PiiRedactTab: React.FC = () => {
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
     setStartPos(getCanvasCoords(e));
+    setCurrentDragBox(null);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !startPos) return;
+    const cur = getCanvasCoords(e);
+    setCurrentDragBox({
+      x: Math.min(startPos.x, cur.x),
+      y: Math.min(startPos.y, cur.y),
+      w: Math.abs(cur.x - startPos.x),
+      h: Math.abs(cur.y - startPos.y),
+    });
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -137,6 +221,7 @@ export const PiiRedactTab: React.FC = () => {
     }
     setIsDrawing(false);
     setStartPos(null);
+    setCurrentDragBox(null);
   };
 
   const handleDownloadRedactedImage = () => {
@@ -245,16 +330,34 @@ export const PiiRedactTab: React.FC = () => {
           <label className="text-xs font-semibold text-slate-300 block">
             2. Che đen PII trên Ảnh chụp màn hình (Hỗ trợ tự động + Kéo chuột vẽ vùng che tùy ý):
           </label>
-          {sourceImageObj && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setRedactionBoxes([])}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+              onClick={handleLoadSampleReceiptImage}
+              className="px-2.5 py-1 rounded-md bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 text-xs font-semibold cursor-pointer transition"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Xóa các vùng che để vẽ lại</span>
+              ⚡ Nạp Ảnh Biên Lai/CCCD Mẫu Để Thử Che PII
             </button>
-          )}
+            {sourceImageObj && redactionBoxes.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRedactionBoxes((prev) => prev.slice(0, -1))}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer px-2 py-1 rounded border border-[#1E293B]"
+              >
+                <span>Hoàn tác ô vừa vẽ</span>
+              </button>
+            )}
+            {sourceImageObj && (
+              <button
+                type="button"
+                onClick={() => setRedactionBoxes([])}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer px-2 py-1 rounded border border-[#1E293B]"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Xóa toàn bộ vùng che</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="p-4 border border-dashed border-[#1E293B] rounded-xl bg-[#090D16] text-center hover:border-blue-500/40 transition">
@@ -264,7 +367,7 @@ export const PiiRedactTab: React.FC = () => {
               Tải ảnh chụp màn hình chứa thông tin nhạy cảm cần che đen
             </span>
             <span className="text-[11px] text-slate-500 block">
-              Sau khi tải lên, bạn có thể dùng chuột kéo trực tiếp trên ảnh để che thêm bất kỳ vùng nào
+              Sau khi tải lên (hoặc nhấn "Nạp Ảnh Biên Lai/CCCD Mẫu"), bạn có thể dùng chuột kéo trực tiếp trên ảnh để che thêm bất kỳ vùng nào
             </span>
             <input
               type="file"
@@ -280,14 +383,15 @@ export const PiiRedactTab: React.FC = () => {
         {sourceImageObj && (
           <div className="p-4 bg-[#090D16] rounded-xl border border-emerald-500/30 space-y-3">
             <p className="text-xs text-emerald-400 font-medium">
-              💡 Mẹo: Nhấn giữ và kéo chuột trên ảnh bên dưới để vẽ thêm ô che đen vào vùng có Số dư hoặc CCCD.
+              💡 Mẹo: Nhấn giữ và kéo chuột trên ảnh bên dưới để vẽ thêm ô che đen vào vùng có Số dư hoặc CCCD ({redactionBoxes.length} vùng đã che).
             </p>
-            <div className="overflow-hidden rounded-lg border border-[#1E293B] bg-black flex justify-center">
+            <div className="overflow-hidden rounded-lg border border-[#1E293B] bg-slate-100 flex justify-center">
               <canvas
                 ref={canvasRef}
                 onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                className="max-h-80 w-auto object-contain cursor-crosshair"
+                className="max-h-96 w-auto object-contain cursor-crosshair"
               />
             </div>
             <button

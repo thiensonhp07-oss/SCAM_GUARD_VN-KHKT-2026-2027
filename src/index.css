@@ -181,6 +181,8 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .bg-slate-700\/80,
 .bg-slate-700\/60,
 .bg-slate-700\/50,
+.bg-slate-850,
+.bg-black,
 .soc-bg-secondary {
   background-color: #edf4fa !important;
   border-color: #cfe1f2 !important;
@@ -196,7 +198,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .from-\[\#0c1222\],
 .from-\[\#0f172a\],
 .from-\[\#111827\],
-.from-\[\#1c1917\] {
+.from-\[\#1c1917\],
+[class*="from-slate-9"],
+[class*="from-slate-8"] {
   --tw-gradient-from: #ffffff !important;
   --tw-gradient-via: #f4f8fd !important;
   --tw-gradient-to: #edf4fa !important;
@@ -204,8 +208,12 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 }
 
 .via-slate-950,
-.via-slate-900 {
-  --tw-gradient-via: #f8fafc !important;
+.via-slate-900,
+[class*="via-slate-9"],
+[class*="via-indigo-9"],
+[class*="via-purple-9"],
+[class*="via-blue-9"] {
+  --tw-gradient-via: #f4f8fd !important;
 }
 
 .to-slate-950,
@@ -215,8 +223,10 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .to-\[\#090d16\],
 .to-\[\#090D16\],
 .to-\[\#0c192c\],
-.to-\[\#1e1b4b\] {
-  --tw-gradient-to: #f8fafc !important;
+.to-\[\#1e1b4b\],
+[class*="to-slate-9"],
+[class*="to-slate-8"] {
+  --tw-gradient-to: #f1f6fc !important;
 }
 
 .from-cyan-950\/30,
@@ -225,7 +235,13 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .from-cyan-950\/80,
 .to-cyan-950\/20,
 .to-cyan-950\/40,
-.to-blue-950\/40 {
+.to-blue-950\/40,
+[class*="from-cyan-9"],
+[class*="from-sky-9"],
+[class*="from-blue-9"],
+[class*="to-cyan-9"],
+[class*="to-sky-9"],
+[class*="to-blue-9"] {
   --tw-gradient-from: #f0f9ff !important;
   --tw-gradient-to: #ffffff !important;
   background-color: #f0f9ff !important;
@@ -245,7 +261,11 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .to-purple-950\/30,
 .to-purple-950\/40,
 .to-purple-950\/60,
-.to-purple-950\/70 {
+.to-purple-950\/70,
+[class*="from-purple-9"],
+[class*="from-indigo-9"],
+[class*="to-purple-9"],
+[class*="to-indigo-9"] {
   --tw-gradient-from: #eef2ff !important;
   --tw-gradient-to: #ffffff !important;
   background-color: #eef2ff !important;
@@ -253,7 +273,11 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 
 .from-emerald-950\/30,
 .from-emerald-950\/60,
-.to-emerald-950\/40 {
+.to-emerald-950\/40,
+[class*="from-emerald-9"],
+[class*="from-teal-9"],
+[class*="to-emerald-9"],
+[class*="to-teal-9"] {
   --tw-gradient-from: #ecfdf5 !important;
   --tw-gradient-to: #ffffff !important;
   background-color: #ecfdf5 !important;
@@ -261,7 +285,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 
 .from-amber-950\/30,
 .from-amber-950\/40,
-.to-amber-950\/40 {
+.to-amber-950\/40,
+[class*="from-amber-9"],
+[class*="to-amber-9"] {
   --tw-gradient-from: #fffbeb !important;
   --tw-gradient-to: #ffffff !important;
   background-color: #fffbeb !important;
@@ -270,7 +296,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .from-rose-950,
 .from-rose-950\/40,
 .from-rose-950\/50,
-.from-rose-950\/60 {
+.from-rose-950\/60,
+[class*="from-rose-9"],
+[class*="to-rose-9"] {
   --tw-gradient-from: #fff1f2 !important;
   --tw-gradient-to: #ffffff !important;
   background-color: #fff1f2 !important;
@@ -317,6 +345,7 @@ header {
 .border-slate-800\/80,
 .border-slate-800\/70,
 .border-slate-800\/60,
+.border-slate-850,
 .border-slate-700,
 .border-slate-700\/80,
 .border-slate-700\/70,
@@ -336,10 +365,24 @@ svg circle[stroke="#1e293b"],
 svg circle[stroke="#1E293B"],
 svg circle[stroke="#181e29"],
 svg circle[stroke="#090D16"],
+svg circle[stroke="rgba(30, 41, 59, 0.8)"],
+svg path[stroke="#1e293b"],
+svg path[stroke="#1E293B"],
+svg path[stroke="#181e29"],
 svg line[stroke="#1e293b"],
 svg line[stroke="#1E293B"],
 svg line[stroke="#334155"] {
   stroke: #cfe0f2 !important;
+}
+
+svg text.fill-slate-400,
+svg text.fill-slate-300,
+svg text.fill-slate-200 {
+  fill: #334155 !important;
+}
+
+svg text.fill-cyan-300 {
+  fill: #0284c7 !important;
 }
 
 /* 6. Crisp Typography Hierarchy (High-Contrast Slate, Zero Eye Strain) */
@@ -646,7 +689,7 @@ select:focus {
   color: #0284c7 !important;
 }
 
-/* Scanner Laser Sweep Effect */
+/* Scanner Laser Sweep Effect & QR Forensic Optical Overlay */
 .scanner-laser {
   position: absolute;
   top: 0;
@@ -662,6 +705,60 @@ select:focus {
   15% { opacity: 1; }
   85% { opacity: 1; }
   100% { top: 100%; opacity: 0; }
+}
+
+@keyframes qrLaserSweepBidirectional {
+  0% {
+    top: 4%;
+    opacity: 0.95;
+  }
+  48% {
+    top: 92%;
+    opacity: 1;
+  }
+  50% {
+    top: 94%;
+    opacity: 0.85;
+  }
+  98% {
+    top: 4%;
+    opacity: 1;
+  }
+  100% {
+    top: 4%;
+    opacity: 0.95;
+  }
+}
+
+@keyframes qrFinderPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.qr-laser-sweep-fast {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  pointer-events: none;
+  animation: qrLaserSweepBidirectional 1.25s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.qr-laser-sweep-ambient {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  pointer-events: none;
+  animation: qrLaserSweepBidirectional 2.8s infinite ease-in-out;
+}
+
+.qr-finder-box {
+  animation: qrFinderPulse 1.4s infinite ease-in-out;
 }
 
 /* iOS Safe Area and Touch Target Mobile Optimization */

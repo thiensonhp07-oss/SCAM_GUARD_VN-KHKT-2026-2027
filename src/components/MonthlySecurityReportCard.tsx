@@ -373,10 +373,10 @@ export const MonthlySecurityReportCard: React.FC<MonthlySecurityReportCardProps>
                     <text
                       x={pt.x}
                       y={chartHeight - 8}
-                      fill={isLast ? '#38bdf8' : '#94a3b8'}
+                      fill={isLast ? '#0284c7' : '#475569'}
                       fontSize="11"
                       textAnchor="middle"
-                      fontWeight={isLast ? 'bold' : 'normal'}
+                      fontWeight={isLast ? 'bold' : '600'}
                     >
                       {pt.label}
                     </text>
@@ -385,7 +385,7 @@ export const MonthlySecurityReportCard: React.FC<MonthlySecurityReportCardProps>
                     <text
                       x={pt.x}
                       y={pt.y - 10}
-                      fill={isLast ? '#34d399' : '#e2e8f0'}
+                      fill={isLast ? '#059669' : '#0f172a'}
                       fontSize="11"
                       textAnchor="middle"
                       fontWeight="bold"
