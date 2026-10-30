@@ -41,6 +41,7 @@ import { RoadmapSnakePath } from './components/RoadmapSnakePath';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { MobileDrawerMenu } from './components/MobileDrawerMenu';
+import { AboutProjectModal } from './components/AboutProjectModal';
 import { Compass } from 'lucide-react';
 import {
   ExperienceMode,
@@ -117,6 +118,7 @@ export default function App() {
   const [isWifiShieldOpen, setIsWifiShieldOpen] = useState(false);
   const [isScamRadarOpen, setIsScamRadarOpen] = useState(false);
   const [isScienceFairDemoOpen, setIsScienceFairDemoOpen] = useState(false);
+  const [isAboutProjectOpen, setIsAboutProjectOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
@@ -445,13 +447,19 @@ export default function App() {
       });
     };
 
+    const handleOpenUnifiedSurvey = () => {
+      setIsScienceFairDemoOpen(true);
+    };
+
     window.addEventListener('visef_survey_updated', handleSurveyCompletedSync);
     window.addEventListener('scamguard_survey_completed', handleSurveyCompletedSync);
     window.addEventListener('scamguard_roadmap_progress_updated', handleRoadmapNodesSync);
+    window.addEventListener('scamguard_open_visef_survey', handleOpenUnifiedSurvey);
     return () => {
       window.removeEventListener('visef_survey_updated', handleSurveyCompletedSync);
       window.removeEventListener('scamguard_survey_completed', handleSurveyCompletedSync);
       window.removeEventListener('scamguard_roadmap_progress_updated', handleRoadmapNodesSync);
+      window.removeEventListener('scamguard_open_visef_survey', handleOpenUnifiedSurvey);
     };
   }, [currentUser]);
 
@@ -785,6 +793,7 @@ export default function App() {
           activeTab={activeTab}
           onSelectTab={(tab, sub) => handleNavigate(tab, sub)}
           onOpenEmergency={() => setIsEmergencyOpen(true)}
+          onOpenAboutProject={() => setIsAboutProjectOpen(true)}
         />
 
         {/* Center Main Column */}
@@ -809,6 +818,7 @@ export default function App() {
             onLogout={handleLogout}
             onOpenStreak={() => setIsStreakModalOpen(true)}
             onOpenScienceFairDemo={() => setIsScienceFairDemoOpen(true)}
+            onOpenAboutProject={() => setIsAboutProjectOpen(true)}
             onOpenNotifications={() => setIsNotificationsOpen(true)}
             onOpenChat={() => setIsFriendsHubOpen(true)}
             onOpenDrawer={() => setIsMobileDrawerOpen(true)}
@@ -844,6 +854,7 @@ export default function App() {
                     onStartFriendDuel={handleStartFriendDuel}
                     onEarnXp={handleEarnXp}
                     onOpenScienceFairDemo={() => setIsScienceFairDemoOpen(true)}
+                    onOpenAboutProject={() => setIsAboutProjectOpen(true)}
                   />
                 )}
 
@@ -969,7 +980,10 @@ export default function App() {
 
                 {activeTab === 'research' && (
                   <ErrorBoundary fallbackTitle="Không thể tải phân hệ Nghiên Cứu ViSEF">
-                    <ResearchCenterView onNavigateToMainUI={() => setActiveTab('home')} />
+                    <ResearchCenterView
+                      onNavigateToMainUI={() => setActiveTab('home')}
+                      onOpenSurvey={() => setIsScienceFairDemoOpen(true)}
+                    />
                   </ErrorBoundary>
                 )}
 
@@ -1014,6 +1028,7 @@ export default function App() {
                       onNavigate={handleNavigate}
                       onOpenLeaderboard={() => setActiveTab('leaderboard')}
                       onEarnXp={handleEarnXp}
+                      onOpenSurvey={() => setIsScienceFairDemoOpen(true)}
                     />
                   </div>
                 )}
@@ -1045,6 +1060,7 @@ export default function App() {
           onOpenStreak={() => setIsStreakModalOpen(true)}
           onOpenTheme={() => setIsThemeModalOpen(true)}
           onOpenScienceFairDemo={() => setIsScienceFairDemoOpen(true)}
+          onOpenAboutProject={() => setIsAboutProjectOpen(true)}
         />
 
         {/* Modals */}
@@ -1196,6 +1212,16 @@ export default function App() {
           onNavigateToMainUI={() => {
             setIsScienceFairDemoOpen(false);
             setActiveTab('home');
+          }}
+        />
+
+        {/* Official KHKT / ViSEF Project Introduction Modal */}
+        <AboutProjectModal
+          isOpen={isAboutProjectOpen}
+          onClose={() => setIsAboutProjectOpen(false)}
+          onExploreResearch={() => {
+            setIsAboutProjectOpen(false);
+            setActiveTab('research');
           }}
         />
       </div>

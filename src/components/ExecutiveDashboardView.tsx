@@ -674,20 +674,6 @@ export const ExecutiveDashboardView: React.FC<ExecutiveDashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    handleQuickUnlockSurveyFromSoc();
-                    if (onSwitchToRoadmap) {
-                      onSwitchToRoadmap();
-                    }
-                  }}
-                  className="btn-visef-emerald w-full py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-                >
-                  <Zap className="w-3.5 h-3.5 shrink-0" />
-                  <span>Giả Lập Khảo Sát Nhanh &amp; Mở Lộ Trình</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
                     if (onSwitchToRoadmap) {
                       onSwitchToRoadmap();
                     } else {

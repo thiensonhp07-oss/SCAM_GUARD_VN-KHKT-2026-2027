@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Activity,
@@ -490,6 +490,35 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
   const [submittedResult, setSubmittedResult] = useState<any>(null);
   const [liveTotalRespondents, setLiveTotalRespondents] = useState<number>(0);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
+  const modalOverlayRef = useRef<HTMLDivElement>(null);
+  const modalBodyScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToModalTop = () => {
+    if (modalBodyScrollRef.current) {
+      modalBodyScrollRef.current.scrollTop = 0;
+      modalBodyScrollRef.current.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
+    if (modalOverlayRef.current) {
+      modalOverlayRef.current.scrollTop = 0;
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    requestAnimationFrame(() => {
+      if (modalBodyScrollRef.current) {
+        modalBodyScrollRef.current.scrollTop = 0;
+      }
+      if (modalOverlayRef.current) {
+        modalOverlayRef.current.scrollTop = 0;
+      }
+    });
+    setTimeout(() => {
+      if (modalBodyScrollRef.current) {
+        modalBodyScrollRef.current.scrollTop = 0;
+      }
+      if (modalOverlayRef.current) {
+        modalOverlayRef.current.scrollTop = 0;
+      }
+    }, 30);
+  };
 
   // 13 Full Survey Questions State (5 Demographics + 12 Sectors: Part 1 Experience & Part 2 Scenarios)
   const [surveyForm, setSurveyForm] = useState({
@@ -559,6 +588,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
 
   useEffect(() => {
     if (isOpen) {
+      scrollToModalTop();
       fetch('/api/scamdna/community')
         .then((r) => r.json())
         .then((d) => {
@@ -569,6 +599,12 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
         .catch(() => {});
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToModalTop();
+    }
+  }, [surveyStep, submittedResult, isOpen]);
 
   if (!isOpen) return null;
 
@@ -584,7 +620,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
     }
     setValidationWarning(null);
     setSurveyStep(3);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    scrollToModalTop();
   };
 
   const handleSubmitSurvey = async (e: React.FormEvent) => {
@@ -833,6 +869,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
 
   return createPortal(
     <div
+      ref={modalOverlayRef}
       className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -891,7 +928,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
         </div>
 
         {/* Main Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/60 space-y-6">
+        <div ref={modalBodyScrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-950/60 space-y-5">
           {submittedResult ? (
             /* SUBMITTED CONFIRMATION SCREEN WITH 8-TRAP REAL METRICS & COMPARISON */
             <div className="space-y-6 py-1">
@@ -1111,25 +1148,27 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
             </div>
           ) : (
             /* ACTIVE 13-QUESTION GOOGLE FORMS FORMAT SURVEY */
-            <div className="space-y-6">
-              {/* Form Title Card */}
-              <div className="visef-hero-banner border-l-4 border-l-indigo-600 p-5 sm:p-6 lg:p-7 rounded-3xl space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-xs">
-                    Google Forms Format • Đề Tài Nghiên Cứu ViSEF 2026
-                  </span>
-                  <span className="text-sm text-rose-600 font-bold">* Bắt buộc</span>
+            <div className="space-y-4">
+              {/* Form Title Card - Shown on Step 1 so Step 2 & Step 3 immediately display Question 1 & 2 at the top */}
+              {surveyStep === 1 && (
+                <div className="visef-hero-banner border-l-4 border-l-indigo-600 p-5 sm:p-6 lg:p-7 rounded-3xl space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-xs">
+                      Google Forms Format • Đề Tài Nghiên Cứu ViSEF 2026
+                    </span>
+                    <span className="text-sm text-rose-600 font-bold">* Bắt buộc</span>
+                  </div>
+
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 leading-tight">
+                    PHIẾU KHẢO SÁT HÀNH VI &amp; NGUY CƠ LỪA ĐẢO SỐ (CHƯA DÙNG APP SCAMGUARD VN)
+                  </h3>
+
+                  <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+                    Khảo sát này gồm <strong>17 câu hỏi chuẩn hóa</strong> (5 câu nhân khẩu học &amp; 12 kịch bản bẫy thực tế) nhằm thu thập dữ liệu hiện trạng độc lập từ người tham gia <strong>trước khi sử dụng ứng dụng</strong>. 
+                    Mọi câu trả lời của bạn sẽ được tự động tổng hợp vào <strong>Biểu đồ Thống kê Suy luận Quốc gia</strong> để làm bằng chứng thực nghiệm ViSEF.
+                  </p>
                 </div>
-
-                <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 leading-tight">
-                  PHIẾU KHẢO SÁT HÀNH VI &amp; NGUY CƠ LỪA ĐẢO SỐ (CHƯA DÙNG APP SCAMGUARD VN)
-                </h3>
-
-                <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
-                  Khảo sát này gồm <strong>17 câu hỏi chuẩn hóa</strong> (5 câu nhân khẩu học &amp; 12 kịch bản bẫy thực tế) nhằm thu thập dữ liệu hiện trạng độc lập từ người tham gia <strong>trước khi sử dụng ứng dụng</strong>. 
-                  Mọi câu trả lời của bạn sẽ được tự động tổng hợp vào <strong>Biểu đồ Thống kê Suy luận Quốc gia</strong> để làm bằng chứng thực nghiệm ViSEF.
-                </p>
-              </div>
+              )}
 
               {/* Form Step Indicator Bar */}
               <div className="space-y-2 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
@@ -1207,7 +1246,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         }
                         onClick={() => {
                           setSurveyStep(2);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          scrollToModalTop();
                         }}
                         className="btn-visef-flagship w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 disabled:opacity-50 text-xs sm:text-sm rounded-xl sm:rounded-2xl cursor-pointer"
                       >
@@ -1515,7 +1554,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         type="button"
                         onClick={() => {
                           setSurveyStep(1);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          scrollToModalTop();
                         }}
                         className="flex items-center justify-center gap-1.5 px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition active:scale-95"
                       >
@@ -1834,7 +1873,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         type="button"
                         onClick={() => {
                           setSurveyStep(2);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          scrollToModalTop();
                         }}
                         className="flex items-center justify-center gap-1.5 px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition active:scale-95"
                       >

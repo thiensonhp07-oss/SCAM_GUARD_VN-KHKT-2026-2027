@@ -13,6 +13,8 @@ import {
   Shield,
   PhoneCall,
   ArrowUpRight,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -20,12 +22,14 @@ interface DuolingoSidebarProps {
   activeTab: string;
   onSelectTab: (tab: any, subView?: string) => void;
   onOpenEmergency?: () => void;
+  onOpenAboutProject?: () => void;
 }
 
 export const DuolingoSidebar: React.FC<DuolingoSidebarProps> = ({
   activeTab,
   onSelectTab,
   onOpenEmergency,
+  onOpenAboutProject,
 }) => {
   const { t } = useTranslation();
 
@@ -84,7 +88,7 @@ export const DuolingoSidebar: React.FC<DuolingoSidebarProps> = ({
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-white/95 border-r border-sky-200/80 px-3.5 py-4 sticky top-0 h-screen select-none justify-between z-40 overflow-y-auto shrink-0 shadow-[2px_0_20px_-4px_rgba(2,132,199,0.05)]">
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Brand Wordmark Synchronized with AuthGate */}
         <button
           type="button"
@@ -108,6 +112,21 @@ export const DuolingoSidebar: React.FC<DuolingoSidebarProps> = ({
             SOC
           </span>
         </button>
+
+        {/* Subtle 'Giới thiệu' button right below Logo */}
+        {onOpenAboutProject && (
+          <button
+            type="button"
+            onClick={onOpenAboutProject}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] text-slate-600 hover:text-slate-900 hover:bg-slate-50/90 border border-slate-200/70 hover:border-sky-200 font-medium transition-all duration-150 cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Sparkles className="w-4 h-4 text-sky-500 shrink-0" />
+              <span className="truncate">Giới thiệu</span>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          </button>
+        )}
 
         {/* Navigation Groups */}
         <div className="space-y-5">

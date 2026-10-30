@@ -54,6 +54,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
   const [submitting, setSubmitting] = useState(false);
   const [completedRecord, setCompletedRecord] = useState<PostAppCertificationRecord | null>(null);
   const [showReviewDetails, setShowReviewDetails] = useState(false);
+  const [incompleteWarning, setIncompleteWarning] = useState<string | null>(null);
 
   // Sector and prerequisite completion verification
   const sectorData = useMemo(() => {
@@ -97,6 +98,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
       setSubmitting(false);
       setCompletedRecord(null);
       setShowReviewDetails(false);
+      setIncompleteWarning(null);
     }
   }, [isOpen, sectorNumber]);
 
@@ -109,6 +111,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
 
   const handleSelectOption = (questionId: number, optionId: 'A' | 'B' | 'C' | 'D') => {
     if (isSubmitted) return;
+    setIncompleteWarning(null);
     setSelectedAnswers((prev) => ({
       ...prev,
       [questionId]: optionId,
@@ -129,12 +132,17 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
 
   const handleSubmitExam = async () => {
     if (answeredCount < totalQuestions) {
-      const confirmIncomplete = window.confirm(
-        `Bạn mới trả lời ${answeredCount}/${totalQuestions} câu hỏi. Bạn có chắc chắn muốn nộp bài thi ngay bây giờ?`
+      const firstMissingIdx = examQuestions.findIndex((q) => !selectedAnswers[q.id]);
+      if (firstMissingIdx !== -1) {
+        setCurrentIndex(firstMissingIdx);
+      }
+      setIncompleteWarning(
+        `Bạn mới hoàn thành ${answeredCount}/${totalQuestions} câu hỏi. Vui lòng trả lời đầy đủ tất cả 20 câu (không bỏ trống) trước khi nộp bài sát hạch!`
       );
-      if (!confirmIncomplete) return;
+      return;
     }
 
+    setIncompleteWarning(null);
     try {
       setSubmitting(true);
 
@@ -152,7 +160,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
       });
 
       const scorePct = Math.round((correctCount / totalQuestions) * 100);
-      const isPassed = scorePct > 50; // Pass criteria: > 50%
+      const isPassed = scorePct >= 80; // Strict anti-guessing pass criteria: >= 80% (16/20 correct)
       const postAppScore = Math.min(100, Math.round(50 + (correctCount / totalQuestions) * 50));
       const timeSpentSec = Math.round((Date.now() - startTime) / 1000);
       const certCode = `VISEF-CERT-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
@@ -307,7 +315,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
         </div>
 
         {/* SUB-HEADER / PROGRESS BAR */}
-        {!isSubmitted && (completionStats.isCompleted || forceAllowExam) && (
+        {!isSubmitted && completionStats.isCompleted && (
           <div className="px-6 py-2.5 bg-slate-950/60 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
             <div className="flex items-center space-x-3">
               <span className="text-slate-300 font-bold">
@@ -318,7 +326,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                 Đã trả lời: <strong className="text-cyan-400">{answeredCount}</strong>/{totalQuestions}
               </span>
               <span className="text-slate-500">•</span>
-              <span className="text-emerald-400 font-semibold">Tiêu chuẩn Pass mở trạm tiếp: &gt; 50% (≥ 11/20 câu)</span>
+              <span className="text-emerald-400 font-semibold">Tiêu chuẩn Pass mở trạm tiếp: ≥ 80% (≥ 16/20 câu đúng — Chống khoanh lụi)</span>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -335,7 +343,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
 
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          {!completionStats.isCompleted && !forceAllowExam ? (
+          {!completionStats.isCompleted ? (
             /* LOCKED GATE: SECTOR NOT FINISHED YET */
             <div className="py-8 px-4 max-w-xl mx-auto text-center space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center mx-auto text-rose-400 shadow-xl shadow-rose-500/10">
@@ -421,6 +429,13 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
           ) : !isSubmitted ? (
             /* ACTIVE EXAM QUESTION VIEW */
             <div className="space-y-6">
+              {incompleteWarning && (
+                <div className="p-3.5 rounded-xl bg-amber-950/80 border border-amber-500/50 text-amber-200 text-xs font-semibold flex items-center space-x-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{incompleteWarning}</span>
+                </div>
+              )}
+
               {/* Question Card */}
               <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -566,8 +581,8 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
                       </h3>
                       <p className="text-xs text-slate-400 mt-1 max-w-xl mx-auto">
                         {completedRecord.isPassed
-                          ? `Bạn đã vượt qua bài kiểm tra chốt trạm của ${sectorTitle}. Trạm tiếp theo trong lộ trình cá nhân hóa đã chính thức được mở khóa!`
-                          : 'Theo quy tắc đào tạo tuần tự: Bạn cần đạt trên 50% (≥ 11/20 câu đúng) trong Bài Kiểm Tra Cuối Trạm mới được mở khóa sang Trạm tiếp theo.'}
+                          ? `Bạn đã vượt qua bài kiểm tra chốt trạm của ${sectorTitle} với độ chính xác cao. Trạm tiếp theo trong lộ trình cá nhân hóa đã chính thức được mở khóa!`
+                          : 'Theo quy tắc đào tạo tuần tự (chống học vượt & khoanh lụi): Bạn cần đạt tối thiểu 80% (≥ 16/20 câu đúng) trong Bài Kiểm Tra Cuối Trạm mới được mở khóa sang Trạm tiếp theo.'}
                       </p>
                     </div>
 
@@ -740,7 +755,7 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
         </div>
 
         {/* FOOTER ACTIONS (FOR EXAM IN PROGRESS) */}
-        {!isSubmitted && (
+        {!isSubmitted && completionStats.isCompleted && (
           <div className="px-6 py-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between gap-3">
             <button
               type="button"

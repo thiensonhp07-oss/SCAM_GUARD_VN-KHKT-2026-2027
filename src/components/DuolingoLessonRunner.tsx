@@ -42,7 +42,7 @@ interface DuolingoLessonRunnerProps {
   onCompleteLesson: (lessonId: string, earnedXp: number, shieldBadge: string) => void;
 }
 
-type LessonPhase = 'briefing' | 'theory' | 'practice' | 'story' | 'reward';
+type LessonPhase = 'briefing' | 'theory' | 'practice' | 'story' | 'reward' | 'failed';
 
 export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
   lesson,
@@ -162,7 +162,8 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
   // Helper to trigger adaptive replacement question when answer is wrong (MAX 4 REPLACEMENTS)
   const MAX_REPLACEMENTS = 4;
   const handleWrongAnswer = (explanation: string, typeName: string) => {
-    setHearts((h) => Math.max(1, h - 1));
+    const nextHearts = Math.max(0, hearts - 1);
+    setHearts(nextHearts);
     const currentReplacements = replacementCount;
     const canReplace = currentReplacements < MAX_REPLACEMENTS;
 
@@ -180,7 +181,10 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
         isChecked: true,
         isCorrect: false,
         feedback: explanation,
-        replacementNotice: `Hệ thống vừa bổ sung 1 tình huống bù (${nextAttempt}/${MAX_REPLACEMENTS}) dạng [${typeName}] vào cuối buổi học để bạn rèn luyện phản xạ!`,
+        replacementNotice:
+          nextHearts > 0
+            ? `Bạn phải làm lại câu này cho đúng để đi tiếp (Còn ${nextHearts} ❤️). Hệ thống cũng đã bổ sung 1 tình huống bù (${nextAttempt}/${MAX_REPLACEMENTS}) dạng [${typeName}] vào cuối trạm!`
+            : `Bạn đã hết toàn bộ Khiên Phòng Thủ (0 ❤️). Không thể qua trạm bằng cách đoán mò — hãy ôn lại lý thuyết và làm lại trạm!`,
       });
     } else {
       // Reached max 4 replacements, no more questions are added
@@ -188,8 +192,15 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
         isChecked: true,
         isCorrect: false,
         feedback: explanation,
-        replacementNotice: `⚠️ Đã đạt giới hạn tối đa ${MAX_REPLACEMENTS} lượt bù câu hỏi. Hệ thống sẽ không thêm câu mới, hãy tiếp tục hoàn thành các câu còn lại trong hàng đợi!`,
+        replacementNotice:
+          nextHearts > 0
+            ? `⚠️ Bạn bắt buộc phải trả lời đúng câu hiện tại mới được qua câu tiếp theo (Còn ${nextHearts} ❤️ — Chống khoanh lụi)!`
+            : `Bạn đã hết toàn bộ Khiên Phòng Thủ (0 ❤️). Không thể qua trạm bằng cách đoán mò — hãy ôn lại lý thuyết và làm lại trạm!`,
       });
+    }
+
+    if (nextHearts <= 0) {
+      setPhase('failed');
     }
   };
 
@@ -250,7 +261,11 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
     } else {
       setWrongMatch(true);
       setTimeout(() => setWrongMatch(false), 800);
-      setHearts((h) => Math.max(1, h - 1));
+      const nextHearts = Math.max(0, hearts - 1);
+      setHearts(nextHearts);
+      if (nextHearts <= 0) {
+        setPhase('failed');
+      }
     }
   };
 
@@ -349,18 +364,66 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
   };
 
   // 9. Story Choice Check
+  const actionStoryMsg = lesson.story.dialogue.find((m) => m.actionRequired && m.choices) ||
+    lesson.story.dialogue[lesson.story.dialogue.length - 1];
+  const selectedStoryChoiceObj = actionStoryMsg?.choices?.find((c) => c.id === selectedStoryChoice);
+  const isStoryChoiceSafe = Boolean(selectedStoryChoiceObj?.isSafe);
+
   const handleCheckStory = () => {
     if (!selectedStoryChoice) return;
     setIsStoryChecked(true);
-    const lastMsg = lesson.story.dialogue[lesson.story.dialogue.length - 1];
-    const choice = lastMsg.choices?.find((c) => c.id === selectedStoryChoice);
-    if (!choice?.isSafe) {
-      setHearts((h) => Math.max(1, h - 1));
+    if (!selectedStoryChoiceObj?.isSafe) {
+      const nextHearts = Math.max(0, hearts - 1);
+      setHearts(nextHearts);
+      if (nextHearts <= 0) {
+        setPhase('failed');
+      }
     }
   };
 
-  // Next Question / Phase
+  // Retry current question when answered wrong (anti-guessing gate)
+  const handleRetryCurrentQuestion = () => {
+    setSelectedMcOption(null);
+    setSelectedTf(null);
+    setSelectedLeftId(null);
+    setMatchedPairs({});
+    setWrongMatch(false);
+    setTappedSpotIds([]);
+    setDragAssignments({});
+    setSelectedChatChoice(null);
+    setSelectedUrlPart(null);
+    setLastQuestionResult(null);
+    if (currentQuestion?.type === 'order_sequence' && currentQuestion.sequenceItems) {
+      const shuffled = [...currentQuestion.sequenceItems];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      if (shuffled.every((item, idx) => item.correctOrder === idx + 1) && shuffled.length > 1) {
+        shuffled.reverse();
+      }
+      setCurrentSequence(shuffled);
+    }
+  };
+
+  // Restart full station after losing all 3 shield hearts
+  const handleRestartLessonAfterFail = () => {
+    setHearts(3);
+    setPracticeQueue([...lesson.practice]);
+    setPracticeIndex(0);
+    setReplacementCount(0);
+    setSelectedFeynmanOption(null);
+    setIsFeynmanVerified(false);
+    resetQuestionStates();
+    setPhase('theory');
+  };
+
+  // Next Question / Phase (Strictly requires current question to be answered correctly)
   const handleAdvancePractice = () => {
+    if (currentQuestion?.type !== 'matching' && !lastQuestionResult?.isCorrect) {
+      handleRetryCurrentQuestion();
+      return;
+    }
     if (practiceIndex < practiceQueue.length - 1) {
       setPracticeIndex((i) => i + 1);
       resetQuestionStates();
@@ -369,11 +432,12 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
     }
   };
 
-  // Final Claim
+  // Final Claim (Requires Feynman mastery verification)
   const handleFinalClaim = () => {
+    if (!isFeynmanVerified) return;
     onCompleteLesson(
       lesson.id,
-      lesson.xpReward + (isFeynmanVerified ? 25 : 0),
+      lesson.xpReward + 25,
       lesson.shieldBadgeName
     );
     onClose();
@@ -1606,6 +1670,34 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                 </div>
               )}
 
+              {/* ===================== PHASE 5: FAILED (OUT OF HEARTS - ANTI-GUESSING GATE) ===================== */}
+              {phase === 'failed' && (
+                <div className="text-center py-8 sm:py-10 space-y-6 animate-scale-up max-w-lg mx-auto">
+                  <div className="w-24 h-24 rounded-full bg-rose-950/90 border-2 border-rose-500 p-1 shadow-2xl mx-auto flex items-center justify-center text-5xl">
+                    💔
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-xs font-black uppercase tracking-widest text-rose-400 bg-rose-950 px-3 py-1 rounded-full border border-rose-800">
+                      KHIÊN PHÒNG THỦ ĐÃ VỠ (0/3 ❤️) · CHỐNG HỌC VƯỢT & KHOANH LỤI
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-white">
+                      Chưa Thể Qua Trạm Này!
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+                      Bạn đã trả lời sai quá 3 lần trong bài huấn luyện. Để đảm bảo thực lực phòng chống lừa đảo (không qua trạm nhờ may mắn bấm lụi), hệ thống yêu cầu bạn ôn lại lý thuyết và thực hành lại trạm này.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-left text-xs text-slate-300 space-y-1.5">
+                    <div className="font-bold text-amber-400 uppercase font-mono">
+                      📌 Khẩu quyết cần ghi nhớ trước khi thử lại:
+                    </div>
+                    <p className="text-white font-semibold">&ldquo;{memoryBlueprint.mnemonicRhyme}&rdquo;</p>
+                  </div>
+                </div>
+              )}
+
             </div>
           </main>
 
@@ -1632,7 +1724,7 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                       ) : (
                         <>
                           <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
-                          <span>Chưa chính xác!</span>
+                          <span>Chưa chính xác! Bạn cần làm lại câu này cho đúng để qua câu.</span>
                         </>
                       )}
                     </div>
@@ -1787,12 +1879,10 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                         </button>
                       )}
                     </>
-                  ) : (
+                  ) : lastQuestionResult.isCorrect ? (
                     <button
                       onClick={handleAdvancePractice}
-                      className={`btn-tactile w-full py-4 text-sm font-bold flex items-center justify-center space-x-2 shadow-xl cursor-pointer ${
-                        lastQuestionResult.isCorrect ? 'btn-tactile-emerald' : 'btn-tactile-cyan'
-                      }`}
+                      className="btn-tactile btn-tactile-emerald w-full py-4 text-sm font-bold flex items-center justify-center space-x-2 shadow-xl cursor-pointer"
                     >
                       <span>
                         {practiceIndex < practiceQueue.length - 1
@@ -1800,6 +1890,14 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                           : 'Chuyển Sang Kịch Bản Thực Chiến'}
                       </span>
                       <ArrowRight className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleRetryCurrentQuestion}
+                      className="btn-tactile btn-tactile-rose w-full py-4 text-sm font-black flex items-center justify-center space-x-2 shadow-xl cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Làm Lại Câu Này Cho Đúng Để Đi Tiếp (Còn {hearts} ❤️)</span>
                     </button>
                   )}
                 </div>
@@ -1819,7 +1917,7 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                     >
                       Xác Nhận Quyết Định Story
                     </button>
-                  ) : (
+                  ) : isStoryChoiceSafe ? (
                     <button
                       onClick={() => setPhase('reward')}
                       className="btn-tactile btn-tactile-emerald w-full py-4 text-sm font-bold flex items-center justify-center space-x-2 shadow-xl cursor-pointer"
@@ -1827,17 +1925,47 @@ export const DuolingoLessonRunner: React.FC<DuolingoLessonRunnerProps> = ({
                       <span>Xem Phần Thưởng & Khiên Vệ Binh</span>
                       <Award className="w-5 h-5" />
                     </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsStoryChecked(false);
+                        setSelectedStoryChoice(null);
+                      }}
+                      className="btn-tactile btn-tactile-rose w-full py-4 text-sm font-black flex items-center justify-center space-x-2 shadow-xl cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Chọn Lại Quyết Định An Toàn Để Qua Trạm (Còn {hearts} ❤️)</span>
+                    </button>
                   )}
                 </div>
               )}
 
               {phase === 'reward' && (
                 <button
+                  disabled={!isFeynmanVerified}
                   onClick={handleFinalClaim}
-                  className="btn-tactile btn-tactile-emerald w-full py-4 text-sm font-black flex items-center justify-center space-x-2 shadow-2xl cursor-pointer"
+                  className={`btn-tactile w-full py-4 text-sm font-black flex items-center justify-center space-x-2 shadow-2xl ${
+                    isFeynmanVerified
+                      ? 'btn-tactile-emerald cursor-pointer'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 cursor-not-allowed'
+                  }`}
                 >
-                  <span>Nhận Khiên & Hoàn Thành Bài Học</span>
+                  <span>
+                    {isFeynmanVerified
+                      ? 'Nhận Khiên & Hoàn Thành Bài Học'
+                      : 'Hãy Chọn Đúng Câu Đúc Kết Feynman Phía Trên Để Hoàn Thành Trạm'}
+                  </span>
                   <CheckCircle2 className="w-5 h-5" />
+                </button>
+              )}
+
+              {phase === 'failed' && (
+                <button
+                  onClick={handleRestartLessonAfterFail}
+                  className="btn-tactile btn-tactile-rose w-full py-4 text-sm font-black flex items-center justify-center space-x-2 shadow-2xl cursor-pointer"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  <span>Ôn Lại Lý Thuyết & Thực Hành Lại Trạm Từ Đầu</span>
                 </button>
               )}
             </div>

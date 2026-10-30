@@ -167,8 +167,10 @@ const SECTOR_METADATA_THEMES: Record<
 
 export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
   userProfile,
+  onNavigate,
   onOpenLeaderboard,
   onEarnXp,
+  onOpenSurvey,
 }) => {
   const [completedNodeIds, setCompletedNodeIds] = useState<string[]>(() => {
     try {
@@ -275,6 +277,15 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
   ]);
 
   const [isSurveyModalOpen, setIsSurveyModalOpen] = useState(false);
+  const openUnifiedSurveyModal = () => {
+    if (onOpenSurvey) {
+      onOpenSurvey();
+    } else if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
+    } else {
+      setIsSurveyModalOpen(true);
+    }
+  };
   const [analyticsData, setAnalyticsData] = useState<any>(() => getCommunitySurveyAnalytics());
   const [sectorsSorted, setSectorsSorted] = useState<typeof CAMPAIGN_SECTORS>(() => CAMPAIGN_SECTORS);
 
@@ -619,7 +630,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
 
   const handleSelectSectorIndex = (idx: number) => {
     if (!hasCompletedSurvey) {
-      setIsSurveyModalOpen(true);
+      openUnifiedSurveyModal();
       return;
     }
     if (!isSectorUnlocked(idx)) return;
@@ -995,23 +1006,52 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
             <button
               type="button"
               onClick={() => {
-                const node =
-                  currentSector.nodes.find((n) => n.kind === 'reflex') || currentSector.nodes[1];
-                handleLaunchNode(node);
+                if (!hasCompletedSurvey) {
+                  openUnifiedSurveyModal();
+                  return;
+                }
+                const nextIncompleteNode =
+                  currentSector.nodes.find((n) => !completedNodeIds.includes(n.id)) ||
+                  currentSector.nodes[0];
+                if (nextIncompleteNode) {
+                  handleLaunchNode(nextIncompleteNode);
+                }
               }}
               className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-2 transition cursor-pointer shadow-2xs"
             >
-              <Zap className="w-3.5 h-3.5 text-sky-600" />
-              <span>Kiểm Tra Phản Xạ (25s)</span>
+              <Play className="w-3.5 h-3.5 text-sky-600 fill-sky-600" />
+              <span>Học Trạm Đang Mở (Tuần Tự)</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setIsCertificationModalOpen(true)}
-              className="px-3.5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
+              disabled={!isCurrentSectorFinished}
+              onClick={() => {
+                if (isCurrentSectorFinished) {
+                  setIsCertificationModalOpen(true);
+                }
+              }}
+              title={
+                isCurrentSectorFinished
+                  ? 'Đã hoàn thành 10/10 bài — Bấm để thi sát hạch chốt trạm'
+                  : `Cần hoàn thành đủ ${currentSector.nodes.length}/${currentSector.nodes.length} bài trong trạm này trước khi thi sát hạch (Không học vượt)`
+              }
+              className={`px-3.5 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 transition shadow-xs ${
+                isCurrentSectorFinished
+                  ? 'bg-sky-600 hover:bg-sky-500 text-white cursor-pointer'
+                  : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Kiểm Tra Trạm Hiện Tại</span>
+              {isCurrentSectorFinished ? (
+                <ShieldCheck className="w-4 h-4" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+              )}
+              <span>
+                {isCurrentSectorFinished
+                  ? 'Thi Sát Hạch Chốt Trạm'
+                  : `Khóa Thi Trạm (${sectorCompletedNodes.length}/${currentSector.nodes.length} Bài)`}
+              </span>
             </button>
 
             <button
@@ -1201,26 +1241,18 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
               <>
                 <button
                   type="button"
-                  onClick={() => setIsSurveyModalOpen(true)}
+                  onClick={openUnifiedSurveyModal}
                   className="btn-visef-flagship px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   <FileText className="w-4 h-4 shrink-0" />
                   <span>Làm Bài Khảo Sát ViSEF Mở Lộ Trình</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleQuickDemoSurvey}
-                  className="btn-visef-emerald px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                >
-                  <Zap className="w-3.5 h-3.5 shrink-0" />
-                  <span>Giả Lập Đã Khảo Sát (Test Nhanh)</span>
                 </button>
               </>
             ) : (
               <>
                 <button
                   type="button"
-                  onClick={() => setIsSurveyModalOpen(true)}
+                  onClick={openUnifiedSurveyModal}
                   className="btn-visef-flagship px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <RotateCcw className="w-3.5 h-3.5 shrink-0" />
@@ -1351,21 +1383,12 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setIsSurveyModalOpen(true)}
+                    onClick={openUnifiedSurveyModal}
                     className="px-5 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition cursor-pointer shadow-sm"
                   >
                     <FileText className="w-4 h-4" />
                     <span>Làm Bài Khảo Sát Mở Lộ Trình Ngay</span>
                     <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleQuickDemoSurvey}
-                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Giả Lập Đã Khảo Sát (Mở Khóa Nhanh Lộ Trình)</span>
                   </button>
                 </div>
               </div>
@@ -1406,14 +1429,14 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
                   <div className="flex items-center justify-between text-[11px] font-mono font-bold text-emerald-700 uppercase">
                     <span>GIAI ĐOẠN 03</span>
                     <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700">
-                      Mở Khóa Tuần Tự
+                      Học Tuần Tự Nghiêm Ngặt
                     </span>
                   </div>
                   <p className="text-sm font-bold text-slate-900">
-                    Kích Hoạt Sơ Đồ Trạm & Học Vượt Cấp
+                    Kích Hoạt Sơ Đồ Trạm & Học Tuần Tự (Không Học Vượt)
                   </p>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Ngay sau khi nộp khảo sát, Sơ đồ Trạm Thực Hành sẽ mở khóa từ <strong>Bài 01 của Trạm Ưu Tiên #1</strong> để bạn bắt đầu rèn luyện.
+                    Sau khi nộp khảo sát, lộ trình mở khóa tuần tự từ <strong>Bài 01 của Trạm Ưu Tiên #1</strong>. Phải trả lời đúng từng bài và đạt chuẩn ≥ 80% mới qua trạm.
                   </p>
                 </div>
               </div>
@@ -1443,7 +1466,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
                     <button
                       key={sec.id}
                       type="button"
-                      onClick={() => setIsSurveyModalOpen(true)}
+                      onClick={openUnifiedSurveyModal}
                       className="p-4 rounded-xl bg-[#F8FAFC] hover:bg-sky-50/60 border border-slate-200 hover:border-sky-300 text-left transition cursor-pointer flex flex-col justify-between gap-3 group shadow-2xs"
                     >
                       <div className="flex items-center justify-between w-full">
@@ -1557,7 +1580,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
                     type="button"
                     onClick={() => {
                       if (!hasCompletedSurvey) {
-                        setIsSurveyModalOpen(true);
+                        openUnifiedSurveyModal();
                         return;
                       }
                       if (unlocked) {
@@ -2900,7 +2923,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
                   type="button"
                   onClick={() => {
                     setBriefingNode(null);
-                    setIsSurveyModalOpen(true);
+                    openUnifiedSurveyModal();
                   }}
                   className="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 text-white transition cursor-pointer shadow-xs"
                 >
@@ -2979,7 +3002,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
           handleSelectSectorIndex(idx);
         }}
         onOpenSurvey={() => {
-          setIsSurveyModalOpen(true);
+          openUnifiedSurveyModal();
         }}
         onGuardianCertified={(record) => {
           setCyberGuardianCert(record);
@@ -2995,6 +3018,7 @@ export const RoadmapSnakePath: React.FC<RoadmapSnakePathProps> = ({
         onClose={() => setIsSurveyModalOpen(false)}
         onNavigateToMainUI={() => {
           setIsSurveyModalOpen(false);
+          onNavigate('home');
         }}
       />
     </div>

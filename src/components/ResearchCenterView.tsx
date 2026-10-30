@@ -320,9 +320,13 @@ interface StatisticalData {
 
 interface ResearchCenterViewProps {
   onNavigateToMainUI?: () => void;
+  onOpenSurvey?: () => void;
 }
 
-export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNavigateToMainUI }) => {
+export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({
+  onNavigateToMainUI,
+  onOpenSurvey,
+}) => {
   const [activeTab, setActiveTab] = useState<ResearchTabType>('survey_analytics');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'SURVEY_EXHIBIT' | 'EXPERIMENT_STAT' | 'DATA_QC' | 'AI_BENCHMARK'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -351,6 +355,15 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
 
   // Demo Modal state
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const handleOpenUnifiedSurvey = () => {
+    if (onOpenSurvey) {
+      onOpenSurvey();
+    } else if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
+    } else {
+      setIsDemoModalOpen(true);
+    }
+  };
   const [chartTheme, setChartTheme] = useState<'white' | 'dark'>('white');
 
   // Filtered modules
@@ -655,7 +668,7 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
               <span>{isTrainingAiCycle ? 'Đang Huấn Luyện Mô Hình...' : 'Train Lại Mô Hình AI (Live Corpus)'}</span>
             </button>
             <button
-              onClick={() => setIsDemoModalOpen(true)}
+              onClick={handleOpenUnifiedSurvey}
               className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg border border-sky-500 flex items-center justify-center gap-2 transition-colors cursor-pointer"
             >
               <Users className="w-4 h-4 text-white" />
@@ -983,12 +996,12 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({ onNaviga
 
       {/* TAB SURVEY ANALYTICS: PRE VS POST COMMUNITY SURVEY CHARTS */}
       {activeTab === 'survey_analytics' && (
-        <ViSEFSurveyAnalyticsSuite onTakeLiveDemo={() => setIsDemoModalOpen(true)} />
+        <ViSEFSurveyAnalyticsSuite onTakeLiveDemo={handleOpenUnifiedSurvey} />
       )}
 
       {/* TAB SURVEY LIVE TABLE: RAW PARTICIPANT RESPONSES & CSV EXPORT */}
       {activeTab === 'survey_live_table' && (
-        <VisefSurveyResponsesLiveTable />
+        <VisefSurveyResponsesLiveTable onOpenSurvey={handleOpenUnifiedSurvey} />
       )}
 
       {/* TAB POSTER BOARD 3-PANEL EXHIBITION */}

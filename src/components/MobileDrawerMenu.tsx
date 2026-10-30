@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   ChevronRight,
   Flame,
+  GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, UserAccount } from '../types';
@@ -32,6 +33,7 @@ interface MobileDrawerMenuProps {
   onOpenTheme?: () => void;
   onOpenAuth?: () => void;
   onOpenScienceFairDemo?: () => void;
+  onOpenAboutProject?: () => void;
 }
 
 export const MobileDrawerMenu: React.FC<MobileDrawerMenuProps> = ({
@@ -44,6 +46,7 @@ export const MobileDrawerMenu: React.FC<MobileDrawerMenuProps> = ({
   onOpenEmergency,
   onOpenStreak,
   onOpenScienceFairDemo,
+  onOpenAboutProject,
 }) => {
   const tacticalItems = [
     {
@@ -233,6 +236,23 @@ export const MobileDrawerMenu: React.FC<MobileDrawerMenuProps> = ({
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </div>
+
+              {/* Subtle 'Giới thiệu' Quick Link */}
+              {onOpenAboutProject && (
+                <button
+                  onClick={() => {
+                    onOpenAboutProject();
+                    onClose();
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-sky-200 text-slate-700 font-medium text-xs flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                    <span>Giới thiệu</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              )}
 
               {/* ViSEF 5-Minute Evaluation Quick Link */}
               {onOpenScienceFairDemo && (

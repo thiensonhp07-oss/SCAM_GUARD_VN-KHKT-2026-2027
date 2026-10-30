@@ -104,7 +104,9 @@ export const SpeedReflexRunner: React.FC<SpeedReflexRunnerProps> = ({
 
     if (currentIndex + 1 >= challenge.items.length) {
       setGameState('result');
-      const finalPassed = updatedAnswers.filter((a) => a.isCorrect).length >= Math.ceil(challenge.items.length * 0.6);
+      const finalPassed =
+        updatedAnswers.length === challenge.items.length &&
+        updatedAnswers.filter((a) => a.isCorrect).length >= Math.ceil(challenge.items.length * 0.8);
       if (finalPassed) {
         playChestFanfare();
         confetti({
@@ -124,7 +126,8 @@ export const SpeedReflexRunner: React.FC<SpeedReflexRunnerProps> = ({
   };
 
   const correctCount = answers.filter((a) => a.isCorrect).length;
-  const isPassed = correctCount >= Math.ceil(challenge.items.length * 0.6);
+  const requiredCorrectCount = Math.ceil(challenge.items.length * 0.8);
+  const isPassed = answers.length === challenge.items.length && correctCount >= requiredCorrectCount;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-fade-in">
@@ -282,7 +285,7 @@ export const SpeedReflexRunner: React.FC<SpeedReflexRunnerProps> = ({
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-300 font-medium">
                   Bạn trả lời đúng <strong>{correctCount} / {challenge.items.length}</strong> câu
-                  (Đạt {score} điểm • Combo cao nhất x{maxCombo}).
+                  (Cần tối thiểu <strong>{requiredCorrectCount}/{challenge.items.length} câu đúng — ≥ 80%</strong> để chống bấm lụi • Đạt {score} điểm).
                 </p>
               </div>
 

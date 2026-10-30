@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Users, FileText, PhoneCall, X } from 'lucide-react';
+import { Shield, Lock, Sparkles, FileText, PhoneCall, X } from 'lucide-react';
 import { AboutProjectModal } from './AboutProjectModal';
 
 interface UtilityFooterProps {
@@ -34,21 +34,7 @@ export const UtilityFooter: React.FC<UtilityFooterProps> = ({ onNavigateToResear
             onClick={() => setIsAboutProjectOpen(true)}
             className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
           >
-            Giới thiệu dự án
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              openFooterModal(
-                'Đối Tác Chuyên Môn & Cố Vấn Khoa Học',
-                'Đồng hành bởi các chuyên gia an ninh mạng, hội đồng đạo đức nghiên cứu IRB Protocol #2026-HCMC-0092 và cộng đồng an toàn thông tin tại Việt Nam.',
-                Users
-              )
-            }
-            className="hover:text-white transition-colors cursor-pointer whitespace-nowrap"
-          >
-            Đối tác & Cố vấn
+            Giới thiệu
           </button>
 
           <button

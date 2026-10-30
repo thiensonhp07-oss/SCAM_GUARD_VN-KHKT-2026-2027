@@ -489,6 +489,8 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
               onClick={() => {
                 if (onTakeLiveDemo) {
                   onTakeLiveDemo();
+                } else if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
                 } else {
                   setRecentPersonalResult(null);
                   setIsSurveyModalOpen(true);
@@ -691,7 +693,15 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
             analytics={analytics}
             surveys={analytics?.recentSurveys}
             userPreScore={recentPersonalResult?.testOutcome?.preScore}
-            onTakeSurvey={() => setIsSurveyModalOpen(true)}
+            onTakeSurvey={() => {
+              if (onTakeLiveDemo) {
+                onTakeLiveDemo();
+              } else if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
+              } else {
+                setIsSurveyModalOpen(true);
+              }
+            }}
           />
 
           {/* Detailed Side-by-Side Analysis Grid - Bound directly to real dataset */}
@@ -1001,6 +1011,15 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           surveys={analytics?.recentSurveys}
           onRefresh={fetchAnalytics}
           isLoading={loading}
+          onOpenSurvey={() => {
+            if (onTakeLiveDemo) {
+              onTakeLiveDemo();
+            } else if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
+            } else {
+              setIsSurveyModalOpen(true);
+            }
+          }}
         />
       )}
 

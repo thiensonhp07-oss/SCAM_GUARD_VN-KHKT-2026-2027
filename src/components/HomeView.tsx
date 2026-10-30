@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   FlaskConical,
   ArrowUpRight,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { UserProfile, UserAccount, FriendUser, DailyQuest } from '../types';
 import { RoadmapSnakePath } from './RoadmapSnakePath';
@@ -38,6 +40,7 @@ interface HomeViewProps {
   onStartFriendDuel?: (friend: FriendUser) => void;
   onEarnXp?: (amount: number) => void;
   onOpenScienceFairDemo?: () => void;
+  onOpenAboutProject?: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -52,6 +55,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenCallSim,
   onEarnXp,
   onOpenScienceFairDemo,
+  onOpenAboutProject,
 }) => {
   const { t, language } = useTranslation();
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
@@ -77,8 +81,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <span className="font-semibold text-slate-900">ScamGuard Threat Defense Platform</span>
           <span aria-hidden="true" className="text-slate-300">·</span>
           <span>{language === 'en' ? 'AI Dual-Engine Forensics v3.4' : 'Chuẩn giám định AI Dual-Engine v3.4'}</span>
-          <span aria-hidden="true" className="text-slate-300">·</span>
-          <span className="font-mono tabular-nums text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200/80">IRB #2026-HCMC-0092</span>
+          {onOpenAboutProject && (
+            <>
+              <span aria-hidden="true" className="text-slate-300">·</span>
+              <button
+                type="button"
+                onClick={onOpenAboutProject}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50/80 hover:bg-sky-100/80 text-sky-700 border border-sky-200/80 font-medium transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3 h-3 text-sky-500 shrink-0" />
+                <span>{language === 'en' ? 'About' : 'Giới thiệu'}</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Clean Interactive Segmented Control */}
@@ -190,6 +205,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               onNavigate={onNavigate}
               onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
               onEarnXp={onEarnXp}
+              onOpenSurvey={onOpenScienceFairDemo}
             />
           </div>
 

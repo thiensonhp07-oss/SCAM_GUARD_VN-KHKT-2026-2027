@@ -18,8 +18,11 @@ import {
   MailCheck,
   Loader2,
   ArrowUpRight,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { UserAccount } from '../types';
+import { AboutProjectModal } from './AboutProjectModal';
 import {
   loginWithFirebase,
   registerWithFirebase,
@@ -77,6 +80,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
   const [successMsg, setSuccessMsg] = useState('');
   const [providerSetupGuide, setProviderSetupGuide] = useState<'google' | 'facebook' | 'github' | 'password' | null>(null);
   const [copiedUri, setCopiedUri] = useState(false);
+  const [isAboutProjectOpen, setIsAboutProjectOpen] = useState(false);
 
   const firebaseCallbackUri = `https://${FIREBASE_AUTH_DOMAIN}/__/auth/handler`;
   const firebaseConsoleProvidersUrl = `https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/providers`;
@@ -801,10 +805,10 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
 
         {/* Floating Brand Wordmark Pill Below Orbit */}
         <div
-          className="mt-8 z-20 flex flex-col items-center pointer-events-none"
+          className="mt-8 z-20 flex flex-col items-center gap-2.5"
           style={{ animation: 'sgFloatSoft 5s ease-in-out infinite' }}
         >
-          <div className="bg-white/85 backdrop-blur-md px-5 py-2 rounded-2xl border border-slate-200/80 shadow-[0_8px_24px_-6px_rgba(2,132,199,0.12)] flex items-baseline gap-1.5">
+          <div className="bg-white/85 backdrop-blur-md px-5 py-2 rounded-2xl border border-slate-200/80 shadow-[0_8px_24px_-6px_rgba(2,132,199,0.12)] flex items-baseline gap-1.5 pointer-events-none">
             <span className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-950">
               ScamGuard
             </span>
@@ -820,30 +824,43 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
           ======================================================================= */}
       <div className="relative z-10 flex-1 flex flex-col justify-between px-6 sm:px-12 lg:px-14 xl:px-20 py-8">
         {/* Top Navigation Row */}
-        <div className="flex items-center justify-between w-full max-w-[440px] mx-auto">
+        <div className="flex items-center justify-between gap-2 w-full max-w-[440px] mx-auto">
           <button
             type="button"
             onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}
-            className="group w-9 h-9 rounded-full border border-slate-200/90 hover:border-sky-300 bg-white/85 backdrop-blur-md hover:bg-sky-50/60 flex items-center justify-center text-slate-600 hover:text-sky-600 transition-all duration-200 shadow-2xs cursor-pointer"
+            className="group w-9 h-9 rounded-full border border-slate-200/90 hover:border-sky-300 bg-white/85 backdrop-blur-md hover:bg-sky-50/60 flex items-center justify-center text-slate-600 hover:text-sky-600 transition-all duration-200 shadow-2xs cursor-pointer shrink-0"
             title={mode === 'register' ? 'Chuyển sang Đăng nhập' : 'Quay lại Tạo tài khoản'}
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
           </button>
 
-          {/* Animated Mini Brand Emblem */}
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-md border border-slate-200/80 shadow-2xs">
-            <div className="relative w-6 h-6 flex items-center justify-center">
-              <span
-                className="absolute inset-0 rounded-md border border-sky-400/50"
-                style={{ animation: 'sgSpinCw 10s linear infinite' }}
-              />
-              <div className="w-5 h-5 rounded-md bg-slate-950 flex items-center justify-center text-white">
-                <Shield className="w-3 h-3 text-sky-400" />
+          <div className="flex items-center gap-2">
+            {/* Subtle 'Giới thiệu' Pill in Top Right of Auth Wing */}
+            <button
+              type="button"
+              onClick={() => setIsAboutProjectOpen(true)}
+              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/85 hover:bg-sky-50/80 backdrop-blur-md border border-slate-200/80 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-xs font-medium shadow-2xs transition-all cursor-pointer"
+              title="Giới thiệu"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span>Giới thiệu</span>
+            </button>
+
+            {/* Animated Mini Brand Emblem */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/85 backdrop-blur-md border border-slate-200/80 shadow-2xs">
+              <div className="relative w-6 h-6 flex items-center justify-center">
+                <span
+                  className="absolute inset-0 rounded-md border border-sky-400/50"
+                  style={{ animation: 'sgSpinCw 10s linear infinite' }}
+                />
+                <div className="w-5 h-5 rounded-md bg-slate-950 flex items-center justify-center text-white">
+                  <Shield className="w-3 h-3 text-sky-400" />
+                </div>
               </div>
+              <span className="text-sm font-semibold tracking-tight text-slate-950 pr-0.5 hidden sm:inline">
+                ScamGuard
+              </span>
             </div>
-            <span className="text-sm font-semibold tracking-tight text-slate-950 pr-0.5">
-              ScamGuard
-            </span>
           </div>
         </div>
 
@@ -1367,10 +1384,21 @@ export const AuthGate: React.FC<AuthGateProps> = ({ onLoginSuccess }) => {
 
         {/* Minimalist Footer Note */}
         <div className="w-full max-w-[440px] mx-auto pt-4 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-400">
-          <span>Firebase Authentication · Cloud Firestore</span>
+          <button
+            type="button"
+            onClick={() => setIsAboutProjectOpen(true)}
+            className="text-slate-500 hover:text-sky-600 font-medium cursor-pointer transition-colors"
+          >
+            Giới thiệu
+          </button>
           <span>ScamGuard VN © 2026</span>
         </div>
       </div>
+
+      <AboutProjectModal
+        isOpen={isAboutProjectOpen}
+        onClose={() => setIsAboutProjectOpen(false)}
+      />
     </div>
   );
 };

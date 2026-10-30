@@ -10,6 +10,8 @@ import {
   Globe,
   Check,
   FileText,
+  Sparkles,
+  GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, UserAccount } from '../types';
@@ -26,6 +28,8 @@ interface NavbarProps {
   onOpenTheme?: () => void;
   onOpenStreak?: () => void;
   onOpenScienceFairDemo?: () => void;
+  onOpenAboutProject?: () => void;
+  onOpenNotifications?: () => void;
   onOpenChat?: () => void;
   onOpenDrawer?: () => void;
   onLanguageChange?: (lang: 'vi' | 'en') => void;
@@ -40,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onOpenStreak,
   onOpenScienceFairDemo,
+  onOpenAboutProject,
   onOpenDrawer,
   onLanguageChange,
 }) => {
@@ -120,6 +125,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+
+            {/* SUBTLE 'GIỚI THIỆU' BUTTON */}
+            {onOpenAboutProject && (
+              <button
+                type="button"
+                onClick={onOpenAboutProject}
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-slate-600 hover:text-sky-700 font-medium text-xs cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                title={currentLang === 'en' ? 'About' : 'Giới thiệu'}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                <span>{currentLang === 'en' ? 'About' : 'Giới thiệu'}</span>
+              </button>
+            )}
 
             {/* STANDOUT VISEF SURVEY QUICK LAUNCH BUTTON */}
             {onOpenScienceFairDemo && (
