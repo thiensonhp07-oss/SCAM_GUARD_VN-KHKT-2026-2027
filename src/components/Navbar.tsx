@@ -9,6 +9,7 @@ import {
   Flame,
   Globe,
   Check,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, UserAccount } from '../types';
@@ -38,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenEmergency,
   onLogout,
   onOpenStreak,
+  onOpenScienceFairDemo,
   onOpenDrawer,
   onLanguageChange,
 }) => {
@@ -118,6 +120,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+
+            {/* STANDOUT VISEF SURVEY QUICK LAUNCH BUTTON */}
+            {onOpenScienceFairDemo && (
+              <button
+                type="button"
+                onClick={onOpenScienceFairDemo}
+                className="btn-visef-flagship hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs cursor-pointer whitespace-nowrap shrink-0"
+                title={
+                  currentLang === 'en'
+                    ? 'Open ViSEF 2026 Live Survey & Unlock Roadmap'
+                    : 'Mở Khảo sát Chẩn đoán ViSEF 2026 & Mở khóa Lộ trình'
+                }
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                <span>{currentLang === 'en' ? 'ViSEF Survey' : 'Khảo Sát ViSEF'}</span>
+              </button>
+            )}
 
             {/* DEDICATED STREAK BOX / WIDGET */}
             <button

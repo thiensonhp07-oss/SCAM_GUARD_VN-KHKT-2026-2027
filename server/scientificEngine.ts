@@ -1722,6 +1722,26 @@ if (COMMUNITY_SURVEYS.length === 0) {
   seedStandardViSEFDataset();
 }
 
+export const MAX_SERVER_SURVEYS_MEMORY = 300;
+
+export function getSurveyDatasetDigest(): string {
+  const count = COMMUNITY_SURVEYS.length;
+  const newestId = COMMUNITY_SURVEYS[0]?.id || 'empty';
+  const oldestId = COMMUNITY_SURVEYS[count - 1]?.id || 'empty';
+  return `${count}:${newestId}:${oldestId}:${isCleanDataMode ? 'clean0' : 'std'}:${trainingRunsCounter}`;
+}
+
+export function compactSurveyRecord(s: CommunitySurveySubmission): CommunitySurveySubmission {
+  return {
+    ...s,
+    participantName: String(s.participantName || 'Khảo nghiệm viên ViSEF').slice(0, 80),
+    schoolName: s.schoolName ? String(s.schoolName).slice(0, 80) : undefined,
+    className: s.className ? String(s.className).slice(0, 30) : undefined,
+    location: String(s.location || 'TP. Hồ Chí Minh').slice(0, 60),
+    feedbackNote: s.feedbackNote ? String(s.feedbackNote).slice(0, 320) : undefined,
+  };
+}
+
 export function getAllCommunitySurveys(): CommunitySurveySubmission[] {
   if (COMMUNITY_SURVEYS.length === 0 && !isCleanDataMode) {
     seedStandardViSEFDataset();
@@ -1732,9 +1752,13 @@ export function getAllCommunitySurveys(): CommunitySurveySubmission[] {
 export function recordCommunitySurveySubmission(submission: Partial<CommunitySurveySubmission>): CommunitySurveySubmission {
   const isAnon = submission.isAnonymous !== undefined ? submission.isAnonymous : true;
   const anonCode = submission.anonymousCode || `ANON-VN-${Math.floor(1000 + Math.random() * 9000)}`;
+  const targetId = submission.id || `SURVEY-LIVE-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 89)}`;
 
-  const newSubmission: CommunitySurveySubmission = {
-    id: submission.id || `SURVEY-LIVE-${Date.now().toString().slice(-6)}`,
+  // Check if already recorded (deduplicate by ID to prevent memory bloat)
+  const existingIdx = COMMUNITY_SURVEYS.findIndex((item) => item.id === targetId);
+
+  const newSubmission: CommunitySurveySubmission = compactSurveyRecord({
+    id: targetId,
     participantName: isAnon ? (submission.anonymousCode || `Thí sinh ẩn danh #${anonCode.slice(-4)}`) : (submission.participantName || 'Khảo nghiệm viên ViSEF'),
     demographicGroup: submission.demographicGroup || 'STUDENT',
     location: submission.location || 'TP. Hồ Chí Minh',
@@ -1763,14 +1787,78 @@ export function recordCommunitySurveySubmission(submission: Partial<CommunitySur
       },
     },
     feedbackNote: submission.feedbackNote || 'Trải nghiệm ứng dụng giúp tôi hình thành phản xạ dừng lại kiểm chứng 2 kênh trước khi giao dịch.',
-    createdAt: new Date().toISOString(),
-  };
+    createdAt: submission.createdAt || new Date().toISOString(),
+  });
 
-  COMMUNITY_SURVEYS.unshift(newSubmission);
+  if (existingIdx >= 0) {
+    COMMUNITY_SURVEYS[existingIdx] = newSubmission;
+  } else {
+    COMMUNITY_SURVEYS.unshift(newSubmission);
+    // Bound in-memory array size to prevent unbounded heap growth
+    if (COMMUNITY_SURVEYS.length > MAX_SERVER_SURVEYS_MEMORY) {
+      COMMUNITY_SURVEYS.length = MAX_SERVER_SURVEYS_MEMORY;
+    }
+  }
+
   trainingRunsCounter++;
   syncParticipantTrialsFromSurveys();
 
   return newSubmission;
+}
+
+export function syncDeltaCommunitySurveys(params: {
+  clientDigest?: string;
+  incomingSurveys?: CommunitySurveySubmission[];
+}): {
+  unchanged: boolean;
+  digest: string;
+  total: number;
+  isCleanZeroMode: boolean;
+  surveys?: CommunitySurveySubmission[];
+  addedFromClientCount: number;
+} {
+  if (COMMUNITY_SURVEYS.length === 0 && !isCleanDataMode) {
+    seedStandardViSEFDataset();
+  }
+
+  let addedFromClientCount = 0;
+  if (Array.isArray(params.incomingSurveys) && params.incomingSurveys.length > 0 && !isCleanDataMode) {
+    const existingIds = new Set(COMMUNITY_SURVEYS.map((s) => s.id));
+    for (const item of params.incomingSurveys.slice(0, 50)) {
+      if (item && item.id && !existingIds.has(item.id)) {
+        COMMUNITY_SURVEYS.unshift(compactSurveyRecord(item));
+        existingIds.add(item.id);
+        addedFromClientCount++;
+      }
+    }
+    if (addedFromClientCount > 0) {
+      if (COMMUNITY_SURVEYS.length > MAX_SERVER_SURVEYS_MEMORY) {
+        COMMUNITY_SURVEYS.length = MAX_SERVER_SURVEYS_MEMORY;
+      }
+      trainingRunsCounter++;
+      syncParticipantTrialsFromSurveys();
+    }
+  }
+
+  const currentDigest = getSurveyDatasetDigest();
+  if (params.clientDigest && params.clientDigest === currentDigest && addedFromClientCount === 0) {
+    return {
+      unchanged: true,
+      digest: currentDigest,
+      total: COMMUNITY_SURVEYS.length,
+      isCleanZeroMode: isCleanDataMode,
+      addedFromClientCount: 0,
+    };
+  }
+
+  return {
+    unchanged: false,
+    digest: currentDigest,
+    total: COMMUNITY_SURVEYS.length,
+    isCleanZeroMode: isCleanDataMode,
+    surveys: COMMUNITY_SURVEYS,
+    addedFromClientCount,
+  };
 }
 
 export function seedStandardViSEFDataset() {
@@ -1784,6 +1872,7 @@ export function seedStandardViSEFDataset() {
   trainingRunsCounter++;
   return {
     success: true,
+    digest: getSurveyDatasetDigest(),
     message: 'Đã nạp thành công dữ liệu khảo sát thu thập từ Google Forms trong giai đoạn tiền khảo nghiệm trước khi ứng dụng chính thức vận hành (N = 40 phiếu khảo sát).',
     totalSurveys: COMMUNITY_SURVEYS.length,
     totalTrials: PARTICIPANT_TRIALS.length,

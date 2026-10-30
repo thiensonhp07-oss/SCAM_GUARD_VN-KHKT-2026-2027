@@ -200,7 +200,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .from-\[\#111827\],
 .from-\[\#1c1917\],
 [class*="from-slate-9"],
-[class*="from-slate-8"] {
+[class*="from-slate-8"],
+[class*="from-[#0"],
+[class*="from-[#1"] {
   --tw-gradient-from: #ffffff !important;
   --tw-gradient-via: #f4f8fd !important;
   --tw-gradient-to: #edf4fa !important;
@@ -212,7 +214,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 [class*="via-slate-9"],
 [class*="via-indigo-9"],
 [class*="via-purple-9"],
-[class*="via-blue-9"] {
+[class*="via-blue-9"],
+[class*="via-[#0"],
+[class*="via-[#1"] {
   --tw-gradient-via: #f4f8fd !important;
 }
 
@@ -225,7 +229,9 @@ div.min-h-screen.bg-\[\#EAF0F8\] {
 .to-\[\#0c192c\],
 .to-\[\#1e1b4b\],
 [class*="to-slate-9"],
-[class*="to-slate-8"] {
+[class*="to-slate-8"],
+[class*="to-[#0"],
+[class*="to-[#1"] {
   --tw-gradient-to: #f1f6fc !important;
 }
 
@@ -460,6 +466,10 @@ div.bg-slate-950.w-20 *,
 .cartoon-btn-cyan *,
 .btn-cyber-primary,
 .btn-cyber-primary *,
+.btn-visef-flagship,
+.btn-visef-flagship *,
+.btn-visef-emerald,
+.btn-visef-emerald *,
 .btn-theme-dynamic,
 .btn-theme-dynamic * {
   color: #ffffff !important;
@@ -687,6 +697,53 @@ select:focus {
   background: #f0f9ff !important;
   border-color: #7dd3fc !important;
   color: #0284c7 !important;
+}
+
+/* Flagship ViSEF Survey Standout Button & Hero Surface */
+.btn-visef-flagship {
+  background: linear-gradient(135deg, #4f46e5 0%, #0284c7 52%, #0d9488 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.32) !important;
+  box-shadow: 0 8px 22px -4px rgba(79, 70, 229, 0.45), 0 2px 6px -1px rgba(2, 132, 199, 0.3) !important;
+  text-shadow: none !important;
+  white-space: nowrap !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-visef-flagship:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #0369a1 52%, #0f766e 100%) !important;
+  box-shadow: 0 12px 28px -4px rgba(79, 70, 229, 0.58), 0 4px 10px -2px rgba(13, 148, 136, 0.35) !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.btn-visef-emerald {
+  background: linear-gradient(135deg, #059669 0%, #0284c7 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 6px 18px -3px rgba(5, 150, 105, 0.38) !important;
+  text-shadow: none !important;
+  white-space: nowrap !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-visef-emerald:hover {
+  background: linear-gradient(135deg, #047857 0%, #0369a1 100%) !important;
+  box-shadow: 0 10px 24px -4px rgba(5, 150, 105, 0.5) !important;
+  transform: translateY(-1.5px) !important;
+}
+
+.visef-hero-banner {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 48%, #ecfdf5 100%) !important;
+  border: 2px solid #38bdf8 !important;
+  box-shadow: 0 14px 34px -6px rgba(2, 132, 199, 0.16), 0 4px 14px -2px rgba(79, 70, 229, 0.1) !important;
+}
+
+.visef-step-card {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid #bae6fd !important;
+  box-shadow: 0 2px 10px -2px rgba(2, 132, 199, 0.08) !important;
 }
 
 /* Scanner Laser Sweep Effect & QR Forensic Optical Overlay */

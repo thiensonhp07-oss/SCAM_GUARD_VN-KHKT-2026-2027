@@ -21,18 +21,79 @@ import {
 const LOCAL_STORAGE_KEY = 'visef_community_surveys_v2';
 const CLEAN_ZERO_MODE_KEY = 'visef_clean_zero_mode';
 const AI_TRAINING_RUNS_KEY = 'visef_ai_training_runs_count';
+const MAX_LOCAL_CUSTOM_SURVEYS = 150;
+
+const STATIC_BASELINE_IDS = new Set<string>(REAL_EXTERNAL_SURVEYS.map((s) => s.id));
 
 let isFirestoreListenerActive = false;
 let cloudSurveysCache: CommunitySurveySubmission[] = [];
+let lastDispatchedDigest = '';
+let lastServerDigest = '';
+let memoizedAnalyticsCache: { digest: string; data: SurveyAnalyticsData } | null = null;
+let memoizedStatsCache: { digest: string; data: any } | null = null;
+let memoCacheHits = 0;
+let deltaSyncSavesCount = 0;
+
+function compactClientSurvey(s: CommunitySurveySubmission): CommunitySurveySubmission {
+  return {
+    ...s,
+    participantName: String(s.participantName || 'Khảo nghiệm viên ViSEF').slice(0, 80),
+    schoolName: s.schoolName ? String(s.schoolName).slice(0, 80) : undefined,
+    className: s.className ? String(s.className).slice(0, 30) : undefined,
+    location: String(s.location || 'TP. Hồ Chí Minh').slice(0, 60),
+    feedbackNote: s.feedbackNote ? String(s.feedbackNote).slice(0, 320) : undefined,
+  };
+}
+
+export function computeClientSurveyDigest(surveys?: CommunitySurveySubmission[]): string {
+  const list = surveys || getAllCommunitySurveys();
+  const isCleanZero =
+    typeof window !== 'undefined' && localStorage.getItem(CLEAN_ZERO_MODE_KEY) === 'true';
+  const newestId = list[0]?.id || 'empty';
+  const secondId = list[1]?.id || 'none';
+  const oldestId = list[list.length - 1]?.id || 'empty';
+  return `${list.length}:${newestId}:${secondId}:${oldestId}:${isCleanZero ? 'clean0' : 'std'}`;
+}
+
+export function getMemoryOptimizationTelemetry() {
+  const customLocal = getStoredUserSurveys();
+  const allSurveys = getAllCommunitySurveys();
+  const rawBytes =
+    typeof window !== 'undefined'
+      ? (localStorage.getItem(LOCAL_STORAGE_KEY) || '').length
+      : 0;
+  const approxBytesKb = +(rawBytes / 1024).toFixed(2);
+  const currentDigest = String(computeClientSurveyDigest(allSurveys) || 'std-sync');
+  return {
+    totalActiveSurveys: allSurveys.length,
+    customDeltaStoredCount: customLocal.length,
+    storedCustomCount: customLocal.length,
+    staticBaselineRefCount: allSurveys.length - customLocal.length,
+    localStorageFootprintKb: approxBytesKb,
+    approxBytesKb,
+    memoCacheHits,
+    deltaSyncSavesCount,
+    digest: currentDigest,
+    lastDigest: currentDigest,
+  };
+}
 
 /**
  * Initializes real-time Firestore synchronization so that when any student/user
- * on another phone or computer completes a survey, N increments (+1) on ALL other devices!
+ * on another phone or computer completes a survey, N increments (+1) on ALL other devices
+ * with strict digest deduplication to prevent redundant re-renders or memory bloat.
  */
 export function initRealtimeCloudSync() {
   if (typeof window === 'undefined' || isFirestoreListenerActive) return;
   try {
     isFirestoreListenerActive = true;
+
+    // Auto-resync immediately when user returns to browser tab
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        syncLiveSurveysWithServer(true).catch(() => {});
+      }
+    });
 
     // 1. Listen for new community surveys across all devices in real time
     const surveysCol = collection(db, 'community_surveys');
@@ -40,40 +101,61 @@ export function initRealtimeCloudSync() {
       surveysCol,
       (snapshot) => {
         if (!snapshot.empty) {
+          const isCleanZero = localStorage.getItem(CLEAN_ZERO_MODE_KEY) === 'true';
+          if (isCleanZero) return;
+
           const incoming: CommunitySurveySubmission[] = [];
           snapshot.forEach((docSnap) => {
             const data = docSnap.data() as CommunitySurveySubmission;
             if (data && data.id) {
-              incoming.push(data);
+              incoming.push(compactClientSurvey(data));
             }
           });
 
           if (incoming.length > 0) {
+            // Sort newest first by createdAt
+            incoming.sort(
+              (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            );
             cloudSurveysCache = incoming;
+
             const currentLocal = getStoredUserSurveys();
             const seenIds = new Set<string>();
-            const merged: CommunitySurveySubmission[] = [];
+            const mergedCustom: CommunitySurveySubmission[] = [];
 
-            // Combine local and cloud submissions without duplicate IDs
-            for (const item of currentLocal) {
-              if (!seenIds.has(item.id)) {
+            for (const item of [...incoming, ...currentLocal]) {
+              if (item && item.id && !seenIds.has(item.id) && !STATIC_BASELINE_IDS.has(item.id)) {
                 seenIds.add(item.id);
-                merged.push(item);
-              }
-            }
-            for (const item of incoming) {
-              if (!seenIds.has(item.id)) {
-                seenIds.add(item.id);
-                merged.push(item);
+                mergedCustom.push(compactClientSurvey(item));
               }
             }
 
-            saveStoredUserSurveys(merged);
-            window.dispatchEvent(
-              new CustomEvent('visef_survey_updated', {
-                detail: { count: merged.length + REAL_EXTERNAL_SURVEYS.length },
-              })
-            );
+            const prevDigest = lastDispatchedDigest || computeClientSurveyDigest();
+            saveStoredUserSurveys(mergedCustom);
+            const nextAll = getAllCommunitySurveys();
+            const nextDigest = computeClientSurveyDigest(nextAll);
+
+            if (nextDigest !== prevDigest) {
+              lastDispatchedDigest = nextDigest;
+              memoizedAnalyticsCache = null;
+              memoizedStatsCache = null;
+
+              // Propagate newly discovered cloud surveys to Express server delta endpoint
+              fetch('/api/research/sync-delta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  clientDigest: lastServerDigest,
+                  incomingSurveys: mergedCustom.slice(0, 25),
+                }),
+              }).catch(() => {});
+
+              window.dispatchEvent(
+                new CustomEvent('visef_survey_updated', {
+                  detail: { count: nextAll.length, digest: nextDigest },
+                })
+              );
+            }
           }
         }
       },
@@ -103,20 +185,18 @@ export function initRealtimeCloudSync() {
               const seen = new Set<string>();
               const mergedCerts: PostAppCertificationRecord[] = [];
 
-              for (const c of localCerts) {
-                if (!seen.has(c.id)) {
+              for (const c of [...incomingCerts, ...localCerts]) {
+                if (c && c.id && !seen.has(c.id)) {
                   seen.add(c.id);
                   mergedCerts.push(c);
                 }
               }
-              for (const c of incomingCerts) {
-                if (!seen.has(c.id)) {
-                  seen.add(c.id);
-                  mergedCerts.push(c);
-                }
+              const boundedCerts = mergedCerts.slice(0, 120);
+              const nextCertJson = JSON.stringify(boundedCerts);
+              if (nextCertJson !== raw) {
+                localStorage.setItem('visef_post_app_certifications', nextCertJson);
+                window.dispatchEvent(new CustomEvent('visef_post_cert_updated'));
               }
-              localStorage.setItem('visef_post_app_certifications', JSON.stringify(mergedCerts));
-              window.dispatchEvent(new CustomEvent('visef_post_cert_updated'));
             } catch {
               // ignore
             }
@@ -143,7 +223,17 @@ function getStoredUserSurveys(): CommunitySurveySubmission[] {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Deduplicate and filter out static baseline IDs to keep localStorage ultra-compact
+    const seen = new Set<string>();
+    const filtered: CommunitySurveySubmission[] = [];
+    for (const item of parsed) {
+      if (item && item.id && !seen.has(item.id) && !STATIC_BASELINE_IDS.has(item.id)) {
+        seen.add(item.id);
+        filtered.push(item);
+      }
+    }
+    return filtered;
   } catch (e) {
     console.warn('Failed to parse local stored surveys', e);
     return [];
@@ -153,34 +243,52 @@ function getStoredUserSurveys(): CommunitySurveySubmission[] {
 function saveStoredUserSurveys(surveys: CommunitySurveySubmission[]) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(surveys));
+    const seen = new Set<string>();
+    const customOnly: CommunitySurveySubmission[] = [];
+    for (const item of surveys) {
+      if (item && item.id && !seen.has(item.id) && !STATIC_BASELINE_IDS.has(item.id)) {
+        seen.add(item.id);
+        customOnly.push(compactClientSurvey(item));
+      }
+    }
+    const bounded = customOnly.slice(0, MAX_LOCAL_CUSTOM_SURVEYS);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(bounded));
   } catch (e) {
     console.warn('Failed to save surveys to localStorage', e);
   }
 }
 
 /**
- * Returns all real survey submissions, merging baseline Google Forms cohort (unless in clean N=0 mode) with locally submitted surveys
+ * Returns all real survey submissions, merging baseline Google Forms cohort (unless in clean N=0 mode)
+ * with live user-submitted & cloud-synced surveys without duplicating memory.
  */
 export function getAllCommunitySurveys(): CommunitySurveySubmission[] {
-  const localList = getStoredUserSurveys();
+  const localCustomList = getStoredUserSurveys();
   const isCleanZero =
     typeof window !== 'undefined' && localStorage.getItem(CLEAN_ZERO_MODE_KEY) === 'true';
-  const baseList = isCleanZero ? [] : [...REAL_EXTERNAL_SURVEYS];
+  const baseList = isCleanZero ? [] : REAL_EXTERNAL_SURVEYS;
 
-  // Merge so newest local submissions appear at the top, without duplicate IDs
   const seenIds = new Set<string>();
   const merged: CommunitySurveySubmission[] = [];
 
-  for (const item of localList) {
-    if (!seenIds.has(item.id)) {
+  for (const item of localCustomList) {
+    if (item && item.id && !seenIds.has(item.id)) {
       seenIds.add(item.id);
       merged.push(item);
     }
   }
 
+  if (!isCleanZero) {
+    for (const item of cloudSurveysCache) {
+      if (item && item.id && !seenIds.has(item.id) && !STATIC_BASELINE_IDS.has(item.id)) {
+        seenIds.add(item.id);
+        merged.push(item);
+      }
+    }
+  }
+
   for (const item of baseList) {
-    if (!seenIds.has(item.id)) {
+    if (item && item.id && !seenIds.has(item.id)) {
       seenIds.add(item.id);
       merged.push(item);
     }
@@ -194,12 +302,17 @@ export async function clearClientSurveysToZero(): Promise<void> {
     localStorage.setItem(CLEAN_ZERO_MODE_KEY, 'true');
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([]));
     localStorage.setItem('visef_post_app_certifications', JSON.stringify([]));
+    cloudSurveysCache = [];
+    memoizedAnalyticsCache = null;
+    memoizedStatsCache = null;
+    lastServerDigest = '';
     clearStoredScannerTrainingSamples();
     try {
       await fetch('/api/research/clear-to-zero', { method: 'POST' });
     } catch {
       // offline fallback
     }
+    lastDispatchedDigest = computeClientSurveyDigest([]);
     window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: { count: 0 } }));
   }
 }
@@ -207,28 +320,34 @@ export async function clearClientSurveysToZero(): Promise<void> {
 export async function restoreStandardViSEFDatasetClient(): Promise<void> {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(CLEAN_ZERO_MODE_KEY);
+    memoizedAnalyticsCache = null;
+    memoizedStatsCache = null;
+    lastServerDigest = '';
     try {
       await fetch('/api/research/seed-visef', { method: 'POST' });
     } catch {
       // offline fallback
     }
+    const all = getAllCommunitySurveys();
+    lastDispatchedDigest = computeClientSurveyDigest(all);
     window.dispatchEvent(
       new CustomEvent('visef_survey_updated', {
-        detail: { count: getAllCommunitySurveys().length },
+        detail: { count: all.length },
       })
     );
   }
 }
 
 /**
- * Record a new survey submission (works offline and on static hosts like Vercel)
+ * Record a new survey submission and broadcast across LocalStorage, Express Server, and Cloud Firestore
  */
 export function recordSurveySubmission(submission: Partial<CommunitySurveySubmission>): CommunitySurveySubmission {
   const isAnon = submission.isAnonymous !== undefined ? submission.isAnonymous : true;
   const anonCode = submission.anonymousCode || `VN-${Math.floor(1000 + Math.random() * 9000)}`;
+  const targetId = submission.id || `SURVEY-LIVE-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 89)}`;
 
-  const newSubmission: CommunitySurveySubmission = {
-    id: submission.id || `SURVEY-LIVE-${Date.now().toString().slice(-6)}`,
+  const newSubmission: CommunitySurveySubmission = compactClientSurvey({
+    id: targetId,
     participantName: isAnon ? (submission.anonymousCode || `Thí sinh ẩn danh #${anonCode.slice(-4)}`) : (submission.participantName || 'Khảo nghiệm viên ViSEF'),
     demographicGroup: submission.demographicGroup || 'STUDENT',
     location: submission.location || 'TP. Hồ Chí Minh',
@@ -258,17 +377,22 @@ export function recordSurveySubmission(submission: Partial<CommunitySurveySubmis
       },
     },
     feedbackNote: submission.feedbackNote || 'Trải nghiệm ứng dụng giúp tôi hình thành phản xạ dừng lại kiểm chứng 2 kênh trước khi giao dịch.',
-    createdAt: new Date().toISOString(),
-  };
+    createdAt: submission.createdAt || new Date().toISOString(),
+  });
 
-  const stored = getStoredUserSurveys();
+  const stored = getStoredUserSurveys().filter((item) => item.id !== newSubmission.id);
   stored.unshift(newSubmission);
   saveStoredUserSurveys(stored);
 
+  memoizedAnalyticsCache = null;
+  memoizedStatsCache = null;
+
   if (typeof window !== 'undefined') {
+    const allNow = getAllCommunitySurveys();
+    lastDispatchedDigest = computeClientSurveyDigest(allNow);
     window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: newSubmission }));
 
-    // Realtime broadcast to Firestore so ALL other devices see N+1 instantly
+    // 1. Realtime broadcast to Cloud Firestore so ALL other devices see N+1 instantly
     try {
       setDoc(doc(db, 'community_surveys', newSubmission.id), newSubmission).catch((err) => {
         console.warn('Firestore survey write notice:', err);
@@ -277,49 +401,85 @@ export function recordSurveySubmission(submission: Partial<CommunitySurveySubmis
       // offline fallback
     }
 
+    // 2. Sync to Express backend server
     fetch('/api/research/survey', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newSubmission),
-    }).catch(() => {});
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.digest) {
+          lastServerDigest = d.digest;
+        }
+      })
+      .catch(() => {});
   }
 
   return newSubmission;
 }
 
 /**
- * Synchronizes live surveys across all devices (PC, Phone, Tablet) via backend API
+ * Synchronizes live surveys across all devices (PC, Phone, Tablet) via memory-efficient Delta Digest API.
+ * Skips redundant payload transfers & DOM re-renders when dataset digest is unchanged.
  */
-export async function syncLiveSurveysWithServer(): Promise<CommunitySurveySubmission[]> {
+export async function syncLiveSurveysWithServer(force = false): Promise<CommunitySurveySubmission[]> {
   if (typeof window === 'undefined') return getAllCommunitySurveys();
+  // Skip background polling when browser tab is hidden to save CPU/RAM & bandwidth
+  if (!force && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    return getAllCommunitySurveys();
+  }
+
   try {
-    const res = await fetch('/api/research/surveys');
+    const currentLocalCustom = getStoredUserSurveys();
+    const res = await fetch('/api/research/sync-delta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientDigest: lastServerDigest || undefined,
+        incomingSurveys: currentLocalCustom.slice(0, 25),
+      }),
+    });
+
     const contentType = res.headers.get('content-type') || '';
     if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
-      if (data && Array.isArray(data.surveys) && data.surveys.length > 0) {
-        const currentLocal = getStoredUserSurveys();
+      if (data?.digest) {
+        lastServerDigest = data.digest;
+      }
+
+      if (data?.unchanged) {
+        deltaSyncSavesCount++;
+        return getAllCommunitySurveys();
+      }
+
+      if (data && Array.isArray(data.surveys)) {
         const serverSurveys = data.surveys as CommunitySurveySubmission[];
         const seenIds = new Set<string>();
-        const merged: CommunitySurveySubmission[] = [];
+        const mergedCustom: CommunitySurveySubmission[] = [];
 
-        // Preserve all local submissions
-        for (const s of currentLocal) {
-          if (!seenIds.has(s.id)) {
+        for (const s of [...currentLocalCustom, ...serverSurveys]) {
+          if (s && s.id && !seenIds.has(s.id) && !STATIC_BASELINE_IDS.has(s.id)) {
             seenIds.add(s.id);
-            merged.push(s);
-          }
-        }
-        // Incorporate all submissions from other devices on the server
-        for (const s of serverSurveys) {
-          if (!seenIds.has(s.id)) {
-            seenIds.add(s.id);
-            merged.push(s);
+            mergedCustom.push(compactClientSurvey(s));
           }
         }
 
-        saveStoredUserSurveys(merged);
-        window.dispatchEvent(new CustomEvent('visef_survey_updated'));
+        const prevDigest = lastDispatchedDigest || computeClientSurveyDigest();
+        saveStoredUserSurveys(mergedCustom);
+        const updatedAll = getAllCommunitySurveys();
+        const nextDigest = computeClientSurveyDigest(updatedAll);
+
+        if (nextDigest !== prevDigest) {
+          lastDispatchedDigest = nextDigest;
+          memoizedAnalyticsCache = null;
+          memoizedStatsCache = null;
+          window.dispatchEvent(
+            new CustomEvent('visef_survey_updated', {
+              detail: { count: updatedAll.length, digest: nextDigest },
+            })
+          );
+        }
       }
     }
   } catch {
@@ -348,6 +508,11 @@ const SCENARIO_CORRECT_MAP: Record<string, string> = {
  */
 export function getCommunitySurveyAnalytics(customSurveys?: CommunitySurveySubmission[]): SurveyAnalyticsData {
   const surveys = customSurveys || getAllCommunitySurveys();
+  const currentDigest = !customSurveys ? computeClientSurveyDigest(surveys) : null;
+  if (currentDigest && memoizedAnalyticsCache && memoizedAnalyticsCache.digest === currentDigest) {
+    memoCacheHits++;
+    return memoizedAnalyticsCache.data;
+  }
   const total = surveys.length;
 
   const groupLabels: Record<SurveyDemographicGroup, string> = {
@@ -660,7 +825,7 @@ export function getCommunitySurveyAnalytics(customSurveys?: CommunitySurveySubmi
   const overallPreScore = total > 0 ? +(sumPreScore / total).toFixed(1) : 0;
   const overallPostScore = total > 0 ? +(sumPostScore / total).toFixed(1) : 0;
 
-  return {
+  const result: SurveyAnalyticsData = {
     totalRespondents: total,
     demographicBreakdown,
     sectorFailureRates,
@@ -701,6 +866,11 @@ export function getCommunitySurveyAnalytics(customSurveys?: CommunitySurveySubmi
     unseenGeneralizationPassRate: total > 0 ? +((totalUnseenPass / total) * 100).toFixed(1) : 0,
     lastUpdated: new Date().toISOString(),
   };
+
+  if (currentDigest) {
+    memoizedAnalyticsCache = { digest: currentDigest, data: result };
+  }
+  return result;
 }
 
 export function getFallbackResearchOverview() {
@@ -731,6 +901,11 @@ export function getFallbackResearchOverview() {
 
 export function getFallbackResearchStatistics() {
   const surveys = getAllCommunitySurveys();
+  const currentDigest = computeClientSurveyDigest(surveys);
+  if (memoizedStatsCache && memoizedStatsCache.digest === currentDigest) {
+    memoCacheHits++;
+    return memoizedStatsCache.data;
+  }
   const n = surveys.length;
 
   const preScores = surveys.map((s) => s.testOutcome?.preScore ?? 45);
@@ -773,7 +948,7 @@ export function getFallbackResearchStatistics() {
   const meanUnseenA = n > 0 ? +Math.max(15, meanPostA - 4.5).toFixed(1) : 0;
   const meanRetentionA = n > 0 ? +Math.max(15, meanPostA - 6.2).toFixed(1) : 0;
 
-  return {
+  const statsResult = {
     sampleSize: n,
     preTest: { mean: avgPre },
     postTest: { mean: avgPost },
@@ -870,6 +1045,9 @@ export function getFallbackResearchStatistics() {
       },
     ],
   };
+
+  memoizedStatsCache = { digest: currentDigest, data: statsResult };
+  return statsResult;
 }
 
 export interface ClientLiveTrainingSample {

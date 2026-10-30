@@ -678,21 +678,21 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
           `Phiếu khảo sát chuẩn hóa ViSEF 2026 (Đầy đủ Phần 1: Kinh nghiệm thực tế & Phần 2: Ứng biến 12 khu vực). Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/${totalTrapsCount} kịch bản. Tiếp xúc thực tế: ${derivedExperiencedSectors.length}/12 khu vực.`,
       };
 
-      let resData = null;
+      // Always persist locally, push to Cloud Firestore (community_surveys), and sync with Express backend
+      const savedSurveyRecord = recordSurveySubmission(payload as any);
+      let resData: any = savedSurveyRecord;
       try {
         const res = await fetch('/api/research/survey', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(savedSurveyRecord),
         });
         const contentType = res.headers.get('content-type');
         if (res.ok && contentType && contentType.includes('application/json')) {
           resData = await res.json();
-        } else {
-          recordSurveySubmission(payload as any);
         }
-      } catch (err) {
-        recordSurveySubmission(payload as any);
+      } catch {
+        // Offline resilience: already queued & broadcast via recordSurveySubmission
       }
 
       // Dispatch global realtime event so all Barem curves and analytics re-evaluate live immediately
@@ -1068,6 +1068,9 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                       if (onNavigateToMainUI) {
                         onNavigateToMainUI();
                       }
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('scamguard_open_roadmap'));
+                      }
                     }}
                     className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
                   >
@@ -1110,20 +1113,20 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
             /* ACTIVE 13-QUESTION GOOGLE FORMS FORMAT SURVEY */
             <div className="space-y-6">
               {/* Form Title Card */}
-              <div className="bg-slate-900 border-l-4 border-l-indigo-600 border border-slate-800 p-5 sm:p-6 lg:p-7 rounded-3xl space-y-4 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <span className="px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 font-mono text-xs sm:text-sm font-bold uppercase tracking-wider">
+              <div className="visef-hero-banner border-l-4 border-l-indigo-600 p-5 sm:p-6 lg:p-7 rounded-3xl space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="px-3 py-1 rounded-lg bg-indigo-600 text-white font-mono text-xs sm:text-sm font-bold uppercase tracking-wider shadow-xs">
                     Google Forms Format • Đề Tài Nghiên Cứu ViSEF 2026
                   </span>
-                  <span className="text-sm text-rose-400 font-bold">* Bắt buộc</span>
+                  <span className="text-sm text-rose-600 font-bold">* Bắt buộc</span>
                 </div>
 
-                <h3 className="text-lg sm:text-xl md:text-2xl font-black text-white leading-tight">
-                  PHIẾU KHẢO SÁT HÀNH VI & NGUY CƠ LỪA ĐẢO SỐ (CHƯA DÙNG APP SCAMGUARD VN)
+                <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 leading-tight">
+                  PHIẾU KHẢO SÁT HÀNH VI &amp; NGUY CƠ LỪA ĐẢO SỐ (CHƯA DÙNG APP SCAMGUARD VN)
                 </h3>
 
-                <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-                  Khảo sát này gồm <strong>17 câu hỏi chuẩn hóa</strong> (5 câu nhân khẩu học & 12 kịch bản bẫy thực tế) nhằm thu thập dữ liệu hiện trạng độc lập từ người tham gia <strong>trước khi sử dụng ứng dụng</strong>. 
+                <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+                  Khảo sát này gồm <strong>17 câu hỏi chuẩn hóa</strong> (5 câu nhân khẩu học &amp; 12 kịch bản bẫy thực tế) nhằm thu thập dữ liệu hiện trạng độc lập từ người tham gia <strong>trước khi sử dụng ứng dụng</strong>. 
                   Mọi câu trả lời của bạn sẽ được tự động tổng hợp vào <strong>Biểu đồ Thống kê Suy luận Quốc gia</strong> để làm bằng chứng thực nghiệm ViSEF.
                 </p>
               </div>
@@ -1143,7 +1146,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                 </div>
                 <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                   <div
-                    className="h-full bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-500 transition-all duration-300"
+                    className="h-full bg-gradient-to-r from-indigo-600 via-sky-500 to-emerald-500 transition-all duration-300"
                     style={{
                       width: surveyStep === 1 ? '33.33%' : surveyStep === 2 ? '66.66%' : '100%',
                     }}
@@ -1206,7 +1209,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                           setSurveyStep(2);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 disabled:opacity-50 text-white font-bold text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-xl shadow-indigo-500/30 transition-all transform hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
+                        className="btn-visef-flagship w-full sm:w-auto flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 disabled:opacity-50 text-xs sm:text-sm rounded-xl sm:rounded-2xl cursor-pointer"
                       >
                         <span>Tiếp Tục (Mục 2: Phần 1 — Khảo Sát Kinh Nghiệm Thực Tế)</span>
                         <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1843,11 +1846,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         id="btn-submit-survey-modal"
                         type="submit"
                         disabled={submitting}
-                        className={`flex items-center justify-center gap-2 px-8 py-3.5 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xl transition-all cursor-pointer active:scale-95 ${
-                          isAllTrapsAnswered
-                            ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 shadow-indigo-500/25 transform hover:scale-[1.02]'
-                            : 'bg-gradient-to-r from-slate-700 to-indigo-700 hover:from-slate-600 hover:to-indigo-600 text-slate-300'
-                        }`}
+                        className="btn-visef-flagship flex items-center justify-center gap-2 px-8 py-3.5 text-xs sm:text-sm rounded-xl cursor-pointer active:scale-95"
                       >
                         {submitting ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />

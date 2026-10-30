@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Search,
@@ -57,6 +57,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'EXECUTIVE_DASHBOARD' | 'ROADMAP_TRAINING'>('EXECUTIVE_DASHBOARD');
 
+  useEffect(() => {
+    const handleOpenRoadmap = () => {
+      setViewMode('ROADMAP_TRAINING');
+    };
+    window.addEventListener('scamguard_open_roadmap', handleOpenRoadmap);
+    return () => {
+      window.removeEventListener('scamguard_open_roadmap', handleOpenRoadmap);
+    };
+  }, []);
+
   const completedQuestsCount = dailyQuests.filter((q) => q.completed).length;
 
   return (
@@ -109,6 +119,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           onNavigate={onNavigate}
           onOpenEmergency={onOpenEmergency}
           onOpenScienceFairDemo={onOpenScienceFairDemo}
+          onSwitchToRoadmap={() => setViewMode('ROADMAP_TRAINING')}
         />
       ) : (
         <div className="space-y-8">

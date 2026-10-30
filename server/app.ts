@@ -30,6 +30,8 @@ import {
   getCommunitySurveyAnalytics,
   getAllCommunitySurveys,
   recordCommunitySurveySubmission,
+  getSurveyDatasetDigest,
+  syncDeltaCommunitySurveys,
   clearAllResearchData,
   clearSurveysToZero,
   seedStandardViSEFDataset,
@@ -1078,10 +1080,28 @@ YÊU CẦU TRẢ LỜI NHANH, GỌN, THỰC CHIẾN:
 
   apiRouter.get('/research/surveys', (req, res) => {
     try {
+      const clientDigest = typeof req.query.digest === 'string' ? req.query.digest : undefined;
+      const currentDigest = getSurveyDatasetDigest();
       const surveys = getAllCommunitySurveys();
-      res.json({ surveys, total: surveys.length });
+      if (clientDigest && clientDigest === currentDigest) {
+        return res.json({ unchanged: true, digest: currentDigest, total: surveys.length });
+      }
+      return res.json({ unchanged: false, digest: currentDigest, surveys, total: surveys.length });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  apiRouter.post('/research/sync-delta', (req, res) => {
+    try {
+      const { clientDigest, incomingSurveys } = req.body || {};
+      const deltaResult = syncDeltaCommunitySurveys({
+        clientDigest: typeof clientDigest === 'string' ? clientDigest : undefined,
+        incomingSurveys: Array.isArray(incomingSurveys) ? incomingSurveys : undefined,
+      });
+      return res.json(deltaResult);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   });
 
@@ -1089,7 +1109,12 @@ YÊU CẦU TRẢ LỜI NHANH, GỌN, THỰC CHIẾN:
     try {
       const submission = recordCommunitySurveySubmission(req.body);
       const allSurveys = getAllCommunitySurveys();
-      res.json({ success: true, submission, total: allSurveys.length });
+      res.json({
+        success: true,
+        submission,
+        total: allSurveys.length,
+        digest: getSurveyDatasetDigest(),
+      });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
