@@ -671,12 +671,16 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
           return item ? item.sectorId : k;
         });
 
+      const isStudent = surveyForm.demographicGroup === 'STUDENT';
+      const effectiveSchoolName = isStudent ? surveyForm.schoolName : '';
+      const effectiveClassName = isStudent ? surveyForm.className : '';
+
       const payload = {
         participantName: displayName,
         isAnonymous: surveyForm.isAnonymous,
         anonymousCode: surveyForm.anonymousCode,
-        schoolName: surveyForm.schoolName,
-        className: surveyForm.className,
+        schoolName: effectiveSchoolName,
+        className: effectiveClassName,
         consentAgreed: surveyForm.consentAgreed,
         demographicGroup: surveyForm.demographicGroup,
         location: surveyForm.location,
@@ -711,7 +715,11 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
         },
         feedbackNote:
           surveyForm.feedbackNote ||
-          `Phiếu khảo sát chuẩn hóa ViSEF 2026 (Đầy đủ Phần 1: Kinh nghiệm thực tế & Phần 2: Ứng biến 12 khu vực). Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/${totalTrapsCount} kịch bản. Tiếp xúc thực tế: ${derivedExperiencedSectors.length}/12 khu vực.`,
+          `Phiếu khảo sát chuẩn hóa ViSEF 2026 (Đầy đủ Phần 1: Kinh nghiệm thực tế & Phần 2: Ứng biến 12 khu vực).${
+            isStudent
+              ? ` Trường: ${effectiveSchoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${effectiveClassName || '10A1'}.`
+              : ` Đối tượng: ${surveyForm.demographicGroup}.`
+          } Phản xạ an toàn: ${safeCount}/${totalTrapsCount} kịch bản. Tiếp xúc thực tế: ${derivedExperiencedSectors.length}/12 khu vực.`,
       };
 
       // Always persist locally, push to Cloud Firestore (community_surveys), and sync with Express backend
@@ -1212,7 +1220,14 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                       consentAgreed={surveyForm.consentAgreed}
                       onConsentAgreedChange={(val) => setSurveyForm((prev) => ({ ...prev, consentAgreed: val }))}
                       demographicGroup={surveyForm.demographicGroup}
-                      onDemographicGroupChange={(val) => setSurveyForm((prev) => ({ ...prev, demographicGroup: val }))}
+                      onDemographicGroupChange={(val) =>
+                        setSurveyForm((prev) => ({
+                          ...prev,
+                          demographicGroup: val,
+                          schoolName: val === 'STUDENT' ? prev.schoolName || 'THPT Nguyễn Khuyến' : '',
+                          className: val === 'STUDENT' ? prev.className || '10A1' : '',
+                        }))
+                      }
                       location={surveyForm.location}
                       onLocationChange={(val) => setSurveyForm((prev) => ({ ...prev, location: val }))}
                       pastLossOrNearMiss={surveyForm.pastLossOrNearMiss}
@@ -1231,8 +1246,10 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         <span>
                           {surveyForm.isAnonymous
                             ? `Chế độ Ẩn danh: ${surveyForm.anonymousCode || 'Mã ngẫu nhiên'}`
-                            : `Đích danh: ${surveyForm.participantName || 'Chưa nhập'}`}{' '}
-                          • {surveyForm.schoolName || 'Chưa chọn trường'}
+                            : `Đích danh: ${surveyForm.participantName || 'Chưa nhập'}`}
+                          {surveyForm.demographicGroup === 'STUDENT'
+                            ? ` • ${surveyForm.schoolName || 'Chưa chọn trường'}`
+                            : ''}
                         </span>
                       </div>
 
@@ -1240,8 +1257,8 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                         type="button"
                         disabled={
                           (surveyForm.isAnonymous ? !surveyForm.anonymousCode?.trim() : !surveyForm.participantName?.trim()) ||
-                          !surveyForm.schoolName?.trim() ||
-                          !surveyForm.className?.trim() ||
+                          (surveyForm.demographicGroup === 'STUDENT' &&
+                            (!surveyForm.schoolName?.trim() || !surveyForm.className?.trim())) ||
                           !surveyForm.consentAgreed
                         }
                         onClick={() => {

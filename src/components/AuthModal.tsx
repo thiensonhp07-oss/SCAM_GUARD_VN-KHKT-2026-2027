@@ -687,13 +687,13 @@ export function AuthModal({
                     type="button"
                     onClick={() => handleSocialAuth('facebook')}
                     disabled={loading}
-                    className="py-3 px-3.5 bg-[#1877F2] hover:bg-[#166FE5] text-white border border-[#1877F2] rounded-2xl text-xs font-black transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-md disabled:opacity-50"
+                    className="py-3 px-3.5 bg-[#1877F2] hover:bg-[#166FE5] text-white border border-[#1877F2] rounded-2xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-md disabled:opacity-50"
                   >
                     <svg className="w-4 h-4 fill-white shrink-0" viewBox="0 0 24 24">
                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                     </svg>
                     <span>
-                      {activeSocialLoading === 'facebook' ? 'Đang mở FB...' : 'Facebook'}
+                      {activeSocialLoading === 'facebook' ? 'Đang mở FB...' : 'Facebook (Chưa hoạt động)'}
                     </span>
                   </button>
 
@@ -702,7 +702,7 @@ export function AuthModal({
                     type="button"
                     onClick={() => handleSocialAuth('github')}
                     disabled={loading}
-                    className="py-3 px-3.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 rounded-2xl text-xs font-black transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-md disabled:opacity-50"
+                    className="py-3 px-3.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 rounded-2xl text-xs font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer shadow-md disabled:opacity-50"
                   >
                     <svg className="w-4 h-4 fill-white shrink-0" viewBox="0 0 24 24">
                       <path
@@ -712,7 +712,7 @@ export function AuthModal({
                       />
                     </svg>
                     <span>
-                      {activeSocialLoading === 'github' ? 'Đang mở GitHub...' : 'GitHub'}
+                      {activeSocialLoading === 'github' ? 'Đang mở GitHub...' : 'GitHub (Chưa hoạt động)'}
                     </span>
                   </button>
                 </div>

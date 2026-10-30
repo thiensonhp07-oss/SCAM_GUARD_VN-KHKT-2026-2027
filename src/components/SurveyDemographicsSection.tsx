@@ -102,7 +102,7 @@ export const VIETNAM_PROVINCES = [
 export const POPULAR_SCHOOLS = [
   'THPT Nguyễn Khuyến',
   'THPT Chuyên Lê Hồng Phong',
-  'THPT Năng Khiếu',
+  'Phổ Thông Năng Khiếu',
   'Khác / Tự nhập',
 ];
 
@@ -178,9 +178,11 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
   idPrefix = 'survey',
 }) => {
   // Track completion of each dimension
+  const isStudentGroup = demographicGroup === 'STUDENT';
+  const showSchoolSection = Boolean(onSchoolNameChange && isStudentGroup);
   const isNameFilled = isAnonymous ? !!anonymousCode && anonymousCode.trim().length > 0 : participantName.trim().length > 0;
-  const isSchoolFilled = !onSchoolNameChange || (!!schoolName && schoolName.trim().length > 0);
-  const isClassFilled = !onClassNameChange || (!!className && className.trim().length > 0);
+  const isSchoolFilled = !showSchoolSection || (!!schoolName && schoolName.trim().length > 0);
+  const isClassFilled = !showSchoolSection || !onClassNameChange || (!!className && className.trim().length > 0);
   const isConsentFilled = !onConsentAgreedChange || consentAgreed === true;
   const isGroupFilled = !!demographicGroup;
   const isLocationFilled = !!location && location.trim().length > 0;
@@ -188,10 +190,10 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
   const isConfidenceFilled = preConfidenceScore >= 10;
   const isFearTacticFilled = !onBiggestFearTacticChange || !!biggestFearTactic;
 
-  const totalDimensions = (onBiggestFearTacticChange ? 6 : 5) + (onSchoolNameChange ? 1 : 0) + (onConsentAgreedChange ? 1 : 0);
+  const totalDimensions = (onBiggestFearTacticChange ? 6 : 5) + (showSchoolSection ? 1 : 0) + (onConsentAgreedChange ? 1 : 0);
   const completedDimensions =
     (isNameFilled ? 1 : 0) +
-    (onSchoolNameChange && isSchoolFilled && isClassFilled ? 1 : 0) +
+    (showSchoolSection && isSchoolFilled && isClassFilled ? 1 : 0) +
     (isGroupFilled ? 1 : 0) +
     (isLocationFilled ? 1 : 0) +
     (isPastExperienceFilled ? 1 : 0) +
@@ -272,7 +274,20 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
             {isNameFilled ? <Check className="w-3 h-3 text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
           </button>
 
-          {onSchoolNameChange && (
+          <button
+            type="button"
+            onClick={() => scrollToDimension(`${idPrefix}-dim-2`)}
+            className={`px-2.5 py-1 rounded-lg border font-medium shrink-0 transition cursor-pointer flex items-center gap-1 ${
+              isGroupFilled
+                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                : 'bg-rose-950/40 border-rose-500/50 text-rose-300'
+            }`}
+          >
+            <span>2. Đối tượng</span>
+            {isGroupFilled ? <Check className="w-3 h-3 text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
+          </button>
+
+          {showSchoolSection && (
             <button
               type="button"
               onClick={() => scrollToDimension(`${idPrefix}-dim-school`)}
@@ -286,19 +301,6 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
               {isSchoolFilled && isClassFilled ? <Check className="w-3 h-3 text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => scrollToDimension(`${idPrefix}-dim-2`)}
-            className={`px-2.5 py-1 rounded-lg border font-medium shrink-0 transition cursor-pointer flex items-center gap-1 ${
-              isGroupFilled
-                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
-                : 'bg-rose-950/40 border-rose-500/50 text-rose-300'
-            }`}
-          >
-            <span>2. Đối tượng</span>
-            {isGroupFilled ? <Check className="w-3 h-3 text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
-          </button>
 
           <button
             type="button"
@@ -521,131 +523,6 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
       </div>
 
       {/* ========================================================================= */}
-      {/* KÍCH THƯỚC BỔ SUNG: TRƯỜNG HỌC & LỚP HỌC (GIỮ NGUYÊN ĐỂ PHÂN TẦNG DỮ LIỆU) */}
-      {/* ========================================================================= */}
-      {onSchoolNameChange && (
-        <div
-          id={`${idPrefix}-dim-school`}
-          className={`p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl border transition-all duration-200 space-y-4 shadow-lg ${
-            isSchoolFilled && isClassFilled
-              ? 'bg-slate-900/90 border-slate-700/80 shadow-slate-950/50'
-              : 'bg-slate-900/95 border-purple-500/60 ring-2 ring-purple-500/20'
-          }`}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
-                <Building2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              </div>
-              <div>
-                <label className="text-white font-black text-xs sm:text-sm md:text-base flex items-center gap-1.5 sm:gap-2">
-                  <span>Trường Học & Lớp / Khối Lớp của bạn</span>
-                  <span className="text-rose-400 font-bold">*</span>
-                </label>
-                <span className="text-[10px] sm:text-[11px] text-slate-400">Giữ nguyên trường & lớp để đối sánh tương quan năng lực an toàn số giữa các đơn vị</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {isSchoolFilled && isClassFilled ? (
-                <span className="px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  Đã có Trường & Lớp
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 sm:py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 animate-pulse">
-                  <AlertTriangle className="w-3 h-3 text-amber-400" />
-                  Cần điền Trường & Lớp
-                </span>
-              )}
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Dù bạn chọn <strong>Chế độ Ẩn Danh</strong> hay Tên Thật, thông tin <strong>Trường và Lớp</strong> vẫn được lưu độc lập để phục vụ phân tích so sánh hiệu quả giữa các khối trường học và lứa tuổi học sinh trên cả nước.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* TRƯỜNG HỌC */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Tên Trường học / Cơ quan / Đơn vị:</span>
-                <span className="text-rose-400">*</span>
-              </label>
-
-              <div className="relative">
-                <GraduationCap className="w-4 h-4 text-indigo-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Ví dụ: THPT Nguyễn Khuyến..."
-                  value={schoolName}
-                  onChange={(e) => onSchoolNameChange(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 text-white rounded-xl text-xs sm:text-sm font-medium transition"
-                />
-              </div>
-
-              {/* Quick School Chips */}
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {POPULAR_SCHOOLS.slice(0, 5).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => onSchoolNameChange(s)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-medium transition cursor-pointer border ${
-                      schoolName === s
-                        ? 'bg-indigo-600 text-white border-indigo-400'
-                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* LỚP / KHỐI LỚP */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-                <span>Lớp / Khối lớp / Năm học:</span>
-                <span className="text-rose-400">*</span>
-              </label>
-
-              <div className="relative">
-                <BookOpen className="w-4 h-4 text-purple-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Ví dụ: 10A1, 10B2, 11L1, 12H1..."
-                  value={className}
-                  onChange={(e) => onClassNameChange && onClassNameChange(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-950 border border-slate-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 text-white rounded-xl text-xs sm:text-sm font-medium transition"
-                />
-              </div>
-
-              {/* Quick Class Chips */}
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {POPULAR_CLASSES.slice(0, 6).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => onClassNameChange && onClassNameChange(c)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-medium transition cursor-pointer border ${
-                      className === c
-                        ? 'bg-purple-600 text-white border-purple-400'
-                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
-                    }`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
       {/* KÍCH THƯỚC 2: NHÓM ĐỐI TƯỢNG NHÂN KHẨU HỌC */}
       {/* ========================================================================= */}
       <div
@@ -745,6 +622,131 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
           })}
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* KÍCH THƯỚC BỔ SUNG: TRƯỜNG HỌC & LỚP HỌC (CHỈ HIỆN KHI ĐỐI TƯỢNG LÀ HỌC SINH) */}
+      {/* ========================================================================= */}
+      {showSchoolSection && (
+        <div
+          id={`${idPrefix}-dim-school`}
+          className={`p-4 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl border transition-all duration-200 space-y-4 shadow-lg ${
+            isSchoolFilled && isClassFilled
+              ? 'bg-slate-900/90 border-slate-700/80 shadow-slate-950/50'
+              : 'bg-slate-900/95 border-purple-500/60 ring-2 ring-purple-500/20'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
+                <Building2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div>
+                <label className="text-white font-black text-xs sm:text-sm md:text-base flex items-center gap-1.5 sm:gap-2">
+                  <span>Trường Học & Lớp / Khối Lớp của bạn</span>
+                  <span className="text-rose-400 font-bold">*</span>
+                </label>
+                <span className="text-[10px] sm:text-[11px] text-slate-400">Giữ nguyên trường & lớp để đối sánh tương quan năng lực an toàn số giữa các đơn vị</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isSchoolFilled && isClassFilled ? (
+                <span className="px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
+                  <Check className="w-3 h-3 text-emerald-400" />
+                  Đã có Trường & Lớp
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 sm:py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 animate-pulse">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  Cần điền Trường & Lớp
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Dù bạn chọn <strong>Chế độ Ẩn Danh</strong> hay Tên Thật, thông tin <strong>Trường và Lớp</strong> vẫn được lưu độc lập để phục vụ phân tích so sánh hiệu quả giữa các khối trường học và lứa tuổi học sinh trên cả nước.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* TRƯỜNG HỌC */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Tên Trường học / Đơn vị đào tạo:</span>
+                <span className="text-rose-400">*</span>
+              </label>
+
+              <div className="relative">
+                <GraduationCap className="w-4 h-4 text-indigo-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Ví dụ: THPT Nguyễn Khuyến, Phổ Thông Năng Khiếu..."
+                  value={schoolName}
+                  onChange={(e) => onSchoolNameChange && onSchoolNameChange(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-950 border border-slate-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 text-white rounded-xl text-xs sm:text-sm font-medium transition"
+                />
+              </div>
+
+              {/* Quick School Chips */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {POPULAR_SCHOOLS.slice(0, 5).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => onSchoolNameChange && onSchoolNameChange(s)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-medium transition cursor-pointer border ${
+                      schoolName === s
+                        ? 'bg-indigo-600 text-white border-indigo-400'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* LỚP / KHỐI LỚP */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                <span>Lớp / Khối lớp / Năm học:</span>
+                <span className="text-rose-400">*</span>
+              </label>
+
+              <div className="relative">
+                <BookOpen className="w-4 h-4 text-purple-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 10A1, 10B2, 11L1, 12H1..."
+                  value={className}
+                  onChange={(e) => onClassNameChange && onClassNameChange(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 bg-slate-950 border border-slate-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 text-white rounded-xl text-xs sm:text-sm font-medium transition"
+                />
+              </div>
+
+              {/* Quick Class Chips */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {POPULAR_CLASSES.slice(0, 6).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => onClassNameChange && onClassNameChange(c)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-medium transition cursor-pointer border ${
+                      className === c
+                        ? 'bg-purple-600 text-white border-purple-400'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* KÍCH THƯỚC 3: ĐỊA BÀN ĐỊA LÝ (TỈNH / THÀNH PHỐ) */}
