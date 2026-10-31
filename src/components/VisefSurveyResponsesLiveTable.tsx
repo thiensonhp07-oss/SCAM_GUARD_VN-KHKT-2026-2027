@@ -147,7 +147,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
 
   // Live polling state
   const [isLiveActive, setIsLiveActive] = useState<boolean>(true);
-  const [secondsUntilNextPoll, setSecondsUntilNextPoll] = useState<number>(8);
+  const [secondsUntilNextPoll, setSecondsUntilNextPoll] = useState<number>(30);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   const timerRef = useRef<any>(null);
 
@@ -264,15 +264,25 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
     fetchSurveysRef.current = fetchSurveys;
   }, [fetchSurveys]);
 
+  const runLiveAiTrainingRef = useRef(runLiveAiTraining);
+  useEffect(() => {
+    runLiveAiTrainingRef.current = runLiveAiTraining;
+  }, [runLiveAiTraining]);
+
+  const prevSurveysDigestRef = useRef<string>('');
   useEffect(() => {
     if (propSurveys !== undefined) {
-      setInternalSurveys(propSurveys);
-      setAiTrainingState(getClientLiveAiTrainingState());
+      const digest = `${propSurveys.length}:${propSurveys[0]?.id || ''}:${propSurveys[propSurveys.length - 1]?.id || ''}`;
+      if (digest !== prevSurveysDigestRef.current) {
+        prevSurveysDigestRef.current = digest;
+        setInternalSurveys(propSurveys);
+        setAiTrainingState(getClientLiveAiTrainingState());
+      }
     }
   }, [propSurveys]);
 
   useEffect(() => {
-    fetchSurveys(false);
+    fetchSurveysRef.current(false);
     // Also fetch server training state if available
     fetch('/api/research/training-state')
       .then((r) => (r.ok ? r.json() : null))
@@ -285,7 +295,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
       fetchSurveysRef.current(true);
       onRefreshRef.current?.();
       if (autoTrainEnabled) {
-        runLiveAiTraining(true);
+        runLiveAiTrainingRef.current(true);
       } else {
         setAiTrainingState(getClientLiveAiTrainingState());
       }
@@ -301,14 +311,14 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
       window.removeEventListener('visef_survey_updated', handleSurveyUpdated);
       window.removeEventListener('visef_ml_corpus_updated', handleMlCorpusUpdated);
     };
-  }, [fetchSurveys, autoTrainEnabled, runLiveAiTraining]);
+  }, [autoTrainEnabled]);
 
   // Live Polling Countdown Timer (Pure timer: no state updates on other components during updater)
   useEffect(() => {
     if (!isLiveActive) return;
 
     timerRef.current = setInterval(() => {
-      setSecondsUntilNextPoll((prev) => (prev <= 1 ? 8 : prev - 1));
+      setSecondsUntilNextPoll((prev) => (prev <= 1 ? 30 : prev - 1));
     }, 1000);
 
     return () => {
@@ -324,7 +334,7 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
       return;
     }
     if (!isLiveActive) return;
-    if (secondsUntilNextPoll === 8) {
+    if (secondsUntilNextPoll === 30) {
       fetchSurveysRef.current(true);
       onRefreshRef.current?.();
     }

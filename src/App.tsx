@@ -356,7 +356,7 @@ export default function App() {
         shieldsCount: 1,
       }));
     setFriends(mappedFriends);
-  }, [realUsers, currentUser]);
+  }, [realUsers, currentUser?.id]);
 
   // Subscribe to real Firebase Auth state
   useEffect(() => {
@@ -395,8 +395,10 @@ export default function App() {
   useEffect(() => {
     syncLiveSurveysWithServer();
     const interval = setInterval(() => {
-      syncLiveSurveysWithServer();
-    }, 6000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncLiveSurveysWithServer();
+      }
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -416,6 +418,9 @@ export default function App() {
       }
 
       setUserProfile((prev) => {
+        if (prev.hasCompletedSurvey && (!parsedSurvey || prev.surveyData?.id === parsedSurvey?.id)) {
+          return prev;
+        }
         const next: UserProfile = {
           ...prev,
           hasCompletedSurvey: true,
@@ -434,6 +439,13 @@ export default function App() {
     const handleRoadmapNodesSync = (e?: any) => {
       const nodes: string[] = Array.isArray(e?.detail) ? e.detail : [];
       setUserProfile((prev) => {
+        if (
+          Array.isArray(prev.completedRoadmapNodes) &&
+          prev.completedRoadmapNodes.length === nodes.length &&
+          prev.completedRoadmapNodes.every((n, i) => n === nodes[i])
+        ) {
+          return prev;
+        }
         const next: UserProfile = {
           ...prev,
           completedRoadmapNodes: nodes,
@@ -461,7 +473,7 @@ export default function App() {
       window.removeEventListener('scamguard_roadmap_progress_updated', handleRoadmapNodesSync);
       window.removeEventListener('scamguard_open_visef_survey', handleOpenUnifiedSurvey);
     };
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const handleLoginSuccess = async (account: UserAccount) => {
     const cleanProfile: UserProfile = {

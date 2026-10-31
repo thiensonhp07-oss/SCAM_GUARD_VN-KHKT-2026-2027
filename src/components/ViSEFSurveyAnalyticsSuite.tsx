@@ -216,6 +216,9 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
     const realName = rawLoggedInName?.trim() || '';
     if (realName.length > 0) {
       setSurveyForm((prev) => {
+        if (prev.participantName === realName && !prev.isAnonymous) {
+          return prev;
+        }
         if (prev.isAnonymous || !prev.participantName || prev.participantName.startsWith('Khảo nghiệm viên Ẩn danh')) {
           return {
             ...prev,
@@ -226,7 +229,7 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
         return prev;
       });
     }
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.name]);
 
   const totalTrapsCount = SCENARIO_QUESTIONS.length;
 
@@ -247,7 +250,6 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
   const fetchAnalytics = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
-      await syncLiveSurveysWithServer();
       const localAnalytics = getCommunitySurveyAnalytics();
 
       // Reload user's latest personal survey if available
@@ -286,8 +288,10 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
   useEffect(() => {
     fetchAnalytics(false);
     const interval = setInterval(() => {
-      fetchAnalytics(true);
-    }, 5000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchAnalytics(true);
+      }
+    }, 60000);
     const handleUpdate = (e?: any) => {
       if (e?.detail && e.detail.id && e.detail.testOutcome) {
         setRecentPersonalResult(e.detail);

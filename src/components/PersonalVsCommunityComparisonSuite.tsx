@@ -245,11 +245,16 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
   // Fetch real-time live survey database with smart memory optimization
   const fetchLiveSurveyData = async () => {
     try {
-      setLoading(true);
       const localSurveys = getAllCommunitySurveys();
       const localAnalytics = getCommunitySurveyAnalytics(localSurveys);
-      setInternalSurveys(localSurveys);
-      setInternalAnalytics(localAnalytics);
+      setInternalSurveys((prev) => {
+        if (prev.length === localSurveys.length && prev[0]?.id === localSurveys[0]?.id) return prev;
+        return localSurveys;
+      });
+      setInternalAnalytics((prev) => {
+        if (prev?.totalRespondents === localAnalytics.totalRespondents) return prev;
+        return localAnalytics;
+      });
 
       let newN = localSurveys.length;
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
@@ -274,8 +279,6 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
       setLastSyncTime(new Date());
     } catch (err) {
       console.warn('Live survey sync notice:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -297,7 +300,7 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
         fetchLiveSurveyData();
       }
-    }, 15000);
+    }, 60000);
 
     const handleRealtimeUpdate = () => {
       if (typeof window !== 'undefined') {

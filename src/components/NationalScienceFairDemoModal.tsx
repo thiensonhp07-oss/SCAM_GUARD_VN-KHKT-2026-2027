@@ -600,6 +600,9 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
       const realName = rawLoggedInName?.trim() || '';
       if (realName.length > 0) {
         setSurveyForm((prev) => {
+          if (prev.participantName === realName && !prev.isAnonymous) {
+            return prev;
+          }
           if (prev.isAnonymous || !prev.participantName || prev.participantName.startsWith('Khảo nghiệm viên Ẩn danh')) {
             return {
               ...prev,
@@ -611,7 +614,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
         });
       }
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser?.id, currentUser?.name]);
 
   const totalTrapsCount = SCENARIO_QUESTIONS.length;
   const answeredExpCount = Object.values(surveyForm.experienceAnswers).filter(Boolean).length;

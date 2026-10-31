@@ -29,6 +29,7 @@ import {
   db,
   OperationType,
   handleFirestoreError,
+  isQuotaExceededError,
 } from '../firebase';
 import { UserAccount, UserProfile, ExperienceMode, SocialPost } from '../types';
 
@@ -160,9 +161,6 @@ export function restoreCloudTrainingToLocal(profileData: Partial<UserProfile>) {
       localStorage.setItem('visef_my_latest_survey', JSON.stringify(profileData.surveyData));
       localStorage.setItem('scamguard_survey_completed', 'true');
       localStorage.setItem('visef_survey_completed', 'true');
-      window.dispatchEvent(
-        new CustomEvent('visef_survey_updated', { detail: profileData.surveyData })
-      );
     } else if (profileData.hasCompletedSurvey) {
       localStorage.setItem('scamguard_survey_completed', 'true');
       localStorage.setItem('visef_survey_completed', 'true');
@@ -346,10 +344,14 @@ export async function upsertUserFirestoreDatabase(
       existingData = snap.data() as Partial<UserProfile>;
     }
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, userPath);
-    } catch {
-      // Logged structured FirestoreErrorInfo
+    if (!isQuotaExceededError(err)) {
+      try {
+        handleFirestoreError(err, OperationType.GET, userPath);
+      } catch {
+        // Logged structured FirestoreErrorInfo
+      }
+    } else {
+      console.warn('Firestore quota reached; operating with local user profile.');
     }
   }
 
@@ -425,14 +427,18 @@ export async function upsertUserFirestoreDatabase(
   try {
     await setDoc(userRef, sanitizeForFirestore(account.profile), { merge: true });
   } catch (err) {
-    try {
-      handleFirestoreError(
-        err,
-        existingData ? OperationType.UPDATE : OperationType.CREATE,
-        userPath
-      );
-    } catch {
-      // Structured Firestore error logged
+    if (!isQuotaExceededError(err)) {
+      try {
+        handleFirestoreError(
+          err,
+          existingData ? OperationType.UPDATE : OperationType.CREATE,
+          userPath
+        );
+      } catch {
+        // Structured Firestore error logged
+      }
+    } else {
+      console.warn('Firestore quota reached; user profile cached locally.');
     }
   }
 
@@ -629,10 +635,14 @@ async function upsertDirectAccountFirestore(account: UserAccount): Promise<UserA
   try {
     await setDoc(userRef, sanitizeForFirestore(mergedProfile), { merge: true });
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.WRITE, userPath);
-    } catch {
-      // Logged structured FirestoreErrorInfo
+    if (!isQuotaExceededError(err)) {
+      try {
+        handleFirestoreError(err, OperationType.WRITE, userPath);
+      } catch {
+        // Logged structured FirestoreErrorInfo
+      }
+    } else {
+      console.warn('Firestore quota reached; direct account merged locally.');
     }
   }
 
@@ -1046,10 +1056,14 @@ export async function syncUserProfileToFirestore(
     await setDoc(userRef, payload, { merge: true });
     return true;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.WRITE, userPath);
-    } catch {
-      // Structured FirestoreErrorInfo logged
+    if (!isQuotaExceededError(err)) {
+      try {
+        handleFirestoreError(err, OperationType.WRITE, userPath);
+      } catch {
+        // Structured FirestoreErrorInfo logged
+      }
+    } else {
+      console.warn('Firestore quota reached on syncUserProfile; saved to local storage.');
     }
     return false;
   }
@@ -1075,6 +1089,10 @@ export function subscribeToUserFirestoreDoc(
       }
     },
     (error) => {
+      if (isQuotaExceededError(error)) {
+        console.warn('Firestore quota reached on user document listener; continuing with local profile.');
+        return;
+      }
       try {
         handleFirestoreError(error, OperationType.GET, userPath);
       } catch {
@@ -1106,6 +1124,14 @@ export function subscribeToAllRealUsers(
       onUsersUpdate(list);
     },
     (error) => {
+      if (isQuotaExceededError(error)) {
+        console.warn('Firestore quota reached on users listener; maintaining active session user.');
+        const active = getActiveSessionUser();
+        if (active?.profile) {
+          onUsersUpdate([active.profile]);
+        }
+        return;
+      }
       try {
         handleFirestoreError(error, OperationType.LIST, 'users');
       } catch {
@@ -1137,6 +1163,10 @@ export function subscribeToRealSocialPosts(
       onPostsUpdate(list);
     },
     (error) => {
+      if (isQuotaExceededError(error)) {
+        console.warn('Firestore quota reached on social posts listener; maintaining existing local posts.');
+        return;
+      }
       try {
         handleFirestoreError(error, OperationType.LIST, 'social_posts');
       } catch {
@@ -1164,10 +1194,14 @@ export async function saveRealSocialPostToFirestore(post: SocialPost): Promise<b
     );
     return true;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.WRITE, postPath);
-    } catch {
-      // Logged structured FirestoreErrorInfo
+    if (!isQuotaExceededError(err)) {
+      try {
+        handleFirestoreError(err, OperationType.WRITE, postPath);
+      } catch {
+        // Logged structured FirestoreErrorInfo
+      }
+    } else {
+      console.warn('Firestore quota reached on saveRealSocialPost; saved locally.');
     }
     return false;
   }
