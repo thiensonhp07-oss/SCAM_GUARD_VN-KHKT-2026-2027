@@ -519,32 +519,85 @@ export function calculateScamDna(userId: string): ScamDnaProfile {
 }
 
 export function getCommunityScamDna(userOverallScore?: number): CommunityScamDna {
-  const userScore = userOverallScore || 75;
+  const userScore = userOverallScore ?? 50;
 
   const surveyAnalytics = getCommunitySurveyAnalytics();
-  const trialCount = getAllParticipantTrials().length;
-  const surveyCount = surveyAnalytics ? surveyAnalytics.totalRespondents : 0;
-  const totalParticipants = surveyCount + trialCount;
-
-  // Approximate percentile rank based on mean 63.8 and std dev 14
-  const mean = 63.8;
-  const std = 14.0;
-  const z = (userScore - mean) / std;
-  // Approximation of standard normal CDF
-  const t = 1.0 / (1.0 + 0.2316419 * Math.abs(z));
-  const d = 0.3989423 * Math.exp((-z * z) / 2.0);
-  let p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-  if (z > 0) p = 1.0 - p;
-  const percentileRank = Math.min(99, Math.max(1, Math.round(p * 100)));
-
-  const commMean = surveyCount > 0 ? Math.round(surveyAnalytics.preAppBaselineStats.avgInitialDefenseScore) : 0;
+  const allTrials = getAllParticipantTrials();
   const allSurveys = getAllCommunitySurveys();
+  const surveyCount = allSurveys.length;
+  const totalParticipants = surveyCount;
+
+  const commMean =
+    surveyCount > 0
+      ? Math.round(
+          allSurveys.reduce((acc, s) => acc + (s.testOutcome?.preScore ?? 50), 0) / surveyCount
+        )
+      : 0;
+
+  // Real empirical percentile rank: percentage of real survey respondents whose preScore <= userScore
+  const lowerOrEqualCount =
+    surveyCount > 0
+      ? allSurveys.filter((s) => (s.testOutcome?.preScore ?? 50) <= userScore).length
+      : 0;
+  const percentileRank =
+    surveyCount > 0 ? Math.min(99, Math.max(1, Math.round((lowerOrEqualCount / surveyCount) * 100))) : 50;
+
+  const SCENARIO_CORRECT: Record<string, string> = {
+    q1: 'C',
+    q2: 'E',
+    q3: 'D',
+    q4: 'C',
+    q5: 'E',
+    q6: 'D',
+    q7: 'C',
+    q8: 'D',
+    q9: 'D',
+    q10: 'E',
+    q11: 'C',
+    q12: 'D',
+  };
+
+  const DIM_QUESTION_MAP: Record<ScamDnaDimensionKey, string[]> = {
+    authority: ['q2', 'q6'],
+    urgency: ['q8', 'q2'],
+    fear: ['q2', 'q12'],
+    greed: ['q1', 'q3', 'q5'],
+    privacy_credential: ['q6', 'q10', 'q11'],
+    isolation: ['q4', 'q2'],
+    verification_reflex: ['q8', 'q9', 'q3'],
+    quishing_domain: ['q7', 'q1'],
+    emotional_stability: ['q4', 'q8', 'q12'],
+    deepfake_ai: ['q9'],
+  };
 
   const getDimAvg = (key: ScamDnaDimensionKey): number => {
-    if (surveyCount === 0 || allSurveys.length === 0) return 0;
+    if (surveyCount === 0) return 0;
+    const qKeys = DIM_QUESTION_MAP[key] || ['q1'];
     let sum = 0;
     allSurveys.forEach((s) => {
-      if (s.testOutcome?.scamDnaShift?.before) {
+      const trapAns = s.surveyResponses?.trapAnswers;
+      const expAns = s.surveyResponses?.experienceAnswers;
+      if (trapAns && Object.keys(trapAns).length > 0) {
+        let qScoreSum = 0;
+        qKeys.forEach((qk) => {
+          const t = trapAns[qk];
+          const e = expAns?.[qk];
+          const trapCorrect = t === SCENARIO_CORRECT[qk] || (typeof t === 'string' && t.endsWith('_SAFE'));
+          const expScore =
+            e === 'B_SAFE'
+              ? 90
+              : e === 'A_NEVER'
+              ? 72
+              : e === 'C_NEAR_MISS'
+              ? 42
+              : e === 'D_VICTIM'
+              ? 20
+              : 65;
+          const trapScore = trapCorrect ? 88 : 38;
+          qScoreSum += Math.round(trapScore * 0.65 + expScore * 0.35);
+        });
+        sum += Math.round(qScoreSum / qKeys.length);
+      } else if (s.testOutcome?.scamDnaShift?.before) {
         const b = s.testOutcome.scamDnaShift.before;
         if (key === 'authority') sum += Math.round((1 - (b.A || 0.5)) * 100);
         else if (key === 'urgency') sum += Math.round((1 - (b.T || 0.5)) * 100);
@@ -552,127 +605,131 @@ export function getCommunityScamDna(userOverallScore?: number): CommunityScamDna
         else if (key === 'greed') sum += Math.round((1 - (b.G || 0.5)) * 100);
         else if (key === 'privacy_credential') sum += Math.round((1 - (b.C || 0.5)) * 100);
         else if (key === 'isolation') sum += Math.round((1 - (b.R || 0.5)) * 100);
-        else sum += s.testOutcome.preScore;
+        else sum += s.testOutcome.preScore ?? 50;
       } else {
-        sum += s.testOutcome.preScore;
+        sum += s.testOutcome?.preScore ?? 50;
       }
     });
-    return Math.round(sum / allSurveys.length);
+    return Math.round(sum / surveyCount);
   };
 
+  const dimAverages: Record<ScamDnaDimensionKey, number> = {
+    authority: getDimAvg('authority'),
+    urgency: getDimAvg('urgency'),
+    fear: getDimAvg('fear'),
+    greed: getDimAvg('greed'),
+    privacy_credential: getDimAvg('privacy_credential'),
+    isolation: getDimAvg('isolation'),
+    verification_reflex: getDimAvg('verification_reflex'),
+    quishing_domain: getDimAvg('quishing_domain'),
+    emotional_stability: getDimAvg('emotional_stability'),
+    deepfake_ai: getDimAvg('deepfake_ai'),
+  };
+
+  const vulnMeta: Array<{
+    key: ScamDnaDimensionKey;
+    label: string;
+    trend: 'rising' | 'stable' | 'declining';
+  }> = [
+    { key: 'authority', label: 'Giả Mạo Công An / Viện Kiểm Sát & VNeID', trend: 'rising' },
+    { key: 'quishing_domain', label: 'Mã QR Độc Quishing & Tên Miền Giả Mạo', trend: 'rising' },
+    { key: 'urgency', label: 'Dồn Ép Thời Gian & Cấp Cứu Khẩn Cấp', trend: 'rising' },
+    { key: 'greed', label: 'Nhiệm Vụ Hoa Hồng Cao & Đầu Tư Tài Chính Ảo', trend: 'stable' },
+    { key: 'deepfake_ai', label: 'Video Call Deepfake AI Giả Người Thân', trend: 'rising' },
+    { key: 'privacy_credential', label: 'Chiếm Quyền APK / Lộ OTP & Seed Phrase', trend: 'rising' },
+    { key: 'verification_reflex', label: 'Thiếu Xác Minh Kênh Phụ Độc Lập', trend: 'stable' },
+    { key: 'fear', label: 'Đe Dọa Án Hình Sự & Lừa Đảo Kép', trend: 'stable' },
+  ];
+
+  const topVulnerabilitiesNational = vulnMeta
+    .map((item) => {
+      const avgDefense = dimAverages[item.key] || 50;
+      const vulnRate = surveyCount > 0 ? +(100 - avgDefense).toFixed(1) : 0;
+      return {
+        key: item.key,
+        label: item.label,
+        vulnerabilityRate: vulnRate,
+        description:
+          surveyCount > 0
+            ? `Tính toán trực tiếp từ ${surveyCount} mẫu khảo sát thực tế: Điểm phòng vệ trung bình đạt ${avgDefense}/100 (tỷ lệ rủi ro sập bẫy ${vulnRate}%).`
+            : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
+        trend: item.trend,
+      };
+    })
+    .sort((a, b) => b.vulnerabilityRate - a.vulnerabilityRate)
+    .slice(0, 5);
+
+  const groupConfigs = [
+    {
+      keys: ['STUDENT'],
+      label: 'Học sinh & Sinh viên',
+      color: '#06b6d4',
+      defaultWeakness: 'Bẫy cộng tác viên việc nhẹ lương cao, link trúng thưởng & Web3',
+    },
+    {
+      keys: ['OFFICE_WORKER', 'BUSINESS_OWNER', 'TEACHER_JUDGE'],
+      label: 'Người đi làm, Kinh doanh & Giáo viên',
+      color: '#10b981',
+      defaultWeakness: 'Mạo danh cơ quan công quyền, ứng dụng VNeID giả & QR Quishing',
+    },
+    {
+      keys: ['ELDERLY'],
+      label: 'Người cao tuổi & Hưu trí',
+      color: '#f59e0b',
+      defaultWeakness: 'Giả danh công an điều tra & Cuộc gọi AI Deepfake người thân cấp cứu',
+    },
+  ];
+
+  const demographicBreakdown = groupConfigs.map((cfg) => {
+    const matching = allSurveys.filter((s) => cfg.keys.includes(s.demographicGroup));
+    const count = matching.length;
+    const avgScore =
+      count > 0
+        ? Math.round(matching.reduce((acc, s) => acc + (s.testOutcome?.preScore ?? 50), 0) / count)
+        : 0;
+    return {
+      group: cfg.label,
+      averageScore: avgScore,
+      sampleCount: count,
+      criticalWeakness: count > 0 ? cfg.defaultWeakness : 'Chưa có mẫu khảo sát thuộc nhóm này',
+      color: cfg.color,
+    };
+  });
+
   return {
-    totalParticipants,
-    lastUpdated: 'Vừa cập nhật (Thời gian thực)',
+    totalParticipants: totalParticipants + allTrials.length,
+    lastUpdated: 'Cập nhật trực tiếp từ dữ liệu thật',
     overallCommunityAverage: commMean,
     percentileRank: totalParticipants > 0 ? percentileRank : 0,
-    dimensionAverages: {
-      authority: getDimAvg('authority'),
-      urgency: getDimAvg('urgency'),
-      fear: getDimAvg('fear'),
-      greed: getDimAvg('greed'),
-      privacy_credential: getDimAvg('privacy_credential'),
-      isolation: getDimAvg('isolation'),
-      verification_reflex: getDimAvg('verification_reflex'),
-      quishing_domain: getDimAvg('quishing_domain'),
-      emotional_stability: getDimAvg('emotional_stability'),
-      deepfake_ai: getDimAvg('deepfake_ai'),
-    },
+    dimensionAverages: dimAverages,
     sectorDistribution: surveyAnalytics ? surveyAnalytics.sectorDistribution : [],
     scamDnaVector: {
-      T: Number((1 - getDimAvg('urgency') / 100).toFixed(2)),
-      A: Number((1 - getDimAvg('authority') / 100).toFixed(2)),
-      G: Number((1 - getDimAvg('greed') / 100).toFixed(2)),
-      E: Number((1 - getDimAvg('fear') / 100).toFixed(2)),
-      C: Number((1 - getDimAvg('privacy_credential') / 100).toFixed(2)),
-      R: Number((1 - getDimAvg('isolation') / 100).toFixed(2)),
+      T: Number((1 - dimAverages.urgency / 100).toFixed(2)),
+      A: Number((1 - dimAverages.authority / 100).toFixed(2)),
+      G: Number((1 - dimAverages.greed / 100).toFixed(2)),
+      E: Number((1 - dimAverages.fear / 100).toFixed(2)),
+      C: Number((1 - dimAverages.privacy_credential / 100).toFixed(2)),
+      R: Number((1 - dimAverages.isolation / 100).toFixed(2)),
     },
-    topVulnerabilitiesNational: [
-      {
-        key: 'authority',
-        label: 'Giả Mạo Công An / Viện Kiểm Sát',
-        vulnerabilityRate: totalParticipants > 0 ? 68.4 : 0,
-        description: totalParticipants > 0
-          ? '68.4% người dùng ban đầu có tâm lý lo sợ và chấp nhận làm việc qua điện thoại khi đối phương xưng danh cơ quan công quyền.'
-          : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
-        trend: 'rising',
-      },
-      {
-        key: 'quishing_domain',
-        label: 'Mã QR Độc Quishing Tại Quán Ăn / Hóa Đơn',
-        vulnerabilityRate: totalParticipants > 0 ? 62.1 : 0,
-        description: totalParticipants > 0
-          ? 'Hơn 6 trên 10 người dùng quét mã QR chuyển tiền thanh toán mà không nhìn kỹ tên miền đích hay tài khoản thụ hưởng.'
-          : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
-        trend: 'rising',
-      },
-      {
-        key: 'urgency',
-        label: 'Dồn Ép Đếm Ngược 5-15 Phút',
-        vulnerabilityRate: totalParticipants > 0 ? 58.7 : 0,
-        description: totalParticipants > 0
-          ? 'Tạo áp lực thời gian khiến tỷ lệ sập bẫy tăng gấp 2.4 lần so với các kịch bản trao đổi thông thường.'
-          : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
-        trend: 'stable',
-      },
-      {
-        key: 'greed',
-        label: 'Nhiệm Vụ Đơn Hàng Hoa Hồng Cao',
-        vulnerabilityRate: totalParticipants > 0 ? 52.0 : 0,
-        description: totalParticipants > 0
-          ? 'Chiêu trò hoàn tiền 50k đầu tiên làm mồi nhử vẫn là cái bẫy tài chính gây thiệt hại lớn nhất cho đối tượng trẻ.'
-          : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
-        trend: 'declining',
-      },
-      {
-        key: 'deepfake_ai',
-        label: 'Giả Mạo Giọng Nói Con Cháu Cấp Cứu',
-        vulnerabilityRate: totalParticipants > 0 ? 49.3 : 0,
-        description: totalParticipants > 0
-          ? 'Các cuộc gọi 10-15 giây giả giọng khóc lóc người thân gặp nạn có tỷ lệ gây hoảng loạn rất cao đối với người lớn tuổi.'
-          : 'Đang chờ thu thập dữ liệu người dùng thực tế (N = 0).',
-        trend: 'rising',
-      },
-    ],
-    demographicBreakdown: [
-      {
-        group: 'Học sinh & Sinh viên (Gen Z, 15 - 22 tuổi)',
-        averageScore: totalParticipants > 0 ? 61.2 : 0,
-        sampleCount: Math.round(totalParticipants * 0.45),
-        criticalWeakness: totalParticipants > 0 ? 'Bẫy việc làm online hoa hồng cao & Quà tặng ảo qua mạng xã hội' : 'Chưa có mẫu thực tế',
-        color: '#06b6d4',
-      },
-      {
-        group: 'Nhân viên văn phòng & Trưởng thành (23 - 50 tuổi)',
-        averageScore: totalParticipants > 0 ? 67.5 : 0,
-        sampleCount: Math.round(totalParticipants * 0.35),
-        criticalWeakness: totalParticipants > 0 ? 'Mạo danh cơ quan thuế, phí bưu điện & Bẫy quét mã QR bàn ăn' : 'Chưa có mẫu thực tế',
-        color: '#10b981',
-      },
-      {
-        group: 'Người cao tuổi & Hưu trí (Trên 50 tuổi)',
-        averageScore: totalParticipants > 0 ? 52.4 : 0,
-        sampleCount: Math.round(totalParticipants * 0.20),
-        criticalWeakness: totalParticipants > 0 ? 'Giả danh công an điều tra án ma túy & Cuộc gọi AI giả giọng người thân cấp cứu' : 'Chưa có mẫu thực tế',
-        color: '#f59e0b',
-      },
-    ],
+    topVulnerabilitiesNational,
+    demographicBreakdown,
     trendingThreatsMonth: [
       {
-        name: 'Chiếm đoạt tài khoản qua mã QR nhận vé máy bay / quà tặng',
-        impactPercentage: 34.2,
-        description: 'Đối tượng gửi mã QR qua Zalo mời nhận vé du lịch hè, quét mã dẫn vào trang phishing chiếm quyền phiên đăng nhập.',
+        name: 'Chiếm đoạt tài khoản qua mã QR Quishing & Link giả mạo',
+        impactPercentage: +(100 - dimAverages.quishing_domain).toFixed(1),
+        description: 'Dẫn dụ quét mã QR dẫn vào trang phishing chiếm quyền phiên đăng nhập ngân hàng/mạng xã hội.',
         dangerLevel: 'CRITICAL',
       },
       {
-        name: 'Cuộc gọi Deepfake video mờ giật mượn tiền khẩn cấp',
-        impactPercentage: 28.5,
-        description: 'Cắt ghép video 3 giây mặt bạn bè rồi viện cớ mạng lag để yêu cầu chuyển khoản gấp vào số tài khoản lạ.',
+        name: 'Cuộc gọi Deepfake AI giả mạo người thân mượn tiền khẩn cấp',
+        impactPercentage: +(100 - dimAverages.deepfake_ai).toFixed(1),
+        description: 'Mô phỏng khuôn mặt và giọng nói người thân trong cuộc gọi ngắn chập chờn để yêu cầu chuyển khoản gấp.',
         dangerLevel: 'HIGH',
       },
       {
-        name: 'Giả mạo ứng dụng Cổng dịch vụ công VNeID cập nhật sinh trắc học',
-        impactPercentage: 24.1,
-        description: 'Dẫn dụ nạn nhân cài file APK mã độc để chiếm toàn bộ quyền trợ năng Accessibility trên điện thoại Android.',
+        name: 'Giả mạo cán bộ & ứng dụng dịch vụ công VNeID (APK)',
+        impactPercentage: +(100 - dimAverages.authority).toFixed(1),
+        description: 'Dẫn dụ cài file APK mã độc để chiếm quyền trợ năng Accessibility và đọc trộm mã Smart OTP.',
         dangerLevel: 'CRITICAL',
       },
     ],

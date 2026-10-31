@@ -19,8 +19,9 @@ import {
   Sparkles,
   BookOpen,
 } from 'lucide-react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
 
 export interface CyberGuardianExamQuestion {
   id: string;
@@ -647,17 +648,26 @@ export const CyberGuardianFinalExamModal: React.FC<CyberGuardianFinalExamModalPr
         setExistingCert(null);
       }
 
+      const session = getActiveSessionUser();
+      const realLoggedInName =
+        session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+          ? session.name
+          : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+          ? session.profile.name
+          : auth.currentUser?.displayName || null;
+
       const surveyRaw = localStorage.getItem('visef_my_latest_survey');
       const authRaw = localStorage.getItem('scamguard_auth_user');
-      let defaultName = 'Học viên Phòng thủ Không gian mạng';
-      if (surveyRaw) {
+      let defaultName = realLoggedInName || 'Học viên Phòng thủ Không gian mạng';
+      if (!realLoggedInName && surveyRaw) {
         const s = JSON.parse(surveyRaw);
         if (s.fullName) defaultName = s.fullName;
-      } else if (authRaw) {
+        else if (s.participantName && !s.participantName.startsWith('Khảo nghiệm viên Ẩn danh')) defaultName = s.participantName;
+      } else if (!realLoggedInName && authRaw) {
         const a = JSON.parse(authRaw);
         if (a.name) defaultName = a.name;
       }
-      setStudentNameInput((prev) => prev || defaultName);
+      setStudentNameInput(defaultName);
     } catch {
       // ignore
     }

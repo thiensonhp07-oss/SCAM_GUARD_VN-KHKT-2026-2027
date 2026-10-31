@@ -27,67 +27,29 @@ import { ScamDnaHistoryDataPoint, ScamDnaProfile } from '../types';
 
 interface ScamDnaTrendChartProps {
   dnaProfile?: ScamDnaProfile | null;
+  communityAverage?: number;
   onNavigateToArena?: (scenarioId?: string) => void;
 }
 
 type MetricMode = 'all_sdi' | 'risk_index' | 'psychology' | 'technical' | 'financial' | 'compare_all';
 type TimeframeMode = '30d' | '14d' | '7d';
 
-export function generate30DayHistoricalData(currentScore: number = 82): ScamDnaHistoryDataPoint[] {
+export function generate30DayHistoricalData(
+  currentScore: number = 50,
+  communityAvg: number = 60
+): ScamDnaHistoryDataPoint[] {
   const data: ScamDnaHistoryDataPoint[] = [];
   const today = new Date();
 
-  const baseSdi = Math.max(35, currentScore - 18);
-  const basePsy = Math.max(30, currentScore - 20);
-  const baseTech = Math.max(30, currentScore - 22);
-  const baseFin = Math.max(40, currentScore - 15);
-
-  const milestones: Record<number, { title: string; description: string; xpEarned: number; category: 'drill' | 'arena' | 'quishing' | 'deepfake' | 'streak' }> = {
-    4: {
-      title: 'Khởi Động Đánh Giá DNA',
-      description: 'Hoàn thành bài khảo sát ban đầu xác định hình mẫu phản xạ.',
-      xpEarned: 100,
-      category: 'drill',
-    },
-    10: {
-      title: 'Hóa Giải Công An Giả Mạo',
-      description: 'Phản xạ thành công trước cuộc gọi đe dọa rửa tiền trong Arena.',
-      xpEarned: 250,
-      category: 'arena',
-    },
-    17: {
-      title: 'Quishing Lab Đạt 100%',
-      description: 'Phát hiện chính xác 10/10 mã QR giả mạo dán đè tại nhà hàng.',
-      xpEarned: 300,
-      category: 'quishing',
-    },
-    23: {
-      title: 'Đánh Bại Video Deepfake',
-      description: 'Nhận diện video call clone người thân nhờ quy tắc quay góc 90°.',
-      xpEarned: 350,
-      category: 'deepfake',
-    },
-    28: {
-      title: 'Bảo Vệ Smart OTP 7 Ngày',
-      description: 'Bảo toàn mã OTP trước chiêu lừa nâng cấp Sim 5G.',
-      xpEarned: 500,
-      category: 'streak',
-    },
-  };
+  const baseSdi = currentScore;
+  const basePsy = currentScore;
+  const baseTech = currentScore;
+  const baseFin = currentScore;
 
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const dayNumber = 30 - i;
-    const progressFactor = (dayNumber - 1) / 29;
-
-    const stepBonus = dayNumber > 23 ? 5 : dayNumber > 17 ? 4 : dayNumber > 10 ? 3 : dayNumber > 4 ? 2 : 0;
-    const wave = Math.sin(dayNumber * 0.7) * 1.2;
-
-    const sdi = Math.min(99, Math.max(30, Math.round(baseSdi + (currentScore - baseSdi) * progressFactor + wave * 0.5 + stepBonus * 0.3)));
-    const psy = Math.min(99, Math.max(30, Math.round(basePsy + (currentScore - 4 - basePsy) * progressFactor + (dayNumber > 10 ? 3 : 0))));
-    const tech = Math.min(99, Math.max(30, Math.round(baseTech + (currentScore - 7 - baseTech) * progressFactor + (dayNumber > 23 ? 5 : 0))));
-    const fin = Math.min(99, Math.max(30, Math.round(baseFin + (currentScore - baseFin) * progressFactor + (dayNumber > 28 ? 4 : 0))));
 
     const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
     const fullDateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
@@ -96,13 +58,13 @@ export function generate30DayHistoricalData(currentScore: number = 82): ScamDnaH
       date: dateStr,
       fullDate: fullDateStr,
       dayIndex: dayNumber,
-      overallScore: i === 0 ? currentScore : sdi,
-      riskScore: 100 - (i === 0 ? currentScore : sdi),
-      psychologyScore: psy,
-      technicalScore: tech,
-      financialScore: fin,
-      communityAverage: 63.5 + Math.sin(dayNumber * 0.2) * 0.4,
-      milestoneEvent: milestones[dayNumber],
+      overallScore: baseSdi,
+      riskScore: 100 - baseSdi,
+      psychologyScore: basePsy,
+      technicalScore: baseTech,
+      financialScore: baseFin,
+      communityAverage: communityAvg,
+      milestoneEvent: undefined,
     });
   }
 
@@ -111,6 +73,7 @@ export function generate30DayHistoricalData(currentScore: number = 82): ScamDnaH
 
 export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
   dnaProfile,
+  communityAverage = 60,
   onNavigateToArena,
 }) => {
   const [timeframe, setTimeframe] = useState<TimeframeMode>('30d');
@@ -122,8 +85,8 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
     if (dnaProfile?.historicalTrend30Days && dnaProfile.historicalTrend30Days.length > 0) {
       return dnaProfile.historicalTrend30Days;
     }
-    return generate30DayHistoricalData(dnaProfile?.overallScore || 82);
-  }, [dnaProfile]);
+    return generate30DayHistoricalData(dnaProfile?.overallScore ?? 50, communityAverage);
+  }, [dnaProfile, communityAverage]);
 
   const displayedHistory = useMemo(() => {
     if (timeframe === '7d') return rawHistory.slice(-7);
@@ -140,16 +103,17 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
 
   const trendStats = useMemo(() => {
     if (displayedHistory.length < 2) {
+      const cur = dnaProfile?.overallScore ?? 50;
       return {
-        initialScore: 64,
-        currentScore: 82,
-        sdiDelta: 18,
-        sdiPercentChange: 28.1,
-        initialRisk: 36,
-        currentRisk: 18,
-        riskReductionPercent: 50.0,
-        milestonesCount: 5,
-        dailyVelocity: 0.62,
+        initialScore: cur,
+        currentScore: cur,
+        sdiDelta: 0,
+        sdiPercentChange: 0,
+        initialRisk: 100 - cur,
+        currentRisk: 100 - cur,
+        riskReductionPercent: 0,
+        milestonesCount: 0,
+        dailyVelocity: 0,
         status: 'UPWARD' as const,
       };
     }
@@ -175,7 +139,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
       dailyVelocity,
       status: sdiDelta >= 0 ? ('UPWARD' as const) : ('DOWNWARD' as const),
     };
-  }, [displayedHistory]);
+  }, [displayedHistory, dnaProfile?.overallScore]);
 
   // SVG Chart Geometry
   const chartConfig = useMemo(() => {
@@ -297,7 +261,7 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
             }`}
           >
             <span className="w-2.5 h-0.5 bg-purple-400 inline-block border-t border-dashed" />
-            <span>Đường Chuẩn QG (63.5)</span>
+            <span>Đường Chuẩn QG ({communityAverage})</span>
           </button>
         </div>
       </div>
@@ -361,11 +325,13 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
             <Zap className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="flex items-baseline space-x-1.5">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">+{trendStats.dailyVelocity}</span>
+            <span className="text-2xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">
+              {trendStats.dailyVelocity >= 0 ? `+${trendStats.dailyVelocity}` : trendStats.dailyVelocity}
+            </span>
             <span className="text-[10px] font-mono text-slate-400">điểm / ngày</span>
           </div>
           <div className="text-[10px] font-mono text-amber-300/90">
-            Cao gấp 2.4x trung bình
+            {trendStats.sdiDelta > 0 ? 'Tăng trưởng thực tế' : 'Cần luyện tập thêm'}
           </div>
         </div>
       </div>
@@ -551,12 +517,12 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
                 />
                 <text
                   x={chartConfig.width - chartConfig.padding.right}
-                  y={chartConfig.getY(63.5) - 6}
+                  y={chartConfig.getY(communityAverage) - 6}
                   textAnchor="end"
                   fill="#7e22ce"
                   className="text-[9px] font-mono font-black"
                 >
-                  Chuẩn QG (63.5)
+                  Chuẩn QG ({communityAverage})
                 </text>
               </g>
             )}
@@ -806,43 +772,60 @@ export const ScamDnaTrendChart: React.FC<ScamDnaTrendChartProps> = ({
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
             <Award className="w-4 h-4 text-amber-400" />
-            <span>5 Cột Mốc Phòng Thủ Đã Chinh Phục:</span>
+            <span>
+              Cột Mốc Thực Chiến Đã Ghi Nhận ({displayedHistory.filter((p) => !!p.milestoneEvent).length} mốc):
+            </span>
           </span>
-          <span className="text-[10px] font-mono text-slate-500">Chạm để soi lại mốc điểm</span>
+          <span className="text-[10px] font-mono text-slate-500">Dữ liệu thực tế từ hoạt động của bạn</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {displayedHistory
-            .filter((p) => !!p.milestoneEvent)
-            .map((milestonePoint) => {
-              const evt = milestonePoint.milestoneEvent!;
-              const isSelected = activePoint?.dayIndex === milestonePoint.dayIndex;
+        {displayedHistory.filter((p) => !!p.milestoneEvent).length === 0 ? (
+          <div className="p-4 rounded-2xl border border-slate-800/80 bg-slate-900/50 text-xs text-slate-400 font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span>
+              Chưa có cột mốc thực chiến nào được ghi nhận trên tài khoản của bạn. Hãy hoàn thành Khảo sát ViSEF hoặc bài tập trong Arena để hệ thống tự động ghi nhận cột mốc thật!
+            </span>
+            <button
+              onClick={() => onNavigateToArena?.()}
+              className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 font-bold whitespace-nowrap cursor-pointer"
+            >
+              Rèn luyện ngay
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+            {displayedHistory
+              .filter((p) => !!p.milestoneEvent)
+              .map((milestonePoint) => {
+                const evt = milestonePoint.milestoneEvent!;
+                const isSelected = activePoint?.dayIndex === milestonePoint.dayIndex;
 
-              return (
-                <button
-                  key={`ms-chip-${milestonePoint.dayIndex}`}
-                  onClick={() => {
-                    const idx = displayedHistory.findIndex((p) => p.dayIndex === milestonePoint.dayIndex);
-                    if (idx !== -1) setHoveredPointIndex(idx);
-                  }}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer font-mono ${
-                    isSelected
-                      ? 'bg-amber-950/50 border-amber-500 shadow-md shadow-amber-500/10 scale-[1.02]'
-                      : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-[10px] text-amber-400 mb-1">
-                    <span>{milestonePoint.date}</span>
-                    <span className="px-1.5 py-0.2 rounded bg-slate-950 text-cyan-300 font-bold">
-                      {milestonePoint.overallScore} đ
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-white truncate">{evt.title}</div>
-                  <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">+{evt.xpEarned} XP</div>
-                </button>
-              );
-            })}
-        </div>
+                return (
+                  <button
+                    key={`ms-chip-${milestonePoint.dayIndex}`}
+                    onClick={() => {
+                      const idx = displayedHistory.findIndex((p) => p.dayIndex === milestonePoint.dayIndex);
+                      if (idx !== -1) setHoveredPointIndex(idx);
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer font-mono ${
+                      isSelected
+                        ? 'bg-amber-950/50 border-amber-500 shadow-md shadow-amber-500/10 scale-[1.02]'
+                        : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[10px] text-amber-400 mb-1">
+                      <span>{milestonePoint.date}</span>
+                      <span className="px-1.5 py-0.2 rounded bg-slate-950 text-cyan-300 font-bold">
+                        {milestonePoint.overallScore} đ
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-white truncate">{evt.title}</div>
+                    <div className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{evt.description}</div>
+                    <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">+{evt.xpEarned} XP</div>
+                  </button>
+                );
+              })}
+          </div>
+        )}
       </div>
 
       {/* 7. Action CTA Footer */}

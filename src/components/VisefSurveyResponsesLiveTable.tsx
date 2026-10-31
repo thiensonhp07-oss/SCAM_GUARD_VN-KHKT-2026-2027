@@ -28,22 +28,16 @@ import {
   CheckCircle2,
   XCircle,
   Radio,
-  Play,
   Pause,
   Brain,
   Cpu,
-  Database,
   Activity,
-  RotateCcw,
-  Trash2,
 } from 'lucide-react';
 import { CommunitySurveySubmission, SurveyDemographicGroup } from '../types';
 import {
   getAllCommunitySurveys,
   getClientLiveAiTrainingState,
   triggerLiveAiTrainingClient,
-  clearClientSurveysToZero,
-  restoreStandardViSEFDatasetClient,
   ClientLiveAiTrainingState,
 } from '../services/researchDataService';
 import {
@@ -162,23 +156,26 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  // Fetch surveys from backend (with automatic static hosting fallback)
+  // Fetch surveys from backend + Cloud Firestore (with automatic static hosting fallback)
   const fetchSurveys = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
-      const res = await fetch('/api/research/surveys');
-      const contentType = res.headers.get('content-type');
-      if (res.ok && contentType && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data?.surveys && Array.isArray(data.surveys)) {
-          setInternalSurveys(data.surveys);
-          setLastSyncTime(new Date());
-          return;
+      const localList = getAllCommunitySurveys();
+      try {
+        const res = await fetch('/api/research/surveys');
+        const contentType = res.headers.get('content-type');
+        if (res.ok && contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          if (data?.surveys && Array.isArray(data.surveys) && data.surveys.length > localList.length) {
+            setInternalSurveys(data.surveys);
+            setLastSyncTime(new Date());
+            return;
+          }
         }
+      } catch {
+        // Offline or static fallback
       }
-      // On static hosts like Vercel, fetch returns HTML or 404
-      const fallbackList = getAllCommunitySurveys();
-      setInternalSurveys(fallbackList);
+      setInternalSurveys(localList);
       setLastSyncTime(new Date());
     } catch (err) {
       const fallbackList = getAllCommunitySurveys();
@@ -765,53 +762,6 @@ export const VisefSurveyResponsesLiveTable: React.FC<VisefSurveyResponsesLiveTab
             </div>
             <div className="text-xl font-bold font-mono text-emerald-400 tabular-nums">{stats.total > 0 ? '100%' : '0%'}</div>
             <div className="text-[10px] text-slate-400">Đã đồng ý điều khoản khảo nghiệm</div>
-          </div>
-        </div>
-
-        {/* Dataset Integrity Controls: Clear to N=0 or Restore 40 Google Forms Field Surveys */}
-        <div className="mt-4 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-slate-400 flex items-center gap-2">
-            <Database className="w-4 h-4 text-sky-400 shrink-0" />
-            <span>
-              Chế độ Dữ liệu Thực tế: Mọi phiếu khảo sát mới sẽ <strong>tự động cập nhật toàn bộ thống kê</strong> và <strong>tự động vector hóa vào tập huấn luyện AI</strong>.
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {onOpenSurvey && (
-              <button
-                onClick={onOpenSurvey}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all cursor-pointer"
-              >
-                <Play className="w-3.5 h-3.5" />
-                <span>+ Thêm Phiếu Khảo Sát Mới</span>
-              </button>
-            )}
-            <button
-              onClick={async () => {
-                await restoreStandardViSEFDatasetClient();
-                await fetchSurveys(false);
-                await runLiveAiTraining(false);
-                onRefresh?.();
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-all cursor-pointer"
-              title="Khôi phục 40 phiếu khảo sát thực địa từ Google Forms"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Nạp 40 Phiếu Google Forms Thực Địa</span>
-            </button>
-            <button
-              onClick={async () => {
-                await clearClientSurveysToZero();
-                setInternalSurveys([]);
-                setAiTrainingState(getClientLiveAiTrainingState());
-                onRefresh?.();
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-medium transition-all cursor-pointer"
-              title="Xóa trắng về N = 0 để kiểm thử thu thập từ đầu"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Xóa Trắng (N = 0)</span>
-            </button>
           </div>
         </div>
       </div>

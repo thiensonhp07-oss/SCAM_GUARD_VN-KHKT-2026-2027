@@ -37,6 +37,7 @@ import {
   SurveyAnalyticsData,
   CommunitySurveySubmission,
   SurveyDemographicGroup,
+  UserAccount,
 } from '../types';
 import { PreAppVulnerabilityGraph } from './PreAppVulnerabilityGraph';
 import { PersonalVsCommunityComparisonSuite } from './PersonalVsCommunityComparisonSuite';
@@ -46,14 +47,22 @@ import { VisefSurveyResponsesLiveTable } from './VisefSurveyResponsesLiveTable';
 import { PostAppCertificationLiveSection } from './PostAppCertificationLiveSection';
 import { PrePostIndividualAndCommunityComparisonSection } from './PrePostIndividualAndCommunityComparisonSection';
 import { SectorTopic1CertificationModal } from './SectorTopic1CertificationModal';
-import { getCommunitySurveyAnalytics, recordSurveySubmission } from '../services/researchDataService';
+import {
+  getCommunitySurveyAnalytics,
+  recordSurveySubmission,
+  syncLiveSurveysWithServer,
+} from '../services/researchDataService';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
+import { auth } from '../firebase';
 
 interface ViSEFSurveyAnalyticsSuiteProps {
   onTakeLiveDemo?: () => void;
+  currentUser?: UserAccount | null;
 }
 
 export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps> = ({
   onTakeLiveDemo,
+  currentUser,
 }) => {
   const [analytics, setAnalytics] = useState<SurveyAnalyticsData | null>(() => getCommunitySurveyAnalytics());
   const [loading, setLoading] = useState(true);
@@ -106,7 +115,17 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
       handleSelectTab(nextTab.id);
     }
   };
-  const [recentPersonalResult, setRecentPersonalResult] = useState<CommunitySurveySubmission | null>(null);
+  const [recentPersonalResult, setRecentPersonalResult] = useState<CommunitySurveySubmission | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('visef_my_latest_survey');
+        if (raw) return JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
   const [surveyStep, setSurveyStep] = useState<1 | 2>(1);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
@@ -141,37 +160,73 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
       q11: string;
       q12: string;
     };
-  }>({
-    participantName: 'Khảo nghiệm viên Ẩn danh #VN-8421',
-    isAnonymous: true,
-    anonymousCode: 'Khảo nghiệm viên Ẩn danh #VN-8421',
-    schoolName: 'THPT Nguyễn Khuyến',
-    className: '10A1',
-    consentAgreed: true,
-    demographicGroup: 'STUDENT',
-    location: 'TP. Hồ Chí Minh',
-    everEncounteredScam: true,
-    pastLossOrNearMiss: 'CLICKED_SUSPICIOUS_LINK',
-    preConfidenceScore: 50,
-    biggestFearTactic: 'AUTHORITY_POLICE',
-    verificationHabitPre: 'IMMEDIATE_ACTION',
-    experiencedSectors: [],
-    feedbackNote: '',
-    trapAnswers: {
-      q1: '',
-      q2: '',
-      q3: '',
-      q4: '',
-      q5: '',
-      q6: '',
-      q7: '',
-      q8: '',
-      q9: '',
-      q10: '',
-      q11: '',
-      q12: '',
-    },
+  }>(() => {
+    const session = currentUser || getActiveSessionUser();
+    const rawLoggedInName =
+      session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+        ? session.name
+        : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+        ? session.profile.name
+        : auth.currentUser?.displayName || '';
+    const initialRealName = rawLoggedInName?.trim() || '';
+    const hasRealUser = Boolean(initialRealName.length > 0);
+
+    return {
+      participantName: hasRealUser ? initialRealName : 'Khảo nghiệm viên Ẩn danh #VN-8421',
+      isAnonymous: !hasRealUser,
+      anonymousCode: 'Khảo nghiệm viên Ẩn danh #VN-8421',
+      schoolName: 'THPT Nguyễn Khuyến',
+      className: '10A1',
+      consentAgreed: true,
+      demographicGroup: 'STUDENT',
+      location: 'TP. Hồ Chí Minh',
+      everEncounteredScam: true,
+      pastLossOrNearMiss: 'CLICKED_SUSPICIOUS_LINK',
+      preConfidenceScore: 50,
+      biggestFearTactic: 'AUTHORITY_POLICE',
+      verificationHabitPre: 'IMMEDIATE_ACTION',
+      experiencedSectors: [],
+      feedbackNote: '',
+      trapAnswers: {
+        q1: '',
+        q2: '',
+        q3: '',
+        q4: '',
+        q5: '',
+        q6: '',
+        q7: '',
+        q8: '',
+        q9: '',
+        q10: '',
+        q11: '',
+        q12: '',
+      },
+    };
   });
+
+  // Tự động nhận diện và áp dụng tài khoản đăng nhập (ví dụ: Google Hoàng Thiên Sơn)
+  useEffect(() => {
+    const session = currentUser || getActiveSessionUser();
+    const rawLoggedInName =
+      session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+        ? session.name
+        : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+        ? session.profile.name
+        : auth.currentUser?.displayName || '';
+    const realName = rawLoggedInName?.trim() || '';
+    if (realName.length > 0) {
+      setSurveyForm((prev) => {
+        if (prev.isAnonymous || !prev.participantName || prev.participantName.startsWith('Khảo nghiệm viên Ẩn danh')) {
+          return {
+            ...prev,
+            participantName: realName,
+            isAnonymous: false,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [currentUser]);
 
   const totalTrapsCount = SCENARIO_QUESTIONS.length;
 
@@ -192,17 +247,35 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
   const fetchAnalytics = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
+      await syncLiveSurveysWithServer();
+      const localAnalytics = getCommunitySurveyAnalytics();
+
+      // Reload user's latest personal survey if available
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('visef_my_latest_survey');
+          if (raw) {
+            setRecentPersonalResult(JSON.parse(raw));
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const res = await fetch('/api/research/survey-analytics');
       const contentType = res.headers.get('content-type');
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
-        if (data && typeof data.totalRespondents === 'number') {
+        if (
+          data &&
+          typeof data.totalRespondents === 'number' &&
+          data.totalRespondents > localAnalytics.totalRespondents
+        ) {
           setAnalytics(data);
           return;
         }
       }
-      // Automatic fallback for static hosting like Vercel
-      setAnalytics(getCommunitySurveyAnalytics());
+      setAnalytics(localAnalytics);
     } catch (err) {
       setAnalytics(getCommunitySurveyAnalytics());
     } finally {
@@ -214,14 +287,21 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
     fetchAnalytics(false);
     const interval = setInterval(() => {
       fetchAnalytics(true);
-    }, 4000);
-    const handleUpdate = () => {
+    }, 5000);
+    const handleUpdate = (e?: any) => {
+      if (e?.detail && e.detail.id && e.detail.testOutcome) {
+        setRecentPersonalResult(e.detail);
+      }
       fetchAnalytics(true);
     };
     window.addEventListener('visef_survey_updated', handleUpdate);
+    window.addEventListener('visef_post_cert_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
     return () => {
       clearInterval(interval);
       window.removeEventListener('visef_survey_updated', handleUpdate);
+      window.removeEventListener('visef_post_cert_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, [fetchAnalytics]);
 
@@ -254,16 +334,14 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
       const preCalcScore = Math.round((safeCount / totalTrapsCount) * 100);
       const postCalcScore = Math.min(100, Math.max(88, Math.round(preCalcScore + 48 + Math.random() * 6)));
       
-      const displayName = surveyForm.isAnonymous
-        ? (surveyForm.anonymousCode?.trim() || 'Khảo nghiệm viên Ẩn danh')
-        : (surveyForm.participantName?.trim() || 'Khảo nghiệm viên Cộng đồng');
+      const displayName = surveyForm.participantName?.trim() || 'Khảo nghiệm viên Cộng đồng';
 
+      const isStudentGroup = surveyForm.demographicGroup === 'STUDENT';
       const payload: Partial<CommunitySurveySubmission> = {
         participantName: displayName,
-        isAnonymous: surveyForm.isAnonymous,
-        anonymousCode: surveyForm.anonymousCode,
-        schoolName: surveyForm.schoolName,
-        className: surveyForm.className,
+        isAnonymous: false,
+        schoolName: isStudentGroup ? surveyForm.schoolName : undefined,
+        className: isStudentGroup ? surveyForm.className : undefined,
         consentAgreed: surveyForm.consentAgreed,
         demographicGroup: surveyForm.demographicGroup,
         location: surveyForm.location,
@@ -274,6 +352,7 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           biggestFearTactic: surveyForm.biggestFearTactic,
           verificationHabitPre: surveyForm.verificationHabitPre,
           experiencedSectors: surveyForm.experiencedSectors,
+          trapAnswers: surveyForm.trapAnswers,
           timeToDecidePreSec: 3.8,
         },
         testOutcome: {
@@ -284,43 +363,25 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           timeToDecidePostSec: 11.5,
           scamDnaShift: {
             before: {
-              T: surveyForm.trapAnswers.q1 !== 'B_SAFE' ? 0.88 : 0.20,
-              A: surveyForm.trapAnswers.q1 !== 'B_SAFE' ? 0.82 : 0.18,
-              G: surveyForm.trapAnswers.q6 !== 'D_SAFE' ? 0.85 : 0.22,
-              E: surveyForm.trapAnswers.q3 !== 'B_SAFE' ? 0.90 : 0.15,
-              C: surveyForm.trapAnswers.q4 !== 'C_SAFE' ? 0.84 : 0.16,
-              R: surveyForm.trapAnswers.q5 !== 'B_SAFE' ? 0.80 : 0.12,
+              T: surveyForm.trapAnswers.q1 !== 'C' && surveyForm.trapAnswers.q1 !== 'B_SAFE' ? 0.88 : 0.20,
+              A: surveyForm.trapAnswers.q2 !== 'E' && surveyForm.trapAnswers.q2 !== 'B_SAFE' ? 0.82 : 0.18,
+              G: surveyForm.trapAnswers.q5 !== 'E' && surveyForm.trapAnswers.q5 !== 'B_SAFE' ? 0.85 : 0.22,
+              E: surveyForm.trapAnswers.q4 !== 'C' && surveyForm.trapAnswers.q4 !== 'B_SAFE' ? 0.90 : 0.15,
+              C: surveyForm.trapAnswers.q3 !== 'D' && surveyForm.trapAnswers.q3 !== 'B_SAFE' ? 0.84 : 0.16,
+              R: surveyForm.trapAnswers.q6 !== 'D' && surveyForm.trapAnswers.q6 !== 'B_SAFE' ? 0.80 : 0.12,
             },
             after: { T: 0.14, A: 0.12, G: 0.13, E: 0.15, C: 0.14, R: 0.10 },
           },
         },
         feedbackNote:
           surveyForm.feedbackNote ||
-          `Hoàn thành bài khảo nghiệm đánh giá 12 khu vực trải nghiệm rủi ro. Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/12 khu vực.`,
+          (isStudentGroup
+            ? `Hoàn thành bài khảo nghiệm đánh giá 12 khu vực trải nghiệm rủi ro. Trường: ${surveyForm.schoolName || 'THPT Nguyễn Khuyến'} - Lớp: ${surveyForm.className || '10A1'}. Phản xạ an toàn: ${safeCount}/12 khu vực.`
+            : `Hoàn thành bài khảo nghiệm đánh giá 12 khu vực trải nghiệm rủi ro (${surveyForm.demographicGroup}). Phản xạ an toàn: ${safeCount}/12 khu vực.`),
       };
 
-      let savedSurvey: CommunitySurveySubmission;
-      try {
-        const res = await fetch('/api/research/survey', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const contentType = res.headers.get('content-type');
-        if (res.ok && contentType && contentType.includes('application/json')) {
-          const result = await res.json();
-          savedSurvey = result.survey;
-        } else {
-          savedSurvey = recordSurveySubmission(payload);
-        }
-      } catch (err) {
-        savedSurvey = recordSurveySubmission(payload);
-      }
-
+      const savedSurvey = recordSurveySubmission(payload);
       setRecentPersonalResult(savedSurvey);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('visef_survey_updated', { detail: savedSurvey }));
-      }
       await fetchAnalytics();
     } catch (err) {
       console.error('Failed to submit survey:', err);
@@ -430,7 +491,13 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
 
   const impulsiveHabitPct = +(
     (analytics?.verificationHabitsPre || [])
-      .filter((h) => h.habitKey === 'CLICK_IMMEDIATELY' || h.habitKey === 'TRUST_VOICE_OR_LOGO')
+      .filter(
+        (h) =>
+          h.habitKey === 'IMMEDIATE_ACTION' ||
+          h.habitKey === 'CONFUSED' ||
+          h.habitKey === 'CLICK_IMMEDIATELY' ||
+          h.habitKey === 'TRUST_VOICE_OR_LOGO'
+      )
       .reduce((acc, h) => acc + h.percentage, 0)
   ).toFixed(1);
 
@@ -682,9 +749,21 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
           {/* DEDICATED 3-CHART COMPARISON SUITE: Personal vs Community */}
           <PersonalVsCommunityComparisonSuite
             totalRespondents={analytics?.totalRespondents ?? 0}
+            analytics={analytics}
+            surveys={analytics?.recentSurveys}
+            userSurvey={recentPersonalResult}
             userPreScore={recentPersonalResult?.testOutcome?.preScore ?? preScoreVal}
             userPostScore={recentPersonalResult?.testOutcome?.postScore ?? postScoreVal}
-            participantName={recentPersonalResult?.participantName || 'Trung bình mẫu khảo sát'}
+            participantName={recentPersonalResult?.participantName || 'Hồ sơ Cá nhân của bạn'}
+            onTakeSurvey={() => {
+              if (onTakeLiveDemo) {
+                onTakeLiveDemo();
+              } else if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('scamguard_open_visef_survey'));
+              } else {
+                setIsSurveyModalOpen(true);
+              }
+            }}
           />
 
           {/* DEDICATED PRE-APP VULNERABILITY GRAPH & BASELINE DATA */}
@@ -1235,16 +1314,15 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                           preConfidenceScore={surveyForm.preConfidenceScore}
                           onPreConfidenceScoreChange={(val) => setSurveyForm((prev) => ({ ...prev, preConfidenceScore: val }))}
                           idPrefix="analytics-survey"
+                          currentUser={currentUser}
                         />
 
                         {/* Step 1 Next Button */}
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-800">
                           <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                            <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                            <User className="w-3.5 h-3.5 text-purple-400" />
                             <span>
-                              {surveyForm.isAnonymous
-                                ? `Chế độ Ẩn danh: ${surveyForm.anonymousCode || 'Mã ngẫu nhiên'}`
-                                : `Đích danh: ${surveyForm.participantName || 'Chưa nhập'}`}{' '}
+                              Họ và tên: <strong className="text-white">{surveyForm.participantName || 'Chưa nhập'}</strong>{' '}
                               • {surveyForm.schoolName || 'Chưa chọn trường'}
                             </span>
                           </div>
@@ -1252,7 +1330,7 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
                           <button
                             type="button"
                             disabled={
-                              (surveyForm.isAnonymous ? !surveyForm.anonymousCode?.trim() : !surveyForm.participantName?.trim()) ||
+                              !surveyForm.participantName?.trim() ||
                               !surveyForm.schoolName?.trim() ||
                               !surveyForm.className?.trim() ||
                               !surveyForm.consentAgreed
@@ -1454,8 +1532,8 @@ export const ViSEFSurveyAnalyticsSuite: React.FC<ViSEFSurveyAnalyticsSuiteProps>
         isOpen={isCertificationModalOpen}
         onClose={() => setIsCertificationModalOpen(false)}
         sectorNumber={1}
-        sectorTitle="Khu Vực 1: Vành Đai Ngoại Ô Cảnh Giác"
-        preAppScore={recentPersonalResult?.empiricalDefenseScore ?? 45}
+        sectorTitle="Khu Vực 1: Căn Cứ Viễn Thông & Tin Nhắn Giả Mạo"
+        preAppScore={recentPersonalResult?.testOutcome?.preScore ?? preScoreVal}
         onCertificateIssued={() => {
           fetchAnalytics();
         }}

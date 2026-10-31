@@ -1220,3 +1220,53 @@ export async function logoutFromFirebase() {
     console.warn('Firebase signOut', e);
   }
 }
+
+/**
+ * Synchronously retrieves the active authenticated user account from local session or Firebase Auth.
+ */
+export function getActiveSessionUser(): UserAccount | null {
+  try {
+    if (typeof window !== 'undefined') {
+      const rawSession = localStorage.getItem('scamguard_session_account');
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession) as UserAccount;
+        if (parsed && parsed.id && parsed.id !== 'unauthenticated') {
+          return parsed;
+        }
+      }
+      const rawAuth = localStorage.getItem('scamguard_auth_user');
+      if (rawAuth) {
+        const parsed = JSON.parse(rawAuth);
+        if (parsed && parsed.name && parsed.name !== 'Chưa đăng nhập') {
+          return parsed as any;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  if (auth.currentUser) {
+    return mapFirebaseUserToAccount(auth.currentUser);
+  }
+
+  return null;
+}
+
+/**
+ * Returns the effective display name of the logged in user (e.g., Google account name "Hoàng Thiên Sơn").
+ */
+export function getEffectiveCurrentUserName(): string | null {
+  const activeUser = getActiveSessionUser();
+  if (activeUser?.name && activeUser.name !== 'Chưa đăng nhập' && activeUser.name !== 'Vệ Binh Khách') {
+    return activeUser.name;
+  }
+  if (activeUser?.profile?.name && activeUser.profile.name !== 'Chưa đăng nhập') {
+    return activeUser.profile.name;
+  }
+  if (auth.currentUser?.displayName) {
+    return auth.currentUser.displayName;
+  }
+  return null;
+}
+

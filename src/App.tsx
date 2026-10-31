@@ -983,6 +983,7 @@ export default function App() {
                     <ResearchCenterView
                       onNavigateToMainUI={() => setActiveTab('home')}
                       onOpenSurvey={() => setIsScienceFairDemoOpen(true)}
+                      currentUser={currentUser}
                     />
                   </ErrorBoundary>
                 )}
@@ -990,6 +991,9 @@ export default function App() {
                 {activeTab === 'scamdna' && (
                   <ScamDnaView
                     userProfile={userProfile}
+                    currentUser={currentUser}
+                    realUsers={realUsers}
+                    onOpenSurvey={() => setIsScienceFairDemoOpen(true)}
                     onNavigateToArena={(scenarioId) => {
                       if (scenarioId) {
                         const matchedScenario =
@@ -1205,6 +1209,7 @@ export default function App() {
         <NationalScienceFairDemoModal
           isOpen={isScienceFairDemoOpen}
           onClose={() => setIsScienceFairDemoOpen(false)}
+          currentUser={currentUser}
           onNavigateToResearch={() => {
             setIsScienceFairDemoOpen(false);
             setActiveTab('research');

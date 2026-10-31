@@ -63,24 +63,8 @@ export const PrePostIndividualAndCommunityComparisonSection: React.FC<
         }
       }
 
-      // Always compute client-side baseline first
+      // Compute full personal + community analysis from real localStorage + Cloud Firestore data
       const localComputed = computePrePostComparisonAnalysis(latestUserCert);
-
-      // Attempt server sync if backend API is reachable
-      try {
-        const res = await fetch('/api/research/pre-post-comparison');
-        if (res.ok) {
-          const json = await res.json();
-          if (json && json.community && json.community.totalEvaluated > 0) {
-            setData(json);
-            return;
-          }
-        }
-      } catch {
-        // Offline or Vercel static serverless fallback
-      }
-
-      // If server returned 0 or failed, fallback to local computed analysis
       setData(localComputed);
     } catch (e) {
       console.warn('Could not fetch comparison, using client computation', e);
@@ -99,15 +83,18 @@ export const PrePostIndividualAndCommunityComparisonSection: React.FC<
 
     window.addEventListener('visef_post_cert_updated', handleUpdate);
     window.addEventListener('visef_survey_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('visef_post_cert_updated', handleUpdate);
       window.removeEventListener('visef_survey_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, []);
 
-  // Compute values strictly from real dataset and user certification
-  const hasRealUserCert = !!userCert;
+  // Compute values strictly from real dataset and user certification / survey / training
+  const hasRealUserCert = !!userCert || !!data?.individual?.hasTakenExam;
+  const hasPersonalSurveyOrTraining = !!(data?.individual?.hasTakenSurvey || data?.individual?.hasTrainedOnApp);
   const communityData = data?.community;
   const communityTotal = communityData?.totalEvaluated ?? 0;
   const communityPre = communityData?.avgPreScore ?? 0;
@@ -117,8 +104,8 @@ export const PrePostIndividualAndCommunityComparisonSection: React.FC<
   const totalEvaluated = communityTotal;
   const studentGain = communityData?.demographicGains?.STUDENT ?? 0;
 
-  const individualPre = userCert?.preAppScore ?? (data?.individual?.preScore ?? communityPre);
-  const individualPost = userCert?.postAppScore ?? (data?.individual?.postScore ?? communityPost);
+  const individualPre = data?.individual?.preScore ?? userCert?.preAppScore ?? communityPre;
+  const individualPost = data?.individual?.postScore ?? userCert?.postAppScore ?? communityPost;
   const individualDelta = +(individualPost - individualPre).toFixed(1);
   const individualDeltaPct =
     individualPre > 0
@@ -197,6 +184,11 @@ export const PrePostIndividualAndCommunityComparisonSection: React.FC<
                 <span className="px-2.5 py-1 rounded text-[11px] font-mono font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>HỒ SƠ SÁT HẠCH THỰC TẾ</span>
+                </span>
+              ) : hasPersonalSurveyOrTraining ? (
+                <span className="px-2.5 py-1 rounded text-[11px] font-mono font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center space-x-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>HỒ SƠ KHẢO SÁT & HỌC TẬP CÁ NHÂN</span>
                 </span>
               ) : (
                 <span className="px-2.5 py-1 rounded text-[11px] font-mono font-semibold bg-slate-950 text-slate-300 border border-slate-800 flex items-center space-x-1">
@@ -316,7 +308,7 @@ export const PrePostIndividualAndCommunityComparisonSection: React.FC<
             <span>
               Mã hồ sơ:{' '}
               <strong className="text-sky-400">
-                {userCert?.certificateCode || 'DATASET-RECORD'}
+                {userCert?.certificateCode || data?.individual?.certificateCode || 'DATASET-RECORD'}
               </strong>
             </span>
           </div>

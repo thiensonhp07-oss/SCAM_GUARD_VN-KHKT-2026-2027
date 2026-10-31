@@ -2661,52 +2661,75 @@ Nghiên cứu chứng minh tính khả thi và hiệu quả thực chứng của
 // ---------------------------------------------------------
 
 export function seedPostAppCertifications() {
-  if (POST_APP_CERTIFICATIONS.length > 0) return;
-
   const sectorNames = [
-    'Khu Vực 1: Vành Đai Ngoại Ô Cảnh Giác',
-    'Khu Vực 2: Căn Cứ Radar Viễn Thông & Trạm Sóng Ảo',
-    'Khu Vực 3: Trung Tâm Tài Chính & Quẹt Thẻ QR',
-    'Khu Vực 4: Phòng Thí Nghiệm AI & Deepfake Thời Gian Thực',
-    'Khu Vực 5: Sàn Giao Dịch & Bẫy Nhiệm Vụ Ảo',
-    'Khu Vực 6: Tòa Thị Chính & Giả Mạo Cơ Quan Pháp Luật',
+    'Khu Vực 1: Căn Cứ Viễn Thông & Tin Nhắn Giả Mạo (Phishing & Smishing)',
+    'Khu Vực 2: Trạm Phát Sóng Ảo & Giả Danh Cơ Quan Chức Năng',
+    'Khu Vực 3: Trung Tâm Thương Mại Điện Tử & Tuyển Dụng Cộng Tác Viên',
+    'Khu Vực 4: Mạng Xã Hội & Bẫy Tình Cảm Tài Chính (Pig Butchering)',
+    'Khu Vực 5: Sàn Đầu Tư Tài Chính & Tiền Mã Hóa Đa Cấp',
+    'Khu Vực 6: Cổng Dịch Vụ Công & Ứng Dụng Giả Mạo (.APK Mã Độc)',
+    'Khu Vực 7: Hệ Thống Thanh Toán QR Code & Bẫy Quishing',
+    'Khu Vực 8: Trung Tâm Khẩn Cấp & Bẫy Thao Túng Tâm Lý Gia Đình',
+    'Khu Vực 9: Phòng Thí Nghiệm Sinh Trắc Học & Giả Mạo AI Deepfake',
+    'Khu Vực 10: Không Gian Web3, Ví Điện Tử & Hợp Đồng Thông Minh',
+    'Khu Vực 11: Hạ Tầng Phần Cứng, Wi-Fi Công Cộng & Trạm Sạc Độc Hại',
+    'Khu Vực 12: Tòa Án Trọng Tài & Bẫy Dịch Vụ Thu Hồi Tiền Treo',
   ];
 
   const communitySurveys = getAllCommunitySurveys();
+  const existingIds = new Set(POST_APP_CERTIFICATIONS.map((c) => c.id));
 
   communitySurveys.forEach((s, i) => {
-    const secIdx = (i % 6) + 1;
-    const preScore = s.testOutcome?.preScore ?? (35 + (i * 7) % 25);
-    const postScore = s.testOutcome?.postScore ?? Math.min(100, preScore + 38 + (i * 13) % 15);
-    const delta = postScore - preScore;
-    const correctCount = Math.round((postScore / 100) * 20);
+    const certId = `CERT-${s.id}`;
+    if (existingIds.has(certId)) return;
+    existingIds.add(certId);
+
+    let secIdx = (i % 12) + 1;
+    const expSectors = s.surveyResponses?.experiencedSectors;
+    if (Array.isArray(expSectors) && expSectors.length > 0) {
+      const chosenSec = expSectors[i % expSectors.length];
+      const match = typeof chosenSec === 'string' ? chosenSec.match(/(\d+)/) : null;
+      if (match) {
+        const parsedNum = parseInt(match[1], 10);
+        if (parsedNum >= 1 && parsedNum <= 12) {
+          secIdx = parsedNum;
+        }
+      }
+    }
+
+    const preScore = s.testOutcome?.preScore ?? 45;
+    const postScore = s.testOutcome?.postScore ?? 85;
+    const delta = +(postScore - preScore).toFixed(1);
+    const correctCount = Math.max(0, Math.min(20, Math.round((postScore / 100) * 20)));
+    const postLatency = s.testOutcome?.timeToDecidePostSec || 11.5;
+    const computedTimeSpent = Math.max(120, Math.round(postLatency * 20 + (i % 7) * 14));
 
     POST_APP_CERTIFICATIONS.push({
-      id: `CERT-${s.id}`,
+      id: certId,
       participantName: s.participantName,
       anonymousCode: s.anonymousCode || `VN-${8000 + i}`,
       demographicGroup: s.demographicGroup || 'STUDENT',
-      schoolName: s.schoolName || 'THPT Nguyễn Khuyến',
-      className: s.className || '10A1',
+      schoolName: s.schoolName || (s.demographicGroup === 'STUDENT' ? 'THPT Nguyễn Khuyến' : undefined),
+      className: s.className || (s.demographicGroup === 'STUDENT' ? '10A1' : undefined),
       sectorId: `sector-${secIdx}`,
       sectorNumber: secIdx,
       sectorTitle: sectorNames[secIdx - 1],
       totalQuestions: 20,
       correctAnswersCount: correctCount,
       scorePct: postScore,
-      isPassed: postScore > 50,
+      isPassed: postScore >= 70,
       preAppScore: preScore,
       postAppScore: postScore,
       deltaScore: delta,
-      timeSpentSeconds: 280 + Math.floor(Math.random() * 320),
-      certificateCode: `VISEF-CERT-2026-${(1000 + i).toString(16).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      timeSpentSeconds: computedTimeSpent,
+      certificateCode: `VISEF-CERT-2026-${(1000 + i).toString(16).toUpperCase()}-${100 + ((i * 37) % 899)}`,
       completedAt: s.createdAt || new Date(Date.now() - (110 - i) * 3600 * 1000 * 2.5).toISOString(),
     });
   });
 }
 
 export function getAllPostAppCertifications(): PostAppCertificationRecord[] {
-  if (POST_APP_CERTIFICATIONS.length === 0 && !isCleanDataMode) {
+  if (!isCleanDataMode) {
     seedPostAppCertifications();
   }
   return POST_APP_CERTIFICATIONS;
@@ -2722,11 +2745,11 @@ export function recordPostAppCertificationSubmission(
     demographicGroup: record.demographicGroup || 'STUDENT',
     sectorId: record.sectorId || 'sector-1',
     sectorNumber: record.sectorNumber || 1,
-    sectorTitle: record.sectorTitle || 'Khu Vực 1: Vành Đai Ngoại Ô Cảnh Giác',
+    sectorTitle: record.sectorTitle || 'Khu Vực 1: Căn Cứ Viễn Thông & Tin Nhắn Giả Mạo',
     totalQuestions: record.totalQuestions || 20,
     correctAnswersCount: record.correctAnswersCount ?? 16,
     scorePct: record.scorePct ?? 80,
-    isPassed: (record.scorePct ?? 80) > 50,
+    isPassed: (record.scorePct ?? 80) >= 70,
     preAppScore: record.preAppScore ?? 45,
     postAppScore: record.postAppScore ?? 85,
     deltaScore: (record.postAppScore ?? 85) - (record.preAppScore ?? 45),
@@ -2738,27 +2761,34 @@ export function recordPostAppCertificationSubmission(
     completedAt: record.completedAt || new Date().toISOString(),
   };
 
-  POST_APP_CERTIFICATIONS.unshift(newRecord);
+  const existingIdx = POST_APP_CERTIFICATIONS.findIndex((c) => c.id === newRecord.id);
+  if (existingIdx !== -1) {
+    POST_APP_CERTIFICATIONS[existingIdx] = newRecord;
+  } else {
+    POST_APP_CERTIFICATIONS.unshift(newRecord);
+  }
 
   // Sync to PARTICIPANT_TRIALS for real Group C paired statistics
   try {
-    PARTICIPANT_TRIALS.push({
-      participantId: newRecord.id,
-      group: 'GROUP_C_ADAPTIVE',
-      preTestScore: newRecord.preAppScore,
-      postTestScore: newRecord.postAppScore,
-      unseenTestScore: Math.round(newRecord.postAppScore * 0.95),
-      retentionScore14Days: Math.round(newRecord.postAppScore * 0.92),
-      unsafeActionRatePre: +(Math.max(0.05, 1 - (newRecord.preAppScore / 100))).toFixed(2),
-      unsafeActionRatePost: +(Math.max(0.01, 1 - (newRecord.postAppScore / 100))).toFixed(2),
-      avgResponseTimePreSec: 4.8,
-      avgResponseTimePostSec: +(newRecord.timeSpentSeconds / Math.max(1, newRecord.totalQuestions)).toFixed(1),
-      scamDnaPre: { T: 0.65, A: 0.62, G: 0.58, E: 0.60, C: 0.64, R: 0.55 },
-      scamDnaPost: { T: 0.18, A: 0.15, G: 0.16, E: 0.19, C: 0.17, R: 0.14 },
-      primaryRootCause: 'POST_APP_CERTIFICATION_EXAM',
-      timestamp: newRecord.completedAt,
-      completedScenarios: newRecord.correctAnswersCount,
-    });
+    if (!PARTICIPANT_TRIALS.some((t) => t.participantId === newRecord.id)) {
+      PARTICIPANT_TRIALS.push({
+        participantId: newRecord.id,
+        group: 'GROUP_C_ADAPTIVE',
+        preTestScore: newRecord.preAppScore,
+        postTestScore: newRecord.postAppScore,
+        unseenTestScore: Math.round(newRecord.postAppScore * 0.95),
+        retentionScore14Days: Math.round(newRecord.postAppScore * 0.92),
+        unsafeActionRatePre: +(Math.max(0.05, 1 - (newRecord.preAppScore / 100))).toFixed(2),
+        unsafeActionRatePost: +(Math.max(0.01, 1 - (newRecord.postAppScore / 100))).toFixed(2),
+        avgResponseTimePreSec: 4.8,
+        avgResponseTimePostSec: +(newRecord.timeSpentSeconds / Math.max(1, newRecord.totalQuestions)).toFixed(1),
+        scamDnaPre: { T: 0.65, A: 0.62, G: 0.58, E: 0.60, C: 0.64, R: 0.55 },
+        scamDnaPost: { T: 0.18, A: 0.15, G: 0.16, E: 0.19, C: 0.17, R: 0.14 },
+        primaryRootCause: 'POST_APP_CERTIFICATION_EXAM',
+        timestamp: newRecord.completedAt,
+        completedScenarios: newRecord.correctAnswersCount,
+      });
+    }
   } catch (err) {
     // Non-blocking sync
   }
@@ -2810,9 +2840,9 @@ export function getPrePostComparisonAnalysis(individualRecord?: PostAppCertifica
         deltaPercent: indDeltaPct,
         isCertified: individualRecord?.isPassed ?? false,
         accuracyByDifficulty: {
-          easy: individualRecord ? 80 : 0,
-          medium: individualRecord ? 70 : 0,
-          hard: individualRecord ? 60 : 0,
+          easy: individualRecord ? individualRecord.scorePct : 0,
+          medium: individualRecord ? individualRecord.scorePct : 0,
+          hard: individualRecord ? individualRecord.scorePct : 0,
         },
         percentileRank: individualRecord ? 100 : 0,
       },
@@ -2896,30 +2926,53 @@ export function getPrePostComparisonAnalysis(individualRecord?: PostAppCertifica
     pValue = computeStudentTPValue(tStatistic, df);
   }
 
-  // Dynamic Domain Transformation Metrics calculated from actual performance
+  // Dynamic Domain Transformation Metrics calculated directly from real COMMUNITY_SURVEYS Scam DNA vectors
+  const surveys = getAllCommunitySurveys();
+  const sCount = surveys.length;
+  let sumPreA = 0, sumPostA = 0;
+  let sumPreC = 0, sumPostC = 0;
+  let sumPreT = 0, sumPostT = 0;
+  let sumPreE = 0, sumPostE = 0;
+  let sumPreR = 0, sumPostR = 0;
+  let sumPreG = 0, sumPostG = 0;
+
   const avgPreVuln = Math.max(10, +(100 - avgPreScore).toFixed(1));
   const avgPostVuln = Math.max(5, +(100 - avgPostScore).toFixed(1));
+
+  surveys.forEach((s) => {
+    const b = s.testOutcome?.scamDnaShift?.before;
+    const a = s.testOutcome?.scamDnaShift?.after;
+    const basePre = Math.max(10, 100 - (s.testOutcome?.preScore ?? avgPreScore));
+    const basePost = Math.max(5, 100 - (s.testOutcome?.postScore ?? avgPostScore));
+    sumPreA += b?.A !== undefined ? b.A * 100 : basePre;
+    sumPostA += a?.A !== undefined ? a.A * 100 : basePost;
+    sumPreC += b?.C !== undefined ? b.C * 100 : basePre;
+    sumPostC += a?.C !== undefined ? a.C * 100 : basePost;
+    sumPreT += b?.T !== undefined ? b.T * 100 : basePre;
+    sumPostT += a?.T !== undefined ? a.T * 100 : basePost;
+    sumPreE += b?.E !== undefined ? b.E * 100 : basePre;
+    sumPostE += a?.E !== undefined ? a.E * 100 : basePost;
+    sumPreR += b?.R !== undefined ? b.R * 100 : basePre;
+    sumPostR += a?.R !== undefined ? a.R * 100 : basePost;
+    sumPreG += b?.G !== undefined ? b.G * 100 : basePre;
+    sumPostG += a?.G !== undefined ? a.G * 100 : basePost;
+  });
 
   const calcDomainGain = (pre: number, post: number) =>
     pre > 0 ? +(((pre - post) / pre) * 100).toFixed(1) : 0;
 
-  const d1Pre = avgPreVuln;
-  const d1Post = avgPostVuln;
-
-  const d2Pre = +(avgPreVuln * 0.95).toFixed(1);
-  const d2Post = +(avgPostVuln * 1.05).toFixed(1);
-
-  const d3Pre = +(avgPreVuln * 1.05).toFixed(1);
-  const d3Post = +(avgPostVuln * 0.95).toFixed(1);
-
-  const d4Pre = +(avgPreVuln * 0.98).toFixed(1);
-  const d4Post = +(avgPostVuln * 1.1).toFixed(1);
-
-  const d5Pre = +(avgPreVuln * 0.92).toFixed(1);
-  const d5Post = +(avgPostVuln * 1.02).toFixed(1);
-
-  const d6Pre = +(avgPreVuln * 1.02).toFixed(1);
-  const d6Post = +(avgPostVuln * 0.9).toFixed(1);
+  const d1Pre = sCount > 0 ? +(sumPreA / sCount).toFixed(1) : avgPreVuln;
+  const d1Post = sCount > 0 ? +(sumPostA / sCount).toFixed(1) : avgPostVuln;
+  const d2Pre = sCount > 0 ? +(sumPreC / sCount).toFixed(1) : avgPreVuln;
+  const d2Post = sCount > 0 ? +(sumPostC / sCount).toFixed(1) : avgPostVuln;
+  const d3Pre = sCount > 0 ? +(sumPreT / sCount).toFixed(1) : avgPreVuln;
+  const d3Post = sCount > 0 ? +(sumPostT / sCount).toFixed(1) : avgPostVuln;
+  const d4Pre = sCount > 0 ? +(sumPreE / sCount).toFixed(1) : avgPreVuln;
+  const d4Post = sCount > 0 ? +(sumPostE / sCount).toFixed(1) : avgPostVuln;
+  const d5Pre = sCount > 0 ? +(sumPreR / sCount).toFixed(1) : avgPreVuln;
+  const d5Post = sCount > 0 ? +(sumPostR / sCount).toFixed(1) : avgPostVuln;
+  const d6Pre = sCount > 0 ? +(sumPreG / sCount).toFixed(1) : avgPreVuln;
+  const d6Post = sCount > 0 ? +(sumPostG / sCount).toFixed(1) : avgPostVuln;
 
   const domainTransformations = [
     {
@@ -2962,9 +3015,9 @@ export function getPrePostComparisonAnalysis(individualRecord?: PostAppCertifica
 
   // Individual calculation
   const targetInd = individualRecord || certifications[0];
-  const indPre = targetInd?.preAppScore ?? 45;
-  const indPost = targetInd?.postAppScore ?? 85;
-  const indDelta = indPost - indPre;
+  const indPre = targetInd?.preAppScore ?? avgPreScore;
+  const indPost = targetInd?.postAppScore ?? avgPostScore;
+  const indDelta = +(indPost - indPre).toFixed(1);
   const indDeltaPct = +(((indPost - indPre) / Math.max(1, indPre)) * 100).toFixed(1);
 
   // Percentile calculation
@@ -2981,9 +3034,9 @@ export function getPrePostComparisonAnalysis(individualRecord?: PostAppCertifica
       deltaPercent: indDeltaPct,
       isCertified: targetInd?.isPassed ?? true,
       accuracyByDifficulty: {
-        easy: targetInd ? Math.min(100, Math.round(targetInd.scorePct * 1.1)) : 80,
-        medium: targetInd ? targetInd.scorePct : 70,
-        hard: targetInd ? Math.max(30, Math.round(targetInd.scorePct * 0.85)) : 60,
+        easy: targetInd ? targetInd.scorePct : 0,
+        medium: targetInd ? targetInd.scorePct : 0,
+        hard: targetInd ? targetInd.scorePct : 0,
       },
       percentileRank,
     },

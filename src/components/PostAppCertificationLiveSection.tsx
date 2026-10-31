@@ -62,15 +62,28 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
   const fetchCertifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/research/post-app-certifications');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.certifications) && data.certifications.length > 0) {
-          setCertifications(data.certifications);
-          return;
+      const clientList = getAllPostAppCertificationsClient();
+      try {
+        const res = await fetch('/api/research/post-app-certifications');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.certifications) && data.certifications.length > 0) {
+            const seen = new Set<string>();
+            const merged: PostAppCertificationRecord[] = [];
+            for (const item of [...clientList, ...data.certifications]) {
+              if (item && item.id && !seen.has(item.id)) {
+                seen.add(item.id);
+                merged.push(item);
+              }
+            }
+            setCertifications(merged);
+            return;
+          }
         }
+      } catch {
+        // Offline or static fallback
       }
-      setCertifications(getAllPostAppCertificationsClient());
+      setCertifications(clientList);
     } catch {
       setCertifications(getAllPostAppCertificationsClient());
     } finally {
@@ -104,10 +117,12 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
 
     window.addEventListener('visef_post_cert_updated', handleUpdate);
     window.addEventListener('visef_survey_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('visef_post_cert_updated', handleUpdate);
       window.removeEventListener('visef_survey_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
     };
   }, []);
 
@@ -133,12 +148,24 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
   const passedN = certifications.filter((c) => c.isPassed).length;
   const passRate = totalN > 0 ? +((passedN / totalN) * 100).toFixed(1) : 0;
   const avgPostScore =
-    totalN > 0 ? +(certifications.reduce((a, b) => a + b.postAppScore, 0) / totalN).toFixed(1) : 0;
+    totalN > 0
+      ? +(
+          certifications.reduce((a, b) => a + (Number(b.postAppScore) || 0), 0) / totalN
+        ).toFixed(1)
+      : 0;
   const avgPreScore =
-    totalN > 0 ? +(certifications.reduce((a, b) => a + b.preAppScore, 0) / totalN).toFixed(1) : 0;
+    totalN > 0
+      ? +(
+          certifications.reduce((a, b) => a + (Number(b.preAppScore) || 0), 0) / totalN
+        ).toFixed(1)
+      : 0;
   const avgDelta = +(avgPostScore - avgPreScore).toFixed(1);
   const avgCorrectCount =
-    totalN > 0 ? +(certifications.reduce((a, b) => a + b.correctAnswersCount, 0) / totalN).toFixed(1) : 0;
+    totalN > 0
+      ? +(
+          certifications.reduce((a, b) => a + (Number(b.correctAnswersCount) || 0), 0) / totalN
+        ).toFixed(1)
+      : 0;
 
   // Compute sector evaluation metrics for all 12 sectors strictly from real certification records
   const sectorEvaluationMatrix = useMemo(() => {
@@ -147,8 +174,14 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
       const count = secCerts.length;
       const passed = secCerts.filter((c) => c.isPassed).length;
       const secPassRate = count > 0 ? +((passed / count) * 100).toFixed(1) : passRate;
-      const secAvgPost = count > 0 ? +(secCerts.reduce((a, b) => a + b.postAppScore, 0) / count).toFixed(1) : avgPostScore;
-      const secAvgPre = count > 0 ? +(secCerts.reduce((a, b) => a + b.preAppScore, 0) / count).toFixed(1) : avgPreScore;
+      const secAvgPost =
+        count > 0
+          ? +(secCerts.reduce((a, b) => a + (Number(b.postAppScore) || 0), 0) / count).toFixed(1)
+          : avgPostScore;
+      const secAvgPre =
+        count > 0
+          ? +(secCerts.reduce((a, b) => a + (Number(b.preAppScore) || 0), 0) / count).toFixed(1)
+          : avgPreScore;
       const delta = +(secAvgPost - secAvgPre).toFixed(1);
 
       const isUserCertified = localCertifiedSectors.includes(sector.sectorNumber);
@@ -771,7 +804,20 @@ export const PostAppCertificationLiveSection: React.FC<PostAppCertificationLiveS
           sectorTitle={`Khu Vực ${selectedSectorForExam}: ${
             CAMPAIGN_SECTORS.find((s) => s.sectorNumber === selectedSectorForExam)?.title || 'Huấn Luyện Sát Hạch'
           }`}
-          preAppScore={45}
+          preAppScore={(() => {
+            if (typeof window !== 'undefined') {
+              try {
+                const raw = localStorage.getItem('visef_my_latest_survey');
+                if (raw) {
+                  const s = JSON.parse(raw);
+                  if (typeof s?.testOutcome?.preScore === 'number') return s.testOutcome.preScore;
+                }
+              } catch {
+                // ignore
+              }
+            }
+            return Math.round(avgPreScore || 45);
+          })()}
           onCertificateIssued={() => {
             fetchCertifications();
             try {

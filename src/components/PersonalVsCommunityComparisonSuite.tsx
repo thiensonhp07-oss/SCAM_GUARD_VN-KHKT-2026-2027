@@ -40,6 +40,8 @@ import {
   getCommunitySurveyAnalytics,
   recordSurveySubmission,
 } from '../services/researchDataService';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
+import { auth } from '../firebase';
 
 export interface ScamDnaVector {
   T: number; // Time Pressure (Áp lực thời gian)
@@ -224,7 +226,16 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
   // Anonymous Contribution Modal State
   const [showContributionModal, setShowContributionModal] = useState(false);
   const [contribGroup, setContribGroup] = useState<SurveyDemographicGroup>('STUDENT');
-  const [contribName, setContribName] = useState('');
+  const [contribName, setContribName] = useState(() => {
+    const session = getActiveSessionUser();
+    const rawLoggedInName =
+      session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+        ? session.name
+        : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+        ? session.profile.name
+        : auth.currentUser?.displayName || '';
+    return rawLoggedInName?.trim() || '';
+  });
   const [contribPreScore, setContribPreScore] = useState(55);
   const [contribPostScore, setContribPostScore] = useState(88);
   const [contribFeedback, setContribFeedback] = useState('');
@@ -268,6 +279,18 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
     }
   };
 
+  const [localPersonalSurvey, setLocalPersonalSurvey] = useState<CommunitySurveySubmission | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('visef_my_latest_survey');
+        if (raw) return JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
+
   useEffect(() => {
     fetchLiveSurveyData();
     const timer = setInterval(() => {
@@ -277,15 +300,25 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
     }, 15000);
 
     const handleRealtimeUpdate = () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('visef_my_latest_survey');
+          if (raw) setLocalPersonalSurvey(JSON.parse(raw));
+        } catch {
+          // ignore
+        }
+      }
       fetchLiveSurveyData();
     };
 
     window.addEventListener('visef_survey_updated', handleRealtimeUpdate);
+    window.addEventListener('visef_post_cert_updated', handleRealtimeUpdate);
     window.addEventListener('storage', handleRealtimeUpdate);
 
     return () => {
       clearInterval(timer);
       window.removeEventListener('visef_survey_updated', handleRealtimeUpdate);
+      window.removeEventListener('visef_post_cert_updated', handleRealtimeUpdate);
       window.removeEventListener('storage', handleRealtimeUpdate);
     };
   }, []);
@@ -299,10 +332,10 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
     if (selectedSurveyIndex !== 'CURRENT' && activeSurveys[selectedSurveyIndex]) {
       return activeSurveys[selectedSurveyIndex];
     }
-    return userSurvey || (activeSurveys.length > 0 ? activeSurveys[activeSurveys.length - 1] : null);
-  }, [selectedSurveyIndex, activeSurveys, userSurvey]);
+    return userSurvey || localPersonalSurvey || null;
+  }, [selectedSurveyIndex, activeSurveys, userSurvey, localPersonalSurvey]);
 
-  // Derive Personal Scam DNA & Scores accurately from actual test
+  // Derive Personal Scam DNA & Scores accurately from actual user survey & app training profile
   const personalCalculated = useMemo(() => {
     let preScore = userPreScore;
     let postScore = userPostScore;
@@ -313,13 +346,38 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
     if (inspectedSurvey) {
       isLiveSubmission = true;
       name = inspectedSurvey.participantName || name;
-      preScore = inspectedSurvey.testOutcome?.preScore ?? preScore ?? 55;
-      postScore = inspectedSurvey.testOutcome?.postScore ?? postScore ?? 88;
+      preScore = inspectedSurvey.testOutcome?.preScore ?? preScore ?? 50;
+      postScore = inspectedSurvey.testOutcome?.postScore ?? postScore ?? 85;
 
       if (inspectedSurvey.testOutcome?.scamDnaShift?.before) {
         dna = inspectedSurvey.testOutcome.scamDnaShift.before;
       } else if (inspectedSurvey.surveyResponses?.trapAnswers) {
         dna = computeScamDnaFromAnswers(inspectedSurvey.surveyResponses.trapAnswers);
+      }
+    } else if (typeof window !== 'undefined') {
+      try {
+        const activeUser = getActiveSessionUser();
+        if (activeUser?.name && activeUser.name !== 'Chưa đăng nhập' && activeUser.name !== 'Vệ Binh Khách') {
+          name = activeUser.name;
+        } else {
+          const rawAuth = localStorage.getItem('scamguard_auth_user');
+          if (rawAuth) {
+            const parsedAuth = JSON.parse(rawAuth);
+            if (parsedAuth?.name) name = parsedAuth.name;
+          }
+        }
+        const rawProfile = localStorage.getItem('scamguard_user_profile');
+        if (rawProfile) {
+          const parsedProf = JSON.parse(rawProfile);
+          if (parsedProf?.scamDna && !dna) {
+            dna = parsedProf.scamDna;
+          }
+          if ((parsedProf?.completedScenarios || 0) > 0 || (parsedProf?.completedLessons || 0) > 0) {
+            isLiveSubmission = true;
+          }
+        }
+      } catch {
+        // ignore
       }
     }
 
@@ -329,8 +387,8 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
 
     return {
       name,
-      preScore: preScore ?? 55,
-      postScore: postScore ?? 88,
+      preScore: preScore ?? 50,
+      postScore: postScore ?? 85,
       dna,
       isLiveSubmission,
     };
@@ -1450,20 +1508,58 @@ export const PersonalVsCommunityComparisonSuite: React.FC<PersonalVsCommunityCom
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { id: 'STUDENT', label: 'Học sinh & SV', icon: '🎓', avg: 49.2, note: 'Nhạy cảm với bẫy hoa hồng & tài chính' },
-              { id: 'OFFICE_WORKER', label: 'Văn phòng', icon: '💼', avg: 53.8, note: 'Dễ dính bẫy SMS brand & email giả' },
-              { id: 'ELDERLY', label: 'Người cao tuổi', icon: '👵', avg: 38.5, note: 'Rất dễ sập bẫy dọa công an & VNeID' },
-              { id: 'BUSINESS_OWNER', label: 'Shop online', icon: '🛍️', avg: 51.4, note: 'Dễ dính bẫy COD ảo & hóa đơn giả' },
-              { id: 'TEACHER_JUDGE', label: 'Giáo viên/GK', icon: '👨‍🏫', avg: 56.0, note: 'Cảnh giác cao với Deepfake AI' },
+              {
+                id: 'STUDENT',
+                label: 'Học sinh & SV',
+                icon: '🎓',
+                avg: activeAnalytics?.demographicBreakdown?.STUDENT?.avgPreScore ?? 49.2,
+                count: activeAnalytics?.demographicBreakdown?.STUDENT?.count ?? 0,
+                note: 'Nhạy cảm với bẫy hoa hồng & tài chính',
+              },
+              {
+                id: 'OFFICE_WORKER',
+                label: 'Văn phòng',
+                icon: '💼',
+                avg: activeAnalytics?.demographicBreakdown?.OFFICE_WORKER?.avgPreScore ?? 53.8,
+                count: activeAnalytics?.demographicBreakdown?.OFFICE_WORKER?.count ?? 0,
+                note: 'Dễ dính bẫy SMS brand & email giả',
+              },
+              {
+                id: 'ELDERLY',
+                label: 'Người cao tuổi',
+                icon: '👵',
+                avg: activeAnalytics?.demographicBreakdown?.ELDERLY?.avgPreScore ?? 38.5,
+                count: activeAnalytics?.demographicBreakdown?.ELDERLY?.count ?? 0,
+                note: 'Rất dễ sập bẫy dọa công an & VNeID',
+              },
+              {
+                id: 'BUSINESS_OWNER',
+                label: 'Shop online',
+                icon: '🛍️',
+                avg: activeAnalytics?.demographicBreakdown?.BUSINESS_OWNER?.avgPreScore ?? 51.4,
+                count: activeAnalytics?.demographicBreakdown?.BUSINESS_OWNER?.count ?? 0,
+                note: 'Dễ dính bẫy COD ảo & hóa đơn giả',
+              },
+              {
+                id: 'TEACHER_JUDGE',
+                label: 'Giáo viên/GK',
+                icon: '👨‍🏫',
+                avg: activeAnalytics?.demographicBreakdown?.TEACHER_JUDGE?.avgPreScore ?? 56.0,
+                count: activeAnalytics?.demographicBreakdown?.TEACHER_JUDGE?.count ?? 0,
+                note: 'Cảnh giác cao với Deepfake AI',
+              },
             ].map((group) => {
-              const diff = userAvgDefense - Math.round(group.avg);
+              const safeAvg = Number.isFinite(Number(group.avg)) ? Number(group.avg) : 50;
+              const diff = (Number.isFinite(userAvgDefense) ? userAvgDefense : 50) - Math.round(safeAvg);
               return (
                 <div key={group.id} className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{group.icon}</span>
                     <div>
                       <h5 className="font-bold text-white text-xs">{group.label}</h5>
-                      <span className="text-[10px] font-mono text-cyan-300">TB: {group.avg}đ</span>
+                      <span className="text-[10px] font-mono text-cyan-300">
+                        TB: {safeAvg}đ {group.count > 0 ? `(N=${group.count})` : ''}
+                      </span>
                     </div>
                   </div>
 

@@ -63,6 +63,7 @@ import {
   NonParametricTestResult,
   CorrelationMatrixItem,
   ConfigurableRiskWeights,
+  UserAccount,
 } from '../types';
 
 export type ResearchTabType =
@@ -321,11 +322,13 @@ interface StatisticalData {
 interface ResearchCenterViewProps {
   onNavigateToMainUI?: () => void;
   onOpenSurvey?: () => void;
+  currentUser?: UserAccount | null;
 }
 
 export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({
   onNavigateToMainUI,
   onOpenSurvey,
+  currentUser,
 }) => {
   const [activeTab, setActiveTab] = useState<ResearchTabType>('survey_analytics');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'SURVEY_EXHIBIT' | 'EXPERIMENT_STAT' | 'DATA_QC' | 'AI_BENCHMARK'>('ALL');
@@ -996,7 +999,10 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({
 
       {/* TAB SURVEY ANALYTICS: PRE VS POST COMMUNITY SURVEY CHARTS */}
       {activeTab === 'survey_analytics' && (
-        <ViSEFSurveyAnalyticsSuite onTakeLiveDemo={handleOpenUnifiedSurvey} />
+        <ViSEFSurveyAnalyticsSuite
+          onTakeLiveDemo={handleOpenUnifiedSurvey}
+          currentUser={currentUser}
+        />
       )}
 
       {/* TAB SURVEY LIVE TABLE: RAW PARTICIPANT RESPONSES & CSV EXPORT */}
@@ -2322,6 +2328,7 @@ export const ResearchCenterView: React.FC<ResearchCenterViewProps> = ({
       <NationalScienceFairDemoModal
         isOpen={isDemoModalOpen}
         onClose={() => setIsDemoModalOpen(false)}
+        currentUser={currentUser}
         onNavigateToResearch={() => setActiveTab('overview')}
         onNavigateToMainUI={() => {
           setIsDemoModalOpen(false);

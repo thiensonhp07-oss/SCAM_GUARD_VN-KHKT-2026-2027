@@ -30,7 +30,9 @@ import {
   Square,
 } from 'lucide-react';
 import { SurveyConfidenceHero } from './SurveyConfidenceHero';
-import { SurveyDemographicGroup } from '../types';
+import { SurveyDemographicGroup, UserAccount } from '../types';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
+import { auth } from '../firebase';
 
 export const VIETNAM_PROVINCES = [
   'TP. Hồ Chí Minh',
@@ -148,6 +150,7 @@ interface SurveyDemographicsSectionProps {
   experiencedSectors?: string[];
   onExperiencedSectorsChange?: (val: string[]) => void;
   idPrefix?: string;
+  currentUser?: UserAccount | null;
 }
 
 export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps> = ({
@@ -176,11 +179,43 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
   experiencedSectors = [],
   onExperiencedSectorsChange,
   idPrefix = 'survey',
+  currentUser,
 }) => {
+  // Lấy danh tính người dùng đã đăng nhập (Google, Facebook, etc. ví dụ: Hoàng Thiên Sơn)
+  const sessionAccount = currentUser || getActiveSessionUser();
+  const rawLoggedInName =
+    sessionAccount?.name && sessionAccount.name !== 'Chưa đăng nhập' && sessionAccount.name !== 'Vệ Binh Khách'
+      ? sessionAccount.name
+      : sessionAccount?.profile?.name && sessionAccount.profile.name !== 'Chưa đăng nhập'
+      ? sessionAccount.profile.name
+      : auth.currentUser?.displayName || null;
+
+  const loggedInName = rawLoggedInName?.trim() || null;
+  const isRealLoggedIn = Boolean(loggedInName && loggedInName.length > 0);
+  const providerLabel =
+    sessionAccount?.provider === 'google'
+      ? 'Google'
+      : (sessionAccount?.provider || 'Google').toUpperCase();
+
+  // Tự động nhận diện và áp tên Google (ví dụ: Hoàng Thiên Sơn) ngay khi vào mà không cần người dùng nhập gì
+  React.useEffect(() => {
+    if (isRealLoggedIn && loggedInName) {
+      const isPlaceholderOrEmpty =
+        !participantName ||
+        participantName.trim().length === 0 ||
+        participantName.startsWith('Khảo nghiệm viên Ẩn danh');
+      if (isPlaceholderOrEmpty) {
+        onParticipantNameChange(loggedInName);
+      }
+      if (isAnonymous && onIsAnonymousChange && isPlaceholderOrEmpty) {
+        onIsAnonymousChange(false);
+      }
+    }
+  }, [isRealLoggedIn, loggedInName]);
   // Track completion of each dimension
   const isStudentGroup = demographicGroup === 'STUDENT';
   const showSchoolSection = Boolean(onSchoolNameChange && isStudentGroup);
-  const isNameFilled = isAnonymous ? !!anonymousCode && anonymousCode.trim().length > 0 : participantName.trim().length > 0;
+  const isNameFilled = participantName.trim().length > 0 && !participantName.startsWith('Khảo nghiệm viên Ẩn danh');
   const isSchoolFilled = !showSchoolSection || (!!schoolName && schoolName.trim().length > 0);
   const isClassFilled = !showSchoolSection || !onClassNameChange || (!!className && className.trim().length > 0);
   const isConsentFilled = !onConsentAgreedChange || consentAgreed === true;
@@ -270,7 +305,7 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
                 : 'bg-rose-950/40 border-rose-500/50 text-rose-300 animate-pulse'
             }`}
           >
-            <span>{isAnonymous ? '1. Tên Ẩn Danh' : '1. Họ Tên Thật'}</span>
+            <span>1. Họ và Tên</span>
             {isNameFilled ? <Check className="w-3 h-3 text-emerald-400" /> : <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />}
           </button>
 
@@ -355,7 +390,7 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
       </div>
 
       {/* ========================================================================= */}
-      {/* KÍCH THƯỚC 1: ĐỊNH DANH NGƯỜI THAM GIA & CHẾ ĐỘ TÊN ẨN DANH */}
+      {/* KÍCH THƯỚC 1: HỌ VÀ TÊN NGƯỜI THAM GIA KHẢO NGHIỆM */}
       {/* ========================================================================= */}
       <div
         id={`${idPrefix}-dim-1`}
@@ -372,139 +407,90 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
             </div>
             <div>
               <label className="text-white font-black text-xs sm:text-sm md:text-base flex items-center gap-1.5 sm:gap-2">
-                <span>Định danh Khảo nghiệm & Chế độ Ẩn danh</span>
+                <span>Họ và Tên Người Tham Gia Khảo Nghiệm</span>
                 <span className="text-rose-400 font-bold">*</span>
               </label>
-              <span className="text-[10px] sm:text-[11px] text-slate-400">Kích thước 1: Chuẩn hóa dữ liệu theo chuẩn đạo đức nghiên cứu ViSEF / IRB</span>
+              <span className="text-[10px] sm:text-[11px] text-slate-400">Kích thước 1: Chuẩn hóa dữ liệu định danh nghiên cứu khoa học ViSEF 2026</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {isAnonymous ? (
-              <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
-                <Lock className="w-3 h-3 text-cyan-400" />
-                Chế độ Ẩn danh BẬT
-              </span>
-            ) : (
-              <span className="px-2.5 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
-                <User className="w-3 h-3 text-purple-400" />
-                Tên thật đích danh
+            <span className="px-2.5 py-1 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
+              <User className="w-3 h-3 text-purple-400" />
+              Tên thật chính thức
+            </span>
+            {isRealLoggedIn && (
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-400" />
+                Đã đồng bộ {providerLabel}
               </span>
             )}
           </div>
         </div>
 
-        {/* ANONYMOUS VS REAL NAME MODE SWITCHER */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-          <div
-            onClick={() => {
-              if (onIsAnonymousChange) onIsAnonymousChange(true);
-              if (onParticipantNameChange) onParticipantNameChange(anonymousCode || 'Khảo nghiệm viên Ẩn danh #VN-8421');
-            }}
-            className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border cursor-pointer transition-all flex items-start gap-3 select-none active:scale-[0.99] ${
-              isAnonymous
-                ? 'bg-gradient-to-br from-cyan-950/60 to-purple-950/40 border-cyan-500/80 ring-2 ring-cyan-500/30 shadow-lg shadow-cyan-950/40'
-                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-75'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isAnonymous ? 'bg-cyan-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'}`}>
-              <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className={`text-xs sm:text-sm font-black ${isAnonymous ? 'text-cyan-200' : 'text-slate-200'}`}>
-                  🔒 Chế độ Ẩn danh (Khuyến nghị ViSEF)
-                </span>
-                {isAnonymous && <Check className="w-4 h-4 text-cyan-400" />}
+        {/* AUTO-SYNC GOOGLE / AUTH BANNER */}
+        {isRealLoggedIn && loggedInName && (
+          <div className="p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-cyan-950/60 border border-emerald-500/40 text-emerald-200 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center shrink-0 text-emerald-300 shadow-sm">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 leading-relaxed">
-                Hệ thống tự động sinh mã định danh hash an toàn. Không lưu vết danh tính cá nhân.
-              </p>
-            </div>
-          </div>
-
-          <div
-            onClick={() => {
-              if (onIsAnonymousChange) onIsAnonymousChange(false);
-              if (onParticipantNameChange && isAnonymous && anonymousCode.startsWith('Khảo nghiệm viên Ẩn danh')) {
-                onParticipantNameChange('');
-              }
-            }}
-            className={`p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border cursor-pointer transition-all flex items-start gap-3 select-none active:scale-[0.99] ${
-              !isAnonymous
-                ? 'bg-gradient-to-br from-purple-950/60 to-indigo-950/40 border-purple-500/80 ring-2 ring-purple-500/30 shadow-lg shadow-purple-950/40'
-                : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 opacity-75'
-            }`}
-          >
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${!isAnonymous ? 'bg-purple-500 text-white font-black' : 'bg-slate-800 text-slate-400'}`}>
-              <User className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className={`text-xs sm:text-sm font-black ${!isAnonymous ? 'text-purple-200' : 'text-slate-200'}`}>
-                  👤 Nhập Họ và Tên thật
-                </span>
-                {!isAnonymous && <Check className="w-4 h-4 text-purple-400" />}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold text-white">
+                    Tự động nhận diện từ tài khoản {providerLabel}:
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-lg border border-emerald-500/50 font-sans shadow-sm">
+                    {loggedInName}
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-[11px] text-emerald-300/80 mt-0.5">
+                  Hệ thống đã tự động áp dụng tên này vào phiếu khảo sát & cấp chứng chỉ. <strong className="text-emerald-200 font-semibold">Bạn không cần phải nhập gì cả!</strong>
+                </p>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 leading-relaxed">
-                Nhập họ tên đầy đủ để nhận giấy chứng nhận kết quả đối chiếu năng lực an toàn số.
-              </p>
             </div>
-          </div>
-        </div>
-
-        {/* INPUT FIELD ACCORDING TO ANONYMOUS / REAL NAME */}
-        {isAnonymous ? (
-          <div className="p-4 bg-slate-950 rounded-2xl border border-cyan-500/30 space-y-3 shadow-inner">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                <EyeOff className="w-4 h-4 text-cyan-400" />
-                Mã định danh ẩn danh của bạn (Được mã hóa tự động):
+            {participantName === loggedInName && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40 shrink-0">
+                <Check className="w-3 h-3" /> Đã áp dụng
               </span>
+            )}
+          </div>
+        )}
+
+        {/* INPUT FIELD */}
+        <div className="space-y-3">
+          <div className="relative">
+            <User className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              required
+              placeholder="Nhập họ và tên đầy đủ: ví dụ Nguyễn Văn An, Trần Thu Hà..."
+              value={participantName}
+              onChange={(e) => onParticipantNameChange(e.target.value)}
+              className="w-full pl-10 sm:pl-12 pr-32 py-3 sm:py-3.5 bg-slate-950 border border-slate-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm transition font-medium"
+            />
+            {isRealLoggedIn && loggedInName && (
               <button
                 type="button"
-                onClick={generateNewAnonCode}
-                className="px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95"
+                onClick={() => onParticipantNameChange(loggedInName)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
+                title={`Dùng tên tài khoản ${providerLabel}`}
               >
-                <RefreshCw className="w-3 h-3" />
-                <span>Đổi mã mới</span>
+                <Check className="w-3 h-3 text-emerald-400" />
+                <span>Tên {providerLabel}</span>
               </button>
-            </div>
-
-            <div className="relative">
-              <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={anonymousCode}
-                onChange={(e) => {
-                  if (onAnonymousCodeChange) onAnonymousCodeChange(e.target.value);
-                  if (onParticipantNameChange) onParticipantNameChange(e.target.value);
-                }}
-                placeholder="Mã ẩn danh, ví dụ: Khảo nghiệm viên Ẩn danh #VN-8421..."
-                className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-3.5 bg-slate-900 border border-cyan-500/40 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/30 text-cyan-100 font-mono font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm transition"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span>Dữ liệu họ tên của bạn được bảo mật tuyệt đối theo tiêu chuẩn đạo đức nghiên cứu học sinh ViSEF.</span>
-            </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="relative">
-              <User className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                required
-                placeholder="Nhập họ và tên đầy đủ: ví dụ Nguyễn Văn An, Trần Thu Hà..."
-                value={participantName}
-                onChange={(e) => onParticipantNameChange(e.target.value)}
-                className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-3.5 bg-slate-950 border border-slate-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 text-white rounded-xl sm:rounded-2xl text-xs sm:text-sm transition font-medium"
-              />
-            </div>
 
-            {/* Quick Suggestion Chips for demo testing */}
+          {isRealLoggedIn && loggedInName ? (
+            <div className="flex items-center gap-2 text-[11px] text-emerald-400/90 bg-emerald-950/30 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>
+                Đã tự động điền họ tên từ tài khoản <strong>{providerLabel}</strong> ({loggedInName}). Bạn không cần nhập gì, chỉ cần làm tiếp các câu hỏi bên dưới.
+              </span>
+            </div>
+          ) : (
+            /* Quick Suggestion Chips for demo testing if unauthenticated */
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5 text-xs">
               <span className="text-[10px] sm:text-[11px] text-slate-400 font-mono">Gợi ý tên nhanh:</span>
               {['Nguyễn Văn An', 'Trần Thị Mai', 'Lê Hoàng Long', 'Phạm Minh Tuấn', 'Vũ Thị Hương'].map((name) => (
@@ -518,8 +504,13 @@ export const SurveyDemographicsSection: React.FC<SurveyDemographicsSectionProps>
                 </button>
               ))}
             </div>
+          )}
+
+          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span>Họ và tên của bạn được dùng để cấp Giấy chứng nhận kết quả đối chiếu năng lực an toàn số ViSEF.</span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ========================================================================= */}

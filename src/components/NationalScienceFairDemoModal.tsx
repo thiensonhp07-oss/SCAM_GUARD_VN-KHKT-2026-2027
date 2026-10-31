@@ -42,6 +42,9 @@ import confetti from 'canvas-confetti';
 import { PersonalVsCommunityComparisonSuite } from './PersonalVsCommunityComparisonSuite';
 import { SurveyDemographicsSection } from './SurveyDemographicsSection';
 import { recordSurveySubmission } from '../services/researchDataService';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
+import { auth } from '../firebase';
+import { UserAccount } from '../types';
 import mascotShield from '../assets/images/mascot_shield_transparent.png';
 
 interface NationalScienceFairDemoModalProps {
@@ -49,6 +52,7 @@ interface NationalScienceFairDemoModalProps {
   onClose: () => void;
   onNavigateToResearch?: () => void;
   onNavigateToMainUI?: () => void;
+  currentUser?: UserAccount | null;
 }
 
 const VIETNAM_PROVINCES = [
@@ -484,6 +488,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
   onClose,
   onNavigateToResearch,
   onNavigateToMainUI,
+  currentUser,
 }) => {
   const [surveyStep, setSurveyStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -521,55 +526,92 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
   };
 
   // 13 Full Survey Questions State (5 Demographics + 12 Sectors: Part 1 Experience & Part 2 Scenarios)
-  const [surveyForm, setSurveyForm] = useState({
-    // Q1: Name & Anonymous Mode
-    participantName: 'Khảo nghiệm viên Ẩn danh #VN-8421',
-    isAnonymous: true,
-    anonymousCode: 'Khảo nghiệm viên Ẩn danh #VN-8421',
-    schoolName: 'THPT Nguyễn Khuyến',
-    className: '10A1',
-    consentAgreed: true,
-    // Q2: Demographic
-    demographicGroup: 'STUDENT',
-    // Q3: Location
-    location: 'TP. Hồ Chí Minh',
-    // Q4: Past Experience
-    pastLossOrNearMiss: 'SPOTTED_IN_TIME',
-    experiencedSectors: [] as string[],
-    // Q5: Pre-Confidence Score (10-100)
-    preConfidenceScore: 50,
-    // PHẦN 1: Khảo Sát Kinh Nghiệm Thực Tế (12 Khu Vực) - Khởi tạo rỗng để người tham gia tự chọn
-    experienceAnswers: {
-      q1: '',
-      q2: '',
-      q3: '',
-      q4: '',
-      q5: '',
-      q6: '',
-      q7: '',
-      q8: '',
-      q9: '',
-      q10: '',
-      q11: '',
-      q12: '',
-    },
-    // PHẦN 2: 12 Bài Tập Tình Huống Ứng Biến (A - F) - Khởi tạo rỗng để người tham gia tự chọn
-    trapAnswers: {
-      q1: '',
-      q2: '',
-      q3: '',
-      q4: '',
-      q5: '',
-      q6: '',
-      q7: '',
-      q8: '',
-      q9: '',
-      q10: '',
-      q11: '',
-      q12: '',
-    },
-    feedbackNote: '',
+  const [surveyForm, setSurveyForm] = useState(() => {
+    const session = currentUser || getActiveSessionUser();
+    const rawLoggedInName =
+      session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+        ? session.name
+        : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+        ? session.profile.name
+        : auth.currentUser?.displayName || '';
+    const initialRealName = rawLoggedInName?.trim() || '';
+    const hasRealUser = Boolean(initialRealName.length > 0);
+
+    return {
+      // Q1: Name & Anonymous Mode
+      participantName: hasRealUser ? initialRealName : 'Khảo nghiệm viên Ẩn danh #VN-8421',
+      isAnonymous: !hasRealUser,
+      anonymousCode: 'Khảo nghiệm viên Ẩn danh #VN-8421',
+      schoolName: 'THPT Nguyễn Khuyến',
+      className: '10A1',
+      consentAgreed: true,
+      // Q2: Demographic
+      demographicGroup: 'STUDENT',
+      // Q3: Location
+      location: 'TP. Hồ Chí Minh',
+      // Q4: Past Experience
+      pastLossOrNearMiss: 'SPOTTED_IN_TIME',
+      experiencedSectors: [] as string[],
+      // Q5: Pre-Confidence Score (10-100)
+      preConfidenceScore: 50,
+      // PHẦN 1: Khảo Sát Kinh Nghiệm Thực Tế (12 Khu Vực) - Khởi tạo rỗng để người tham gia tự chọn
+      experienceAnswers: {
+        q1: '',
+        q2: '',
+        q3: '',
+        q4: '',
+        q5: '',
+        q6: '',
+        q7: '',
+        q8: '',
+        q9: '',
+        q10: '',
+        q11: '',
+        q12: '',
+      },
+      // PHẦN 2: 12 Bài Tập Tình Huống Ứng Biến (A - F) - Khởi tạo rỗng để người tham gia tự chọn
+      trapAnswers: {
+        q1: '',
+        q2: '',
+        q3: '',
+        q4: '',
+        q5: '',
+        q6: '',
+        q7: '',
+        q8: '',
+        q9: '',
+        q10: '',
+        q11: '',
+        q12: '',
+      },
+    };
   });
+
+  // Tự động đồng bộ và áp dụng tên đăng nhập (Google "Hoàng Thiên Sơn") ngay khi mở modal
+  useEffect(() => {
+    if (isOpen) {
+      const session = currentUser || getActiveSessionUser();
+      const rawLoggedInName =
+        session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+          ? session.name
+          : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+          ? session.profile.name
+          : auth.currentUser?.displayName || '';
+      const realName = rawLoggedInName?.trim() || '';
+      if (realName.length > 0) {
+        setSurveyForm((prev) => {
+          if (prev.isAnonymous || !prev.participantName || prev.participantName.startsWith('Khảo nghiệm viên Ẩn danh')) {
+            return {
+              ...prev,
+              participantName: realName,
+              isAnonymous: false,
+            };
+          }
+          return prev;
+        });
+      }
+    }
+  }, [isOpen, currentUser]);
 
   const totalTrapsCount = SCENARIO_QUESTIONS.length;
   const answeredExpCount = Object.values(surveyForm.experienceAnswers).filter(Boolean).length;
@@ -659,9 +701,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
       const preScore = Math.round((safeCount / totalTrapsCount) * 100);
       const postScore = Math.min(100, Math.max(88, Math.round(preScore + 48 + Math.random() * 6)));
 
-      const displayName = surveyForm.isAnonymous
-        ? (surveyForm.anonymousCode?.trim() || 'Khảo nghiệm viên Ẩn danh')
-        : (surveyForm.participantName?.trim() || 'Khảo nghiệm viên ViSEF 2026');
+      const displayName = surveyForm.participantName?.trim() || 'Khảo nghiệm viên ViSEF 2026';
 
       // Danh sách các khu vực từng tiếp xúc thực tế (chọn khác 'A_NEVER')
       const derivedExperiencedSectors = Object.entries(surveyForm.experienceAnswers)
@@ -677,8 +717,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
 
       const payload = {
         participantName: displayName,
-        isAnonymous: surveyForm.isAnonymous,
-        anonymousCode: surveyForm.anonymousCode,
+        isAnonymous: false,
         schoolName: effectiveSchoolName,
         className: effectiveClassName,
         consentAgreed: surveyForm.consentAgreed,
@@ -831,9 +870,20 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
     setSubmittedResult(null);
     setValidationWarning(null);
     setSurveyStep(1);
+
+    const session = currentUser || getActiveSessionUser();
+    const rawLoggedInName =
+      session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+        ? session.name
+        : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+        ? session.profile.name
+        : auth.currentUser?.displayName || '';
+    const initialRealName = rawLoggedInName?.trim() || '';
+    const hasRealUser = Boolean(initialRealName.length > 0);
+
     setSurveyForm({
-      participantName: '',
-      isAnonymous: true,
+      participantName: hasRealUser ? initialRealName : '',
+      isAnonymous: !hasRealUser,
       anonymousCode: 'Khảo nghiệm viên Ẩn danh #VN-8421',
       schoolName: 'THPT Nguyễn Khuyến',
       className: '10A1',
@@ -1237,16 +1287,15 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                       preConfidenceScore={surveyForm.preConfidenceScore}
                       onPreConfidenceScoreChange={(val) => setSurveyForm((prev) => ({ ...prev, preConfidenceScore: val }))}
                       idPrefix="modal-survey"
+                      currentUser={currentUser}
                     />
 
                     {/* Step 1 Next Button */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 sm:pt-4">
                       <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                        <User className="w-3.5 h-3.5 text-purple-400" />
                         <span>
-                          {surveyForm.isAnonymous
-                            ? `Chế độ Ẩn danh: ${surveyForm.anonymousCode || 'Mã ngẫu nhiên'}`
-                            : `Đích danh: ${surveyForm.participantName || 'Chưa nhập'}`}
+                          Họ và tên: <strong className="text-white">{surveyForm.participantName || 'Chưa nhập'}</strong>
                           {surveyForm.demographicGroup === 'STUDENT'
                             ? ` • ${surveyForm.schoolName || 'Chưa chọn trường'}`
                             : ''}
@@ -1256,7 +1305,7 @@ export const NationalScienceFairDemoModal: React.FC<NationalScienceFairDemoModal
                       <button
                         type="button"
                         disabled={
-                          (surveyForm.isAnonymous ? !surveyForm.anonymousCode?.trim() : !surveyForm.participantName?.trim()) ||
+                          !surveyForm.participantName?.trim() ||
                           (surveyForm.demographicGroup === 'STUDENT' &&
                             (!surveyForm.schoolName?.trim() || !surveyForm.className?.trim())) ||
                           !surveyForm.consentAgreed

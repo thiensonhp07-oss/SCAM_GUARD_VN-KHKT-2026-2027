@@ -23,7 +23,8 @@ import { getQuestionsForSector, CertificationQuestion } from '../data/certificat
 import { CAMPAIGN_SECTORS } from '../data/campaignData';
 import { PostAppCertificationRecord } from '../types';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
+import { getActiveSessionUser } from '../services/firebaseAuthService';
 
 interface SectorTopic1CertificationModalProps {
   isOpen: boolean;
@@ -165,11 +166,19 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
       const timeSpentSec = Math.round((Date.now() - startTime) / 1000);
       const certCode = `VISEF-CERT-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
 
-      // Participant info from localStorage if present
+      // Participant info: check active logged in session account first (Google "Hoàng Thiên Sơn")
+      const session = getActiveSessionUser();
+      const realLoggedInName =
+        session?.name && session.name !== 'Chưa đăng nhập' && session.name !== 'Vệ Binh Khách'
+          ? session.name
+          : session?.profile?.name && session.profile.name !== 'Chưa đăng nhập'
+          ? session.profile.name
+          : auth.currentUser?.displayName || null;
+
       const savedUserStr = localStorage.getItem('scamguard_auth_user');
-      let pName = 'Học viên ViSEF 2026';
-      let anonCode = `HV-${Math.floor(1000 + Math.random() * 9000)}`;
-      let demoGroup = 'STUDENT';
+      let pName = realLoggedInName || 'Học viên ViSEF 2026';
+      let anonCode = session?.id ? `HV-${session.id.slice(-4).toUpperCase()}` : `HV-${Math.floor(1000 + Math.random() * 9000)}`;
+      let demoGroup = session?.profile?.mode === 'teen' || session?.profile?.mode === 'school' ? 'STUDENT' : 'STUDENT';
       let effectivePreScore = preAppScore;
 
       // Check if user completed 5-minute pre-survey
@@ -178,14 +187,15 @@ export const SectorTopic1CertificationModal: React.FC<SectorTopic1CertificationM
         if (surveyRecord) {
           const s = JSON.parse(surveyRecord);
           if (s.calculatedScore) effectivePreScore = s.calculatedScore;
-          if (s.participantName) pName = s.participantName;
+          if (s.participantName && !realLoggedInName) pName = s.participantName;
           if (s.demographicGroup) demoGroup = s.demographicGroup;
+          if (s.anonymousCode) anonCode = s.anonymousCode;
         }
       } catch (e) {
         // ignore
       }
 
-      if (savedUserStr) {
+      if (savedUserStr && !realLoggedInName) {
         try {
           const u = JSON.parse(savedUserStr);
           if (u.name) pName = u.name;
